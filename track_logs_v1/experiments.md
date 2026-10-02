@@ -14,6 +14,7 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 | 013 | 2026-10-02 | pc | `ov_ref002` = + re-init + iteration-bounded init | 0.300 / 0.281 | 0.736 / 1.078 | 4.46 / 3.59 | reference; identical to ov_ref001 numbers |
 | 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7 (init luck, see 016) |
 | 016 | 2026-10-02 | pc | `ov_ref003` = ov_ref002 + 400 features | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | **reference**; R_11 2.62 / 1.58 m, score 41.3 / 59.6: init-dominated |
+| 022 | 2026-10-02 | pc | ov_ref003 on all 12 controlled sequences (k=0) | mean 3.75 m vs open baseline 3.65 m | | | better on 6/12; losses R_06, R_07, R_10, R_11 (bad first minute) |
 | discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
@@ -22,6 +23,53 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 |---|---|---|---|---|---|---|---|
 | 003 | `ov_ref001` | R_11_5cp (477 s, 5 CPs, 1627 pGT keyframes) | 58.9 | 40.0 | 100.0 | 35.8 | 1.36 (1.04 / 1.62 / 1.85) |
 | 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 80.0 / 80.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
+| 016 | `ov_ref003`, k=0 / k=100 | R_11_5cp | 41.3 / 59.6 | - | 100 / 100 | 3.4 / 27.9 | 2.62 / 1.58 |
+| 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
+
+## 022: reference on the whole controlled set (2026-10-02, pc, commit 6d6abc8)
+
+**Hypothesis**: the reference (`ov_ref003`) should be at open-baseline level across all controlled sequences, not only the four used so far; and the per-sequence pattern tells where the losses are.
+
+**Change**: none; `ov_ref003`, start offset 0, single run per sequence (R_13 still running when this was written). Paper Table 2 values for comparison (stereo+IMU rows).
+
+**Result** (ATE m sim3; sim3 scale in brackets for ours):
+
+| Sequence | ours ov_ref003 | OpenVINS (paper) | OpenVINS+Maplab (paper, leaderboard open baseline) | OKVIS2 (paper) |
+|---|---|---|---|---|
+| R_01_easy | 0.254 (0.983) | 0.66 | 0.65 | 0.02 |
+| R_02_easy | 0.605 (0.908) | 2.36 | 2.30 | 0.72 |
+| R_03_easy | 0.287 (0.973) | 0.68 | 0.68 | 0.03 |
+| R_04_medium | 0.716 (0.962) | 0.94 | 1.05 | 1.36 |
+| R_05_medium | 1.347 (0.991) | 1.43 | 1.22 | 0.80 |
+| R_06_medium | 6.155 (0.998) | 1.35 | 1.19 | 3.78 |
+| R_07_medium | 3.896 (0.980) | 2.96 | 2.01 | fail |
+| R_08_hard | 2.93 (0.973) | 4.25 | 3.97 | 6.81 |
+| R_09_hard | 4.977 (0.983) | 4.31 | 4.29 | 5.32 |
+| R_10_hard | 12.893 (0.972) | 8.01 | 8.22 | 7.06 |
+| R_11_5cp | 2.62 (0.971) | 1.04 | 1.62 | 1.85 |
+| R_12_10cp | 8.296 (0.953) | 18.72 | 16.59 | 16.55 |
+| mean of these 12 | 3.75 | 3.89 | 3.65 | - |
+
+R_12_10cp leaderboard-style metrics: score 2D 15.9, pose recall @ 5 m 30.3 %, @ 1 m 7.0 % (1012 s sequence). Runtime under load (9 to 16 concurrent runs): R_10 (934 s) took 1358 s wall, i.e. slower than realtime when sharing the machine; at idle the reference runs about 2x realtime.
+
+**Where the error is**: aligning each trajectory only on t > 80 s, the remainder is 1.6 (R_06), 2.9 (R_07), 2.5 (R_08), 0.6 (R_04) m RMSE while the first 20 to 40 s are 8 to 19 m off. The first minute after initialisation (biases and velocity still converging, no smoothing) dominates the ATE of every medium and hard sequence; the losses against the open baseline are exactly those sequences.
+
+**Decision**: the reference is at open-baseline level on the controlled set (mean 3.75 vs 3.65 m, better on 6 of 12). The next lever is the initial segment: experiment 023 (bidirectional pass, non-causal, benchmark-only) and later a causal improvement of the initialiser. Also to note: R_02's scale 0.908 and R_12's 0.953 are the worst scale cases; R_12 at 1012 s is the first sequence where pose recall @ 5 m is far from 100 %.
+
+## 017: focal length x0.965, stereo-side scale probe (2026-10-02, pc, commit 6d6abc8)
+
+**Hypothesis**: if the undistorted pinhole focal length in the calibration were 3.5 % larger than the true focal of the images, stereo depth and hence the trajectory would be 3.5 % too large; scaling both focal lengths by 0.965 would then bring the sim3 scale to 1.
+
+**Change**: `FOCAL_SCALE=0.965` (`configs/explore-017/focal0965`) from `ov_ref002`.
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference ov_ref002 | 0.300 (0.982) | 0.281 (0.979) | 0.736 (0.962) | 1.078 (0.952) | 4.46 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | 2.84 (0.964), 38.9 / 0.2 |
+| focal x0.965 | 0.901 (1.016) | 0.856 (1.018) | 2.07 (1.071) | 2.71 (1.065) | 5.56 (1.109) | 12.03 (1.170) | 1.67 (1.068), 56.6 / 28.5 | 46.0 diverged |
+
+**Decision**: discard. The scale overshoots to 1.02 to 1.17 and accuracy collapses: the calibration focal is right, and the filter is far more sensitive to the focal than a 3.5 % stereo-scale error would imply. Closes the stereo side of the scale investigation; the accelerometer model (011, 015) remains the only consistent explanation.
 
 ## 016: ov_ref003 = ov_ref002 + 400 features, validation (2026-10-02, pc, commit d06be7f)
 

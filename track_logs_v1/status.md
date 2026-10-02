@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-10-02 18:51 IST. Edit in place; this is the "where are we now" page.
+Last updated: 2026-10-02 19:31 IST. Edit in place; this is the "where are we now" page.
 
 ## Host
 
@@ -18,21 +18,22 @@ This PC (16 cores, 15 GB RAM, Quadro P620). A100 and Jetson Nano not started.
 | `scripts/` | `prepare_runner_input.py`, `make_openvins_config.py`, `tum_to_submission.py`, `evaluate.py`, `run_sequence.sh`, `summarize_experiment.py` |
 | `configs/ov_ref001` | **current reference** (dynamic init, time offset fixed, noise densities x10) |
 | `configs/ov_baseline`, `configs/explore-001/` | experiment 001 first attempt and its bring-up variants |
-| GitHub | `git@github.com:sudhirpratapyadav/lamaria-slam.git`, last push a09458c (experiments 001-007, re-init runner) |
-| `data/training/*` | full training set downloading one sequence at a time (`results/fetch_all.log`); R_01, R_04, R_08, R_11_5cp ready |
+| GitHub | `git@github.com:sudhirpratapyadav/lamaria-slam.git`, last push 6d6abc8 (experiments 001-016) |
+| `data/training/*` | 12 of 13 controlled-set sequences ready, R_13 downloading, then the 10 additional-set sequences (`results/fetch_all.log`) |
 
 ## Numbers (ATE RMSE after sim3, official evaluator, single deterministic runs)
 
-| Config | R_01_easy | R_04_medium | R_08_hard |
-|---|---|---|---|
-| ov_ref001 (reference) | 0.301 m | 0.739 m | 4.49 m |
-| ov_baseline (datasheet noise, dt calib on) | 0.169 m | diverged (41.7 m) | 10.59 m |
+| Config | R_01_easy | R_04_medium | R_08_hard | R_11_5cp (ATE; score 2D / recall@1m) |
+|---|---|---|---|---|
+| ov_ref003 (reference), start 0 / 100 | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | 2.62 / 1.58; 41.3 / 59.6 score, 3 / 28 % recall@1m |
+| ov_ref001 (first reference) | 0.301 / 0.281 | 0.739 / 1.078 | 4.49 / 3.59 | 1.36 / 2.84; 58.9 / 38.9 score |
+| ov_baseline (datasheet noise, dt calib on) | 0.169 | diverged (41.7) | 10.59 | - |
 
 Against the published stereo+IMU baselines on the same sequences and metric (paper Table 2, see `docs/benchmark_notes.md`):
 
 | Method | R_01_easy | R_04_medium | R_08_hard |
 |---|---|---|---|
-| ours, ov_ref001 (start 0) | 0.301 | 0.739 | 4.49 |
+| ours, ov_ref003 (start 0 / 100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 |
 | ours, ov_ref001, 6 start offsets: mean (min-max) | 0.25 (0.17-0.34) | 0.90 (0.74-1.08) | 4.85 (3.3-7.4) |
 | OpenVINS (paper) | 0.66 | 0.94 | 4.25 |
 | OpenVINS + Maplab (paper, open baseline on the leaderboard) | 0.65 | 1.05 | 3.97 |
@@ -40,7 +41,7 @@ Against the published stereo+IMU baselines on the same sequences and metric (pap
 
 So on these three we are at open-baseline level: ahead on the easy and medium sequence, slightly behind on the hard one.
 
-Leaderboard main-set metrics, computed locally (R_11_5cp, ov_ref001, single run): score 2D 58.9, CP recall @ 1 m 40 %, pose recall @ 5 m 100 %, pose recall @ 1 m 36 %, ATE 1.36 m (paper OpenVINS 1.04, OV+Maplab 1.62). More control-point sequences (R_12, R_13, additional set) are downloading. Cost: 2 to 2.4x faster than realtime, ~1.2 cores, under 140 MB RAM.
+Leaderboard main-set metrics, computed locally on R_11_5cp: best run so far score 2D 69.7, CP recall @ 1 m 80 %, pose recall @ 5 m 100 %, pose recall @ 1 m 78 % (012, 400 features, lucky init); with the reproducible initialiser (ov_ref003) 41 to 60 score, 3 to 28 % recall @ 1 m. R_11 is initialisation-dominated. R_12 downloaded, R_13 downloading. Cost: 2 to 2.4x faster than realtime, ~1.2 cores, under 140 MB RAM.
 
 ## What we learned today
 
