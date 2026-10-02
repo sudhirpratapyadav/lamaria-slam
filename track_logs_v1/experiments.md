@@ -15,6 +15,7 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 | 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7 (init luck, see 016) |
 | 016 | 2026-10-02 | pc | `ov_ref003` = ov_ref002 + 400 features | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | **reference**; R_11 2.62 / 1.58 m, score 41.3 / 59.6: init-dominated |
 | 022 | 2026-10-02 | pc | ov_ref003 on all 13 controlled sequences (k=0) | mean 3.73 m vs open baseline 4.01 m (paper) | | | better on 7/13 incl. R_12, R_13; losses R_06, R_07, R_10, R_11 |
+| 026 | 2026-10-02 | pc | `ov_ref004` = ov_ref003 + CLAHE, 2 offsets x 13 sequences | mean 3.23 m (ref003: 3.59 m) | | | **reference**; R_06/R_08/R_11 gain 1.2 to 2.0 m |
 | discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
@@ -26,6 +27,50 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | 016 | `ov_ref003`, k=0 / k=100 | R_11_5cp | 41.3 / 59.6 | - | 100 / 100 | 3.4 / 27.9 | 2.62 / 1.58 |
 | 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
 | 022 | `ov_ref003`, k=0 | R_13_15cp (1404 s, 15 CPs) | 39.1 | - | 92.5 | 10.1 | 3.55 (10.35 / 8.37 / 6.65) |
+
+## 026: ov_ref003 vs ov_ref004 at two start offsets on all 13 controlled sequences (2026-10-02, pc, commit b88fdf7)
+
+**Hypothesis**: the CLAHE decision (024 was 6 better / 7 worse on single runs) needs a second start offset per sequence to separate the effect from initialisation luck.
+
+**Change**: none; start offset 100 for both configs on all 13 (ov_ref004 k=0 runs from 024 reused; R_01 ov_ref004 k=0 replaced by its 1 s grace rerun, 0.191, since the 024 value 1.434 was the 3 s grace artefact).
+
+**Result** (ATE m sim3):
+
+| Seq | ref003 k=0 | ref003 k=100 | ref004 k=0 | ref004 k=100 | per-seq mean ref003 | per-seq mean ref004 |
+|---|---|---|---|---|---|---|
+| R_01 | 0.254 | 0.239 | 0.191 | 0.195 | 0.25 | 0.19 |
+| R_02 | 0.605 | 0.643 | 0.693 | 0.925 | 0.62 | 0.81 |
+| R_03 | 0.287 | 0.169 | 0.223 | 0.184 | 0.23 | 0.20 |
+| R_04 | 0.716 | 0.706 | 0.982 | 0.659 | 0.71 | 0.82 |
+| R_05 | 1.347 | 1.321 | 1.462 | 1.385 | 1.33 | 1.42 |
+| R_06 | 6.155 | 3.255 | 3.683 | 2.092 | 4.71 | 2.89 |
+| R_07 | 3.896 | 2.091 | 3.445 | 1.308 | 2.99 | 2.38 |
+| R_08 | 2.931 | 4.706 | 2.470 | 1.178 | 3.82 | 1.82 |
+| R_09 | 4.977 | 6.464 | 5.938 | 6.110 | 5.72 | 6.02 |
+| R_10 | 12.893 | 9.407 | 10.021 | 10.113 | 11.15 | 10.07 |
+| R_11 | 2.618 | 1.578 | 0.740 | 1.061 | 2.10 | 0.90 |
+| R_12 | 8.296 | 7.801 | 9.079 | 8.578 | 8.05 | 8.83 |
+| R_13 | 3.551 | 6.388 | 6.544 | 4.742 | 4.97 | 5.64 |
+| **mean** | 3.73 | 3.44 | 3.50 | 2.96 | **3.59** | **3.23** |
+
+**Decision**: keep CLAHE; `configs/ov_ref004` is the reference. Over 26 runs it is 0.36 m better on average, with large gains where it matters (R_06 −1.8, R_08 −2.0, R_11 −1.2 m) and small losses on five sequences that are inside the offset spread. Also note how large the offset spread is on the long sequences (R_13 3.6 vs 6.4 for the same config): from now on a change is judged on the two-offset mean over all 13, never on single runs.
+
+## 025: tracker knobs for texture-poor stretches (2026-10-02, pc, commit c7b9614)
+
+**Hypothesis**: heading drift through texture-poor stretches (R_06 diagnostic) comes from too few or too short feature tracks there; a lower FAST threshold, a denser feature grid, or more SLAM landmarks in the state should help.
+
+**Change** (one knob each from `ov_ref004`, i.e. with CLAHE): `fast_threshold: 10` (fast10), `min_px_dist: 10` (pxdist10), `max_slam: 100` + `max_slam_in_update: 50` (slam100). Four hardest sequences, start 0, single runs.
+
+**Result** (ATE m sim3; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_06 | R_07 | R_08 | R_11 |
+|---|---|---|---|---|
+| ov_ref004 (024) | 3.683 | 3.445 | 2.47 | 0.74, 72.4 / 88.9 |
+| FAST 10 | 4.548 | 2.975 | **1.199** | 1.236, 60.8 / 42.8 |
+| min feature distance 10 px | **0.991** | **1.374** | 4.228 | 0.993, 68.9 / 66.9 |
+| 100 SLAM features | 3.919 | 3.624 | 2.207 | 1.172, 61.0 / 41.1 |
+
+**Decision**: the dense grid is the most promising change since 400 features (R_06 and R_07 by 2.5 to 3.7 m); FAST 10 helps R_08 a lot but hurts two others; 100 SLAM features is mixed. Validate the dense grid on all 13 sequences (028) before adopting; then FAST 10 on top if 028 holds.
 
 ## 024: ov_ref004 (= ov_ref003 + CLAHE) on all 13 controlled sequences (2026-10-02, pc, commit c7b9614)
 
@@ -45,6 +90,10 @@ R_11: score 72.4, recall @ 1 m 88.9 %. R_12: score 12.8, recall @ 5 m 29.4 %. R_
 **Grace-period check** (R_01, CLAHE, k=0): grace 0 s and 1 s both give 0.191 m with one re-init 1.6 s after init; grace 3 s gives 1.434 m. A large jump right after initialisation is a real bad-init signal, so the runner default is now 1 s (026 onwards).
 
 **Decision**: not adopted yet. Better on 6, worse on 7; the mean gain (3.59 vs 3.73) is inside single-run noise, and the two biggest losses need explanation: R_01 (0.25 to 1.43) was the 3 s grace period (above), and R_13 (3.6 to 6.5, recall @ 5 m 92 to 69 %) is a single long run that may be init luck. Next: both references at a second start offset on all 13 sequences (026) before deciding, and the grace period re-examined.
+
+## Diagnostic: revisit structure and drift rate of the long controlled sequences (2026-10-02)
+
+Loop closure was the planned big-ticket item for long sequences. Measured on the pGT: fraction of samples within 3 m of a point visited more than 60 s earlier is 0.00 (R_08), 0.05 (R_10), 0.00 (R_12), 0.01 (R_13). The controlled set has essentially no loops, so loop closure cannot reduce these ATEs. Local drift of ov_ref003 (sim3-aligned 100 m windows, end-point error): median 0.34 / 0.84 / 0.59 / 0.42 % per 100 m, 90th percentile 0.9 to 1.4 %. The ATE of 3 to 13 m over 0.7 to 1.3 km is accumulated heading drift from a decent odometry. Consequences: on the controlled set, work on drift (gyro-bias estimation, feature lifetime in texture-poor stretches, IMU model from the factory calibration); check the additional-set sequences for loops when they arrive before investing in loop closure.
 
 ## 023: bidirectional pass over the sequence start (2026-10-02, pc, commit a1bb2c6; closed)
 
