@@ -423,6 +423,10 @@ struct VioManagerOptions {
   /// Fast extraction threshold
   int fast_threshold = 20;
 
+  /// LaMAria: KLT window size (px) and pyramid levels (0 = OpenVINS defaults 15 / 5)
+  int klt_win_size = 0;
+  int klt_pyr_levels = 0;
+
   /// Number of grids we should split column-wise to do feature extraction in
   int grid_x = 5;
 
@@ -462,6 +466,8 @@ struct VioManagerOptions {
       parser->parse_config("multi_threading_subs", use_multi_threading_subs, false);
       parser->parse_config("num_pts", num_pts);
       parser->parse_config("fast_threshold", fast_threshold);
+      parser->parse_config("klt_win_size", klt_win_size, false);
+      parser->parse_config("klt_pyr_levels", klt_pyr_levels, false);
       parser->parse_config("grid_x", grid_x);
       parser->parse_config("grid_y", grid_y);
       parser->parse_config("min_px_dist", min_px_dist);

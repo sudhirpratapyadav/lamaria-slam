@@ -71,6 +71,22 @@ Runtime on R_01: 78 s against 60 s for pinhole at the same load (equidistant pro
 
 **Decision**: discard fisheye as the default input. With an exact lens model R_04 is still 2.3 / 1.4 m against 1.0 / 0.7 m for pinhole and R_01 0.23 / 0.25 against 0.19 / 0.20; model fidelity explained only part of the loss, the outer field none of it. OpenVINS's KLT front-end simply does better on the undistorted pinhole images (uniform pixel footprint; the 758x572 canvas keeps most of the field anyway). R_11's gain (score 83 at both offsets) is an isolated case worth remembering. The pipeline stays (`vrs_to_runner_input.py`, `fit_fisheye_kb.py`, `fisheye_remap.py`); the fetch of the other nine `.vrs` was cancelled and the resampled frames deleted to save disk.
 
+## 032: 8x8 extraction grid, FAST 15 (2026-10-02, pc, commit 5abf68a; offset 0, second offset running as 036)
+
+**Hypothesis**: a finer extraction grid spreads the 400 features over the image more evenly (fewer clumps on high-texture patches, more coverage of the periphery that constrains rotation); a lower FAST threshold adds features in low texture.
+
+**Change** (one knob each from `ov_ref004`): `grid_x: 8, grid_y: 8` (grid8); `fast_threshold: 15` (fast15). `configs/explore-032/`.
+
+**Result** (ATE m sim3, start offset 0):
+
+| Seq | R_01 | R_02 | R_03 | R_04 | R_05 | R_06 | R_07 | R_08 | R_09 | R_10 | R_11 | R_12 | R_13 | mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ov_ref004 | 0.191 | 0.693 | 0.223 | 0.982 | 1.462 | 3.683 | 3.445 | 2.470 | 5.938 | 10.021 | 0.740 | 9.079 | 6.544 | 3.50 |
+| grid 8x8 | 0.289 | 0.584 | 0.216 | 1.480 | 1.307 | **2.081** | 3.203 | **1.484** | **3.843** | **6.102** | 0.684 | 9.211 | **5.188** | **2.74** |
+| FAST 15 | 0.191 | 0.615 | 0.136 | 1.316 | 1.195 | 1.339 | 2.971 | 2.582 | 7.693 | 13.242 | 0.698 | 9.254 | 3.783 | 3.46 |
+
+**Decision**: grid 8x8 is the strongest single-run signal so far (better on 10 of 13, mean −0.75 m, gains concentrated on the hard and long sequences); second offset on all 13 running (036) before adoption. FAST 15 is mixed (helps R_06/R_13, hurts R_09/R_10): discard.
+
 ## 031: factory-rectified IMU from the .vrs device calibration (2026-10-02, pc, commit 4f9e4ca)
 
 **Hypothesis**: the ASL IMU is raw; applying the factory rectification (per-axis scale/misalignment and bias) from the `.vrs` should remove the suspected accelerometer scale error and give the initialiser a bias-free start.

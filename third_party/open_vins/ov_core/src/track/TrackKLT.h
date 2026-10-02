@@ -143,6 +143,15 @@ protected:
   int pyr_levels = 5;
   cv::Size win_size = cv::Size(15, 15);
 
+public:
+  /// LaMAria: expose the KLT window and pyramid depth (blurred frames need larger windows)
+  void set_klt_params(int win, int levels) {
+    win_size = cv::Size(win, win);
+    pyr_levels = levels;
+  }
+
+protected:
+
   // Last set of image pyramids
   std::map<size_t, std::vector<cv::Mat>> img_pyramid_last;
   std::map<size_t, cv::Mat> img_curr;

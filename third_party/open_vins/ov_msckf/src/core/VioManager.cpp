@@ -133,6 +133,10 @@ VioManager::VioManager(VioManagerOptions &params_) : thread_init_running(false),
     trackFEATS = std::shared_ptr<TrackBase>(new TrackKLT(state->_cam_intrinsics_cameras, init_max_features,
                                                          state->_options.max_aruco_features, params.use_stereo, params.histogram_method,
                                                          params.fast_threshold, params.grid_x, params.grid_y, params.min_px_dist));
+    if (params.klt_win_size > 0 || params.klt_pyr_levels > 0) {
+      auto klt = std::dynamic_pointer_cast<TrackKLT>(trackFEATS);
+      if (klt) klt->set_klt_params(params.klt_win_size > 0 ? params.klt_win_size : 15, params.klt_pyr_levels > 0 ? params.klt_pyr_levels : 5);
+    }
   } else {
     trackFEATS = std::shared_ptr<TrackBase>(new TrackDescriptor(
         state->_cam_intrinsics_cameras, init_max_features, state->_options.max_aruco_features, params.use_stereo, params.histogram_method,

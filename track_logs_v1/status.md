@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-10-02 22:21 IST. Edit in place; this is the "where are we now" page.
+Last updated: 2026-10-02 23:16 IST. Edit in place; this is the "where are we now" page.
 
 ## Host
 
@@ -52,9 +52,10 @@ Leaderboard main-set metrics, computed locally on R_11_5cp: best run so far scor
 
 ## Next (in order)
 
-1. Running/queued: 030 (reference on the first four additional-set sequences: the leaderboard's own metrics on the set closest to the test data), 033 (raw fisheye input with a fitted equidistant lens; R_01 worse than pinhole, R_08/R_11 running), 032 (8x8 extraction grid, FAST 15).
-2. Closed since the last update: dense grid (028, tie over 26 runs), ZUPT/analytical (027, no-ops), factory IMU rectification (031, neutral; the factory calibration has no scale term, so the 2 to 4 % sim3 scale is not a sensor-calibration effect).
-3. Still owed: timing at idle (Nano budget), the remaining additional-set runs, a decision on fisheye.
+1. Lead: 8x8 extraction grid (032) beats the reference on 10 of 13 at offset 0 (mean 2.74 vs 3.50 m, gains on hard/long sequences); offset 100 on all 13 running (036) for the adoption decision.
+2. Queued: idle timing of ov_ref001/ov_ref004 (Nano budget), rebuild of OpenVINS with the new klt_win_size / klt_pyr_levels options, 034 (KLT window 21 px; pyramid 7) on the six hardest sequences for blurred frames.
+3. Closed since the last update: fisheye input (033, worse than pinhole even with an exact lens model; R_11 an isolated gain), dense grid (028, tie), ZUPT/analytical (027), factory IMU rectification (031, neutral).
+4. Target numbers to move: additional-set recall @ 5 m (030: 99.7 / 36.6 / 23.6 / 48.5 % on sequence_1_19 / 1_20 / 2_11 / 2_12), score 2D 41 / 14 / 15 / 21.
 3. Then: fisheye input (needs `.vrs` download approval), loop closure for the long sequences.
 4. Extend every comparison to all controlled-set sequences as they arrive (R_02 ... R_10).
 
