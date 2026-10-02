@@ -55,8 +55,11 @@ def main():
         if c["model"] == "PINHOLE":
             model, dist_model, dist = "pinhole", "radtan", [0.0, 0.0, 0.0, 0.0]
             intr = [c["params"][0] * args.focal_scale, c["params"][1] * args.focal_scale, c["params"][2], c["params"][3]]
+        elif c["model"] == "EQUIDISTANT":  # Kannala-Brandt fit of the Aria lens, see fit_fisheye_kb.py
+            model, dist_model, dist = "equidistant", "equidistant", [float(v) for v in c["params"][4:8]]
+            intr = [c["params"][0] * args.focal_scale, c["params"][1] * args.focal_scale, c["params"][2], c["params"][3]]
         else:
-            raise SystemExit(f"{c['model']} not supported yet; use the pinhole calibration")
+            raise SystemExit(f"{c['model']} not supported; use the pinhole or the fitted EQUIDISTANT calibration")
         cams.append(
             f"cam{i}:\n  T_cam_imu:\n{mat_rows(T_cam_imu)}\n  cam_overlaps: [{1 - i}]\n"
             f"  camera_model: {model}\n  distortion_coeffs: {dist}\n  distortion_model: {dist_model}\n"

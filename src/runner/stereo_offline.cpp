@@ -52,6 +52,15 @@ int main(int argc, char **argv) {
     bool have_last_good = false, pending_stitch = false;
     size_t reinits = 0;
     double init_time = -1;  // image time of the current estimator's first pose
+    // Optional static masks (e.g. outside the fisheye circle), 255 = ignore; OR-ed with the padding mask.
+    std::vector<cv::Mat> static_masks(2);
+    for (int c = 0; c < 2; c++) {
+      const auto mp = data / ("mask" + std::to_string(c) + ".png");
+      if (std::filesystem::exists(mp)) {
+        static_masks[c] = cv::imread(mp.string(), cv::IMREAD_GRAYSCALE);
+        std::cout << "static mask for cam" << c << ": " << cv::countNonZero(static_masks[c]) << " masked px" << std::endl;
+      }
+    }
     std::ifstream imu_file(data / "imu.csv"), cam_file(data / "stereo.csv");
     if (!imu_file || !cam_file) throw std::runtime_error("Missing imu.csv or stereo.csv");
     std::vector<ov_core::ImuData> imus;
@@ -110,6 +119,11 @@ int main(int argc, char **argv) {
           mask.setTo(255);
           mask(cv::Rect(0, 0, img.cols, img.rows)).setTo(0);
           cv::copyMakeBorder(img, img, 0, model->h() - img.rows, 0, model->w() - img.cols, cv::BORDER_CONSTANT, 0);
+        }
+        const auto &sm = static_masks[cam.images.size()];
+        if (!sm.empty()) {
+          if (sm.size() != mask.size()) throw std::runtime_error("static mask size does not match calibration");
+          cv::bitwise_or(mask, sm, mask);
         }
         cam.images.push_back(img);
         cam.masks.push_back(mask);

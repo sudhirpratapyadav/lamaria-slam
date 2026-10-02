@@ -45,6 +45,19 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 
 **Decision**: discard (neutral within the spread; per-sequence means 0.18 vs 0.19, 0.78 vs 0.82, 1.87 vs 1.83, 1.01 vs 0.90), and it would need a `.vrs` per sequence. The sim3 scale is unchanged (0.965 to 0.986), which closes the IMU side of the scale question: the 2 to 4 % is not a sensor calibration term. The `.vrs` files remain useful for the fisheye-input experiment.
 
+## 028: dense feature grid (min feature distance 10 px) on all 13, two offsets (2026-10-02, pc, commit 4f9e4ca)
+
+**Hypothesis**: the 025 single-run gains on R_06/R_07 generalise.
+
+**Result** (ATE m sim3, per-sequence mean of offsets 0 and 100; reference ov_ref004 from 024/026):
+
+| Seq | R_01 | R_02 | R_03 | R_04 | R_05 | R_06 | R_07 | R_08 | R_09 | R_10 | R_11 | R_12 | R_13 | mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ov_ref004 | 0.19 | 0.81 | 0.20 | 0.82 | 1.42 | 2.89 | 2.38 | 1.82 | 6.02 | 10.07 | 0.90 | 8.83 | 5.64 | 3.23 |
+| min distance 10 px | 0.20 | 0.72 | 0.20 | 1.29 | 1.44 | 1.72 | 2.12 | 2.80 | 3.74 | 12.20 | 0.89 | 9.03 | 4.92 | 3.17 |
+
+**Decision**: discard (tie: 0.06 m, better on 7 of 13, with ±2 m swings both ways: R_09 −2.3, R_06 −1.2, R_08 +1.0, R_10 +2.1, R_04 +0.5). The 025 effect on R_06/R_07 was real but it costs the long sequences. Tracker knobs are at a plateau with this front-end; the next steps are structural (fisheye input, additional-set behaviour).
+
 ## 027: zero-velocity updates throughout, analytical IMU integration (2026-10-02, pc, commit b88fdf7)
 
 **Hypothesis**: ZUPTs whenever the walker stops (`zupt_only_at_beginning: false`) would re-anchor biases and cut drift; analytical covariance propagation might be more accurate than RK4.
