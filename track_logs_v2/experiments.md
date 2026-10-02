@@ -10,7 +10,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | A OKVIS2 | A02 noise x10 | R_01 0.145 / **0.033 final**; R_04 0.84 / 0.69; R_08 5.0 / 5.2; R_11 1.43 / 1.64 (score 67) | | slowest (0.1x realtime under load); A03/A04 running |
 | B Basalt | B07 robust, 13 x 2 offsets | **2.43 m** (OpenVINS 2.83), better on 10/13 | B08 running | ~2x realtime on <2 cores |
 | C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
-| D OpenVINS line | D01 ov_ref005 + window 21 | 3.44 vs 2.83 over 13 | mean score 22.3 vs 22.0 (2_11 up to 27.3 / 68.5 %) | D02 blur-adaptive window running |
+| D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
 
@@ -21,6 +21,12 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.898), all 5253 poses, 1988 s wall under load. Basalt 0.79, ORB-SLAM3 0.79 (with gaps), OpenVINS 1.48 on the same run. The low scale says the datasheet IMU noise makes OKVIS2 over-trust the IMU; noise scaling (A02) is the next round. R_08_hard and R_11_5cp (defaults): diverged (ATE 95 / 42 m, sim3 scale 0: the estimate runs off to kilometres), 87 / 65 min wall and 6.5 / 6.1 GB RSS under load. So the datasheet noise makes OKVIS2 fail on the hard sequences exactly as it did OpenVINS and Basalt before their noise scaling.
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path. Next: A02 noise x10 on R_01/R_04, then keyframing and the fisheye input (OKVIS2 has a native equidistant model).
+
+## D03: blur-adaptive KLT window, 21 px below sharpness 8 (2026-10-03, pc)
+
+**Result** (offset 0; reference / D02 in brackets): R_01 0.418 (0.289 / 0.237); R_06 **0.894** (2.081 / 2.372); R_07 2.292 (3.203 / 2.121); R_08 **1.254** (1.484 / 2.203); R_10 8.531 (6.102 / 7.171); sequence_2_11 13.2 / 18.1 % (11.6 / 15.7; 23.0 / 51.8); sequence_2_12 **32.1 / 73.1 %** (29.0 / 60.4; 25.6 / 70.2); sequence_3_17 6.0 / 9.8 (9.9 / 21.6; 6.3 / 12.2).
+
+**Decision**: parked. Across D01 to D03 the window variants move individual sequences by factors of 2 in both directions with no setting that wins broadly; single-run swings dominate on these sequences. The mechanism stays in the runner (off by default). The OpenVINS line has had its tracker rounds; its remaining idea is a non-causal BA smoother, which is deferred while the optimisation-based candidates (B, A) are ahead.
 
 ## D02: blur-adaptive KLT window (2026-10-03, pc)
 

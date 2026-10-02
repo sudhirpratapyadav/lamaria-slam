@@ -30,3 +30,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 03:32** B07: robust Basalt two-offset mean 2.43 m on the 13 controlled sequences (OpenVINS ov_ref005 2.83), better on 10/13. B08 = robust Basalt on the ten additional sequences launched.
 - **2026-10-03 03:34** Disk: pruned OKVIS2 map dumps and OpenVINS tracking snapshots from results (6.7 to 3.1 GB), 19 GB free. A02 OKVIS2 x10 R_11: live 1.43 / final 1.64 m, scale 0.79, score 67 (not better than OpenVINS/Basalt there).
 - **2026-10-03 04:03** A02 OKVIS2 x10 on R_08: 5.0 / 5.2 m (slow, 67 min); R_11 1.43 / 1.64 (score 67). A03 (x20, loop closures off) and A04 (x10, 10 keyframes) launched on R_04 and R_08.
+- **2026-10-03 04:26** D03 inconsistent; OpenVINS window variants parked (reference stays ov_ref005). Status refreshed.
