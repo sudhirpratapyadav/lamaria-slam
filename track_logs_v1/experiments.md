@@ -96,6 +96,22 @@ Runtime on R_01: 78 s against 60 s for pinhole at the same load (equidistant pro
 
 **Decision**: discard fisheye as the default input. With an exact lens model R_04 is still 2.3 / 1.4 m against 1.0 / 0.7 m for pinhole and R_01 0.23 / 0.25 against 0.19 / 0.20; model fidelity explained only part of the loss, the outer field none of it. OpenVINS's KLT front-end simply does better on the undistorted pinhole images (uniform pixel footprint; the 758x572 canvas keeps most of the field anyway). R_11's gain (score 83 at both offsets) is an isolated case worth remembering. The pipeline stays (`vrs_to_runner_input.py`, `fit_fisheye_kb.py`, `fisheye_remap.py`); the fetch of the other nine `.vrs` was cancelled and the resampled frames deleted to save disk.
 
+## 034: KLT window 21 px, pyramid 7 levels (2026-10-02, pc, commit 42ad4da; last v1 experiment, appended after closure)
+
+**Hypothesis**: blurred frames (long exposures in low light) break KLT with OpenVINS's hard-coded 15 px window; a larger window or a deeper pyramid tracks through blur. Options `klt_win_size` / `klt_pyr_levels` added to OpenVINS (`TrackKLT::set_klt_params`).
+
+**Change** (from `ov_ref004`, offset 0): `klt_win_size: 21` (klt21); `klt_pyr_levels: 7` (pyr7). Six hardest sequences.
+
+**Result** (ATE m sim3; score 2D / recall @ 5 m where available):
+
+| Variant | R_06 | R_07 | R_08 | R_11 | sequence_1_20 | sequence_2_11 |
+|---|---|---|---|---|---|---|
+| ov_ref004 | 3.683 | 3.445 | 2.470 | 0.74 (72.4 / 99.9) | 10.57 (13.9 / 36.6) | 9.65 (15.0 / 23.6) |
+| window 21 px | **2.905** | 4.893 | 2.653 | 1.65 (58.1 / 99.5), 1 re-init | **2.86 (40.8 / 93.9)** | **6.13 (25.7 / 66.0)** |
+| pyramid 7 | 3.683 | 3.445 | 2.470 | 0.74 | 10.57 | 9.65 |
+
+**Decision**: the pyramid option changed nothing (identical to 3 decimals; either OpenCV caps the levels or the setting is not reaching the tracker: to check). The 21 px window is the largest single effect seen on the test-like sequences (recall @ 5 m 37 to 94 % and 24 to 66 %), at a cost on R_07 and R_11. Carried into v2 as candidate D's first optimisation round on top of ov_ref005, validated on all 13 at two offsets and the ten additional-set sequences.
+
 ## 036: 8x8 extraction grid at the second offset, adoption as ov_ref005 (2026-10-02, pc, commit 3f3f3fc)
 
 **Result** (ATE m sim3, per-sequence mean of offsets 0 and 100):

@@ -8,3 +8,4 @@ build/
 # upstream clone, unmodified; re-clone with scripts/setup.sh
 third_party/lamaria/
 third_party/okvis2/
+third_party/basalt/
