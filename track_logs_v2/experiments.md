@@ -10,7 +10,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | A OKVIS2 | A02 noise x10 | R_01 0.145 live / **0.033 final**; R_04 0.84 / **0.69**; R_08, R_11 running | | very slow under load (0.1x realtime), final BA non-causal |
 | B Basalt | B06 robust driver | all 5 tested divergences rescued with one restart (R_10 4.2 vs OV 6.1, R_07 1.3 vs 3.2) | | B07 = robust on 13 x 2 running |
 | C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
-| D OpenVINS line | D01 ov_ref005 + window 21 | 2.72 vs 1.99 over 11 (worse on sharp sequences) | additional set rerunning | D02 blur-adaptive window next |
+| D OpenVINS line | D01 ov_ref005 + window 21 | 3.44 vs 2.83 over 13 | mean score 22.3 vs 22.0 (2_11 up to 27.3 / 68.5 %) | D02 blur-adaptive window running |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
 
@@ -22,7 +22,28 @@ R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.89
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path. Next: A02 noise x10 on R_01/R_04, then keyframing and the fisheye input (OKVIS2 has a native equidistant model).
 
-## D01: OpenVINS ov_ref005 + KLT window 21 px (2026-10-03, pc; controlled part, additional set still running)
+## D02: blur-adaptive KLT window (2026-10-03, pc)
+
+**Change**: runner measures the left image's Laplacian variance per frame and sets the KLT window to `klt_win_blur` (25 px) when it is below `klt_blur_threshold` (15), else the base 15 px; pyramids are built with the larger border (TrackKLT `build_win_size`, a bug found on the first attempt). `configs/explore-v2D02/blur25` on ov_ref005.
+
+**Result** (offset 0; ATE m, and score 2D / recall @ 5 m for the additional sequences):
+
+| Seq | ov_ref005 | fixed window 21 (D01) | adaptive 25 @ <15 (D02) |
+|---|---|---|---|
+| R_01 | 0.289 | 0.194 | 0.237 |
+| R_06 | 2.081 | 2.491 | 2.372 |
+| R_07 | 3.203 | 4.447 | **2.121** |
+| R_08 | 1.484 | 4.920 | 2.203 |
+| R_10 | 6.102 | 11.130 | 7.171 (1 re-init) |
+| sequence_2_11 | 11.6 / 15.7 | 27.3 / 68.5 | 23.0 / 51.8 |
+| sequence_2_12 | 29.0 / 60.4 | 25.6 / 67.3 | 25.6 / 70.2 |
+| sequence_3_17 | 9.9 / 21.6 | 7.8 / 18.0 | 6.3 / 12.2 |
+
+Sharpness on sequence_2_11: median 13, range 0 to 100, so threshold 15 widens the window on half its frames.
+
+**Decision**: the mechanism works as intended (most of the blur gain, a fraction of the sharp-sequence loss) but the operating point is off; D03 tries threshold 8 with window 21. Not adopted yet.
+
+## D01: OpenVINS ov_ref005 + KLT window 21 px (2026-10-03, pc; complete)
 
 **Hypothesis**: v1 034 found the 21 px window lifts the blurry additional-set walks (sequence_1_20 recall @ 5 m 37 to 94 %); on top of ov_ref005 it should keep the controlled-set numbers.
 
@@ -41,9 +62,13 @@ R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.89
 | R_09 | 3.843 / 6.696 | 3.800 / 4.991 |
 | R_10 | 6.102 / 6.336 | 11.130 / 9.677 |
 | R_11 | 0.684 / 0.476 | 1.190 / 0.528 |
-| mean of 11 | 1.99 | 2.72 |
+| R_12 | 9.211 / 8.579 | 8.026 / 8.607 |
+| R_13 | 5.188 / 6.940 | 4.986 / 3.598 |
+| mean of 13 | 2.83 | 3.44 |
 
-**Reading**: a wide window costs precision on sharp sequences (R_08, R_10) and buys robustness on blurred ones. The right form is a blur-adaptive window: measure sharpness per frame (Laplacian variance) and widen the KLT window only when the frame is blurred. Implemented in the runner as D02 (`klt_win_blur`, `klt_blur_threshold`).
+Additional set (score 2D / recall @ 5 m; ov_ref005 from v1 037 in brackets): 1_19 37.8 / 99.9 (40.0 / 99.9); 1_20 40.0 / 93.6 (46.3 / 99.9); 2_11 **27.3 / 68.5** (11.6 / 15.7); 2_12 25.6 / 67.3 (29.0 / 60.4); 3_17 7.8 / 18.0 (9.9 / 21.6); 3_18 11.2 / 25.2 (13.1 / 33.0); 4_10 3.1 / 0.5 (0.9 / 0); 4_11 24.2 / 51.1 (30.2 / 66.2); 5_11 38.3 (28.4); 5_12 7.7 (8.5). Mean score 22.3 vs 22.0.
+
+**Decision**: not adopted as a fixed setting: controlled-set mean 3.44 vs 2.83, additional-set mean score a tie, with large swings both ways (2_11 and 5_11 up, 1_20 and 4_11 down). The window helps exactly where frames are blurred and hurts where they are sharp, which is the case for a blur-adaptive window (D02: `klt_win_blur` / `klt_blur_threshold`, wide only when the Laplacian variance is low).
 
 ## A02: OKVIS2, IMU noise x10 (2026-10-03, pc)
 
