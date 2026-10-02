@@ -1,0 +1,20 @@
+{
+  "kimera_thoth": {
+    "label": "Kimera-Multi campus outdoor 'thoth' (D455 stereo IR + IMU), 554 s / 572 m, closed loop",
+    "recording": "data/kimera/thoth_extracted",
+    "config": "configs/kimera_thoth",
+    "reference": {"path": "data/kimera/ground_truth/1014/thoth_gt_odom.csv", "format": "kimera_csv", "kind": "ground truth",
+                  "body_from_imu": "configs/kimera_thoth/evaluation_frame.json", "max_dt": 0.06},
+    "camera": {"model": "pinhole", "resolution": [640, 480], "rate_hz": 30},
+    "has_loop": true
+  },
+  "rosario05": {
+    "label": "Rosario v2 sequence 05 (D435i stereo IR 1280x720 @15 Hz + IMU), agricultural, 784 s / 706 m, closed loop",
+    "recording": "data/rosario_v2/extracted",
+    "config": "configs/rosario_v2",
+    "config_files": {"estimator": "open-vins_estimator_rosariov2.yaml", "imucam": "open-vins_imucam_rosariov2.yaml", "imu": "open-vins_imuchain_rosariov2.yaml"},
+    "reference": {"path": "data/rosario_v2/reference.tum", "format": "tum", "kind": "fused reference (MINS with GNSS; not independent ground truth)", "max_dt": 0.05},
+    "camera": {"model": "pinhole", "resolution": [1280, 720], "rate_hz": 15},
+    "has_loop": true
+  }
+}

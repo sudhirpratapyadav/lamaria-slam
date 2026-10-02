@@ -5,4 +5,5 @@ results/*
 __pycache__/
 .venv/
 build/
-third_party/
+# upstream clone, unmodified; re-clone with scripts/setup.sh
+third_party/lamaria/
