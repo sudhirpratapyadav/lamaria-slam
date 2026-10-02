@@ -8,7 +8,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A01 defaults, R_01 only | R_01: 0.237 live / **0.043 final BA** | | non-causal final BA; slow under load |
-| B Basalt | B04 (noise x20, 4 levels, 10 kfs), 4 seqs | R_01 0.15, R_04 0.78, R_08 1.01, R_11 2.60 | R_11 score 73.5 | ~2x realtime on <2 cores; B05 on 13 x 2 offsets running |
+| B Basalt | B05 ref1, 13 x 2 offsets | 14.2 m mean (6 of 26 diverged); beats OpenVINS on 18/20 non-diverged cells; R_13 3.4 (score 44) | | needs divergence recovery (B06) |
 | C ORB-SLAM3 | C01 defaults, R_01 fisheye | R_01: **0.031** | | loop closing; timing-dependent crash, retries added |
 | D OpenVINS + BA smoother | - | | | |
 
@@ -19,6 +19,32 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 **Result**, R_01_easy: live ATE sim3 0.237 m (scale 0.958); final-BA ATE 0.043 m (scale 0.976); poses for all 2898 images. Paper: OKVIS2 0.02 m, OpenVINS 0.66 m; our OpenVINS ov_ref005 0.19 / 0.29 m. Cost: 1466 s wall (10x slower than realtime) at 0.83 cores average under a heavily loaded machine (15 other estimators running), 564 MB RSS. A clean timing is owed.
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path, already as good as tuned OpenVINS. Next: R_04, R_08, R_11 with defaults, then noise scaling (OKVIS2 has its own IMU priors), keyframing, and the fisheye input (OKVIS2 has a native equidistant model).
+
+## B05: Basalt reference on all 13 controlled sequences, two offsets (2026-10-03, pc)
+
+**Setup**: `configs/basalt_ref1` (noise x20, 4 pyramid levels, 10 keyframes), start offsets 0 and 100 (new `SKIP_FRAMES` support in the EuRoC-layout input), pinhole ASL input.
+
+**Result** (ATE m sim3; OpenVINS ov_ref005 for comparison):
+
+| Seq | OV k=0 | OV k=100 | Basalt k=0 | Basalt k=100 |
+|---|---|---|---|---|
+| R_01 | 0.289 | 0.176 | **0.151** | **0.156** |
+| R_02 | 0.584 | 0.358 | **0.170** | **0.230** |
+| R_03 | 0.216 | 0.195 | 6.160 (diverged) | 0.413 |
+| R_04 | 1.480 | 0.675 | **0.788** | 38.8 (diverged) |
+| R_05 | 1.307 | 1.715 | **1.139** | **1.159** |
+| R_06 | 2.081 | 1.906 | **1.131** | **0.726** |
+| R_07 | 3.203 | 1.974 | 65.3 (diverged) | **1.216** |
+| R_08 | 1.484 | 1.964 | **1.001** | 49.7 (diverged) |
+| R_09 | 3.843 | 6.696 | **2.726** | **2.420** |
+| R_10 | 6.102 | 6.336 | 113 (diverged) | **4.026** |
+| R_11 | 0.684 | 0.476 | 2.601 (score 73.2) | 2.051 (score 78.4) |
+| R_12 | 9.211 | 8.579 | 12.68 (score 13.1) | 54.7 (diverged) |
+| R_13 | 5.188 | 6.940 | **3.411 (score 44.8)** | **3.537 (score 44.3)** |
+
+Two-offset means: OpenVINS 2.83 m, Basalt 14.2 m (dominated by the six divergences); Basalt better on 6 of 13 by mean, and on 18 of the 20 non-diverged cells it beats the OpenVINS run at the same offset. Basalt has no divergence detection or recovery, so one bad stretch costs the rest of the sequence.
+
+**Decision**: continue. The accuracy when it holds is clearly better than tuned OpenVINS at a lower CPU cost; the missing piece is the robustness layer v1 built for OpenVINS. B06: script-level divergence detection + restart from just before the divergence + stitching (`scripts/basalt_segments.py`), then rerun these 26.
 
 ## C01: ORB-SLAM3 stereo-inertial out of the box, fisheye input (2026-10-03, pc, ORB_SLAM3 4452a3c + C++14, viewer off)
 
