@@ -27,6 +27,44 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | 016 | `ov_ref003`, k=0 / k=100 | R_11_5cp | 41.3 / 59.6 | - | 100 / 100 | 3.4 / 27.9 | 2.62 / 1.58 |
 | 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
 | 022 | `ov_ref003`, k=0 | R_13_15cp (1404 s, 15 CPs) | 39.1 | - | 92.5 | 10.1 | 3.55 (10.35 / 8.37 / 6.65) |
+| 030 | `ov_ref004`, k=0 | sequence_1_19 / 1_20 / 2_11 / 2_12 (additional set) | 41.0 / 13.9 / 15.0 / 21.4 | 7 / 0 / 0 / 5 | 99.7 / 36.6 / 23.6 / 48.5 | 13.8 / 0 / 0 / 3.8 | 2.87 / 10.57 / 9.65 / 6.09 |
+| 033 | `ov_ref004` on raw fisheye, k=0 / k=100 | R_11_5cp | 83.4 / 83.1 | 80 / 80 | 100 / 100 | 93.2 / 90.7 | 0.54 / 1.20 |
+
+## 030: reference on the first four additional-set sequences (2026-10-02, pc, commit 1fdab68)
+
+**Hypothesis**: the additional set (long city walks with control points, scored like the test set) shows where the leaderboard is decided.
+
+**Change**: none; `ov_ref004`, start offset 0, single runs (each 15 to 28 min).
+
+**Result** (leaderboard-style metrics computed locally):
+
+| Sequence | length | score 2D | CP recall @ 1 m | pose recall @ 5 m | pose recall @ 1 m | ATE sim3 (scale) | drift / 100 m (median) | revisits |
+|---|---|---|---|---|---|---|---|---|
+| sequence_1_19 | 913 s, 1002 m | 41.0 | 7.1 % | 99.7 % | 13.8 % | 2.87 (0.969) | 0.43 m | 0 % |
+| sequence_1_20 | 1010 s, 1145 m | 13.9 | 0 % | 36.6 % | 0 % | 10.57 (0.914) | 1.92 m | 2 % |
+| sequence_2_11 | 1184 s, 1297 m | 15.0 | 0 % | 23.6 % | 0 % | 9.65 (0.995) | 1.49 m | 4 % |
+| sequence_2_12 | 1673 s, 31 m of height | 21.4 | 5.0 % | 48.5 % | 3.8 % | 6.09 (0.968), 1 re-init | - | - |
+
+Content: all walking (median 0.9 m/s), no moving platform among these four; sequence_2_11 and 2_12 have many blurred or texture-poor frames (Laplacian variance 3 to 6 against 15 to 70 elsewhere), consistent with long exposures in low light. No loops anywhere (revisit 0 to 4 %).
+
+**Decision**: this is the real target. The per-challenge leaderboard scores of the open baseline (27.7 / 23.4 / 12.8 for short / medium / long) are averages of exactly these numbers, and ours (41 / 14 / 15 / 21) are in that range, not above it. Pose recall @ 5 m collapses on the sequences whose drift is 1.5 to 1.9 m per 100 m (2 to 4x the clean walks); without loops, the only lever on these is lower drift in blurred / low-texture stretches. Fisheye input (033) and tracker robustness are therefore the priorities; recall-at-5-m on these four is the number to move.
+
+## 033: raw fisheye input with a fitted equidistant lens (2026-10-02, pc, commit 23e37ac; in progress)
+
+**Hypothesis**: the ASL pinhole images are a resampled, cropped view of the Aria fisheye; running OpenVINS on the raw 640x480 frames with its equidistant (Kannala-Brandt) model should keep the full field of view and the native pixels, which matters most on hard, texture-poor sequences.
+
+**Change**: `scripts/vrs_to_runner_input.py` (raw frames + validity masks from the `.vrs`), `scripts/fit_fisheye_kb.py` (equidistant fit of the Aria FISHEYE624 lens with free principal point: residual 0.12 to 0.43 px mean), runner static masks (outside the lens circle, 7.6 % of pixels), `make_openvins_config.py` EQUIDISTANT support. Estimator config unchanged (`ov_ref004`), so 400 features now sit on 640x480 instead of 758x572.
+
+**Result** (ATE m sim3; R_11 also score 2D / pose recall @ 1 m):
+
+| Input | R_01 k=0 | R_01 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|
+| pinhole ASL (ov_ref004) | 0.191 | 0.195 | 2.47 | 1.18 | 0.74, 72.4 / 88.9 | 1.06, 70.2 / 54.9 |
+| raw fisheye | 0.268 | 0.323 | 0.76 | 2.57 | **0.538, 83.4 / 93.2** | **1.196, 83.1 / 90.7** |
+
+Runtime on R_01: 78 s against 60 s for pinhole at the same load (equidistant projection is costlier).
+
+**Status**: promising but not decided. R_11's score 2D rises by 11 points at both offsets (best so far), R_08's two-offset mean improves (1.67 vs 1.83), R_01 gets worse (0.30 vs 0.19). Extending to R_04 (vrs on disk); a full 13-sequence validation needs the remaining `.vrs` files (about 33 GB plus extracted frames), which is beyond the disk now that the additional set is landing (owner's call: prune pinhole frames, or move bulk work to the A100).
 
 ## 031: factory-rectified IMU from the .vrs device calibration (2026-10-02, pc, commit 4f9e4ca)
 
