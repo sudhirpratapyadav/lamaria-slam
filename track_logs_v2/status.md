@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 04:26 IST. Edit in place.
+Last updated: 2026-10-03 04:56 IST. Edit in place.
 
 ## What v2 is
 
@@ -12,9 +12,9 @@ Rules carried over: owner decides on submissions (only when top 3 and confident)
 
 | # | Approach | Why it could win | Risk | Status |
 |---|---|---|---|---|
-| A | OKVIS2 (keyframe stereo-inertial, BA + loop closure, BSD) | best published open numbers on several long controlled sequences (paper Table 2); native fisheye models; real-time capable | fails one sequence in the paper; heavy build (Ceres, DBoW) | A02 noise x10: R_01 final **0.033 m**, R_04 0.69, R_08 5.0, R_11 1.6 (score 67); slowest candidate (0.1x realtime under load, 1 to 2 GB). A03 (x20, no loop closure) / A04 (10 keyframes) running |
-| B | Basalt (VIO with marginalisation + mapping/BA stage, BSD) | very light on CPU (Nano-friendly), KB fisheye native, strong on EuRoC/TUM-VI | no published LaMAria numbers; mapping stage is offline | B07 robust Basalt: **2.43 m** two-offset mean on the 13 controlled sequences (OpenVINS 2.83), better on 10/13; B08 additional set running (mixed so far: 1_19 score 64 vs 40, 2_11 21 vs 12, but 3_17/3_18/5_11 much worse) |
-| C | ORB-SLAM3 stereo-inertial (GPL) | highest accuracy where it works (0.03 m on R_01, 0.43 on R_02 in the paper), loop closing and multi-map | brittle (fails / jumps on hard sequences), heavy CPU | C01 fisheye: R_01 **0.031 m**, R_04 0.79 with 25 % of frames lost, R_11 1.00 (score 65.6), R_08 crashes 3/3. Brittle |
+| A | OKVIS2 (keyframe stereo-inertial, BA + loop closure, BSD) | best published open numbers on several long controlled sequences (paper Table 2); native fisheye models; real-time capable | fails one sequence in the paper; heavy build (Ceres, DBoW) | A02 noise x10: R_01 final **0.033 m**, R_04 0.69, R_08 5.0, R_11 1.6 (score 67); slowest candidate. A03 (x20, no loop closure) diverged; A04 (10 keyframes) and A05 (fisheye) running |
+| B | Basalt (VIO with marginalisation + mapping/BA stage, BSD) | very light on CPU (Nano-friendly), KB fisheye native, strong on EuRoC/TUM-VI | no published LaMAria numbers; mapping stage is offline | B07 robust Basalt **2.43 m** on the 13 controlled (OpenVINS 2.83); B08 additional set mean score 16.9 vs 22.0 (wins 1_19/2_11/4_10, loses the 2 km walks: structural drift, B09 knobs no help); B10/B11 native fisheye better on 3 of 4 (R_01 0.12, R_11 score 77-78), worse on R_08; mapper build (B12) in progress |
+| C | ORB-SLAM3 stereo-inertial (GPL) | highest accuracy where it works (0.03 m on R_01, 0.43 on R_02 in the paper), loop closing and multi-map | brittle (fails / jumps on hard sequences), heavy CPU | C01/C02 fisheye: R_01 **0.031 m**, R_04 0.79-0.83 with 25 % of frames lost, R_11 1.00 (score 65.6), R_08 crashes deterministically. Parked pending a code-level fix |
 | D | OpenVINS (v1 reference) + further tracker work and a non-causal keyframe BA smoother | reuses everything from v1; v1 034 found a 21 px KLT window lifts the blurry test-like sequences (recall@5m 37 to 94 %) | smoother is engineering from scratch | D01-D03 (fixed / adaptive KLT windows): sequence-dependent, no broad win; parked at ov_ref005 (2.83 m) |
 | E | VINS-Fusion (stereo+IMU, optimisation-based, loop closure) | classic, robust, cheap | older code base; pinhole only | optional |
 

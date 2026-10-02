@@ -106,6 +106,34 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## B11: Basalt fisheye at the second offset (2026-10-03, pc)
+
+**Result** (ATE m, offset 100; two-offset means in the last row, pinhole robust / fisheye):
+
+| | R_01 | R_04 | R_08 | R_11 |
+|---|---|---|---|---|
+| fisheye k=100 | 0.129 | 0.759 | 2.859 | 2.255 (score 76.4) |
+| pinhole k=100 | 0.156 | 0.935 | 1.368 | 2.078 (score 77.0) |
+| two-offset mean pinhole / fisheye | 0.15 / **0.12** | 0.86 / **0.78** | **1.19** / 3.28 | 2.34 / **2.13** (score 75 / 77) |
+
+**Decision**: fisheye is better on three of four and consistently worse on R_08 (3x). R_08 is recorded with the other Aria unit; the raw image has fewer optical-flow cells at Basalt's 50 px grid on 640x480. B13 tries a 40 px grid on the fisheye input for R_08 and R_01.
+
+## B10: Basalt on the native fisheye input (kb4) (2026-10-03, pc)
+
+**Change**: `data/training_fisheye/<seq>` (raw 640x480 frames, fitted Kannala-Brandt lens as Basalt "kb4"), `basalt_ref1`, robust driver, offset 0.
+
+**Result** (ATE m sim3; pinhole Basalt robust and OpenVINS at the same offset):
+
+| | R_01 | R_04 | R_08 | R_11 |
+|---|---|---|---|---|
+| Basalt fisheye | **0.110** (0.991) | 0.799 (1.003) | 3.693 (0.980) | 1.999, **score 78.3** |
+| Basalt pinhole | 0.151 | 0.781 | 1.006 | 2.605, score 73.3 |
+| OpenVINS ov_ref005 | 0.289 | 1.480 | 1.484 | 0.684, score 72 |
+
+No restarts in any fisheye run. Unlike OpenVINS (v1 033), Basalt handles the raw fisheye well: its sim3 scale is 0.98 to 1.00 everywhere.
+
+**Decision**: continue; second offset on the four (B11) before deciding pinhole vs fisheye for Basalt; R_08 is the open question (drift without divergence).
+
 ## B09: Basalt knobs on the 2 km walks (2026-10-03, pc)
 
 **Change** (robust driver, from `basalt_ref1` = noise x20, 4 levels, 10 keyframes): noise x10; keyframes 7; keyframes 15; 5 states (the last failed to run, see log). On sequence_3_17 and 3_18 only.
