@@ -14,7 +14,7 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 | 013 | 2026-10-02 | pc | `ov_ref002` = + re-init + iteration-bounded init | 0.300 / 0.281 | 0.736 / 1.078 | 4.46 / 3.59 | reference; identical to ov_ref001 numbers |
 | 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7 (init luck, see 016) |
 | 016 | 2026-10-02 | pc | `ov_ref003` = ov_ref002 + 400 features | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | **reference**; R_11 2.62 / 1.58 m, score 41.3 / 59.6: init-dominated |
-| 022 | 2026-10-02 | pc | ov_ref003 on all 12 controlled sequences (k=0) | mean 3.75 m vs open baseline 3.65 m | | | better on 6/12; losses R_06, R_07, R_10, R_11 (bad first minute) |
+| 022 | 2026-10-02 | pc | ov_ref003 on all 13 controlled sequences (k=0) | mean 3.73 m vs open baseline 4.01 m (paper) | | | better on 7/13 incl. R_12, R_13; losses R_06, R_07, R_10, R_11 |
 | discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
@@ -25,6 +25,23 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 80.0 / 80.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
 | 016 | `ov_ref003`, k=0 / k=100 | R_11_5cp | 41.3 / 59.6 | - | 100 / 100 | 3.4 / 27.9 | 2.62 / 1.58 |
 | 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
+| 022 | `ov_ref003`, k=0 | R_13_15cp (1404 s, 15 CPs) | 39.1 | - | 92.5 | 10.1 | 3.55 (10.35 / 8.37 / 6.65) |
+
+## 023: bidirectional pass over the sequence start (2026-10-02, pc, commit a1bb2c6; in progress)
+
+**Hypothesis**: the first minute after initialisation dominates the ATE (022 diagnostic); running a second estimator on the time-reversed first W seconds, which starts where the forward run is converged, and stitching it onto the forward trajectory on a window where both are converged, should remove most of that early error. Non-causal; benchmark use only, flagged as such on any submission.
+
+**Change**: `scripts/run_sequence_bidir.sh` (forward run, reversed input via `make_reversed_input.py` with gyro negated, backward run with the same yaml, Sim3 stitch on [t0+80, t0+140] s, crossover at t0+110 s, W = 200 s). First attempt used W = 120 and aligned inside the backward run's own unconverged minute (no gain, 6.06 m); corrected parameters below.
+
+**Result so far** (ATE m sim3):
+
+| Sequence | forward only (ov_ref003) | bidirectional W=200 | stitch overlap RMSE |
+|---|---|---|---|
+| R_06_medium | 6.155 | 5.758 | 0.18 m |
+
+**Diagnostic that changed the picture**: on R_06 the error profile after aligning on t > 80 s is a smooth ramp (19 m at t = 0 down to 1.3 m at 120 s) and the backward run shows the same ramp. That is a heading error accumulated in the first 80 s, not an initialisation transient: image sharpness collapses between 30 and 60 s (Laplacian variance 5 to 9 against 40 to 140 later) with only 7 to 9 MSCKF features, so heading rests on the gyro there, and the drift is the same in both directions. A gyro scale error was ruled out (integrated gyro versus pGT rotation: 0.985 to 1.03, R_11 1.003 with a tight spread). So this is genuine visual-inertial drift through a texture-poor stretch that happens to be early in R_06; the bidirectional pass cannot remove it, only re-distribute it.
+
+**Decision**: pending; running on R_04, R_07, R_08, R_11 after 024 to measure the typical gain before deciding whether the extra pass is worth keeping for submissions. The texture-poor-stretch problem points at the tracker (feature quality in low texture, longer feature lifetimes) and at loop closure, not at the initialiser.
 
 ## 022: reference on the whole controlled set (2026-10-02, pc, commit 6d6abc8)
 
@@ -48,13 +65,30 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | R_10_hard | 12.893 (0.972) | 8.01 | 8.22 | 7.06 |
 | R_11_5cp | 2.62 (0.971) | 1.04 | 1.62 | 1.85 |
 | R_12_10cp | 8.296 (0.953) | 18.72 | 16.59 | 16.55 |
-| mean of these 12 | 3.75 | 3.89 | 3.65 | - |
+| R_13_15cp | 3.551 (0.966) | 10.35 | 8.37 | 6.65 |
+| mean of 13 | **3.73** | 4.39 | 4.01 | - |
 
-R_12_10cp leaderboard-style metrics: score 2D 15.9, pose recall @ 5 m 30.3 %, @ 1 m 7.0 % (1012 s sequence). Runtime under load (9 to 16 concurrent runs): R_10 (934 s) took 1358 s wall, i.e. slower than realtime when sharing the machine; at idle the reference runs about 2x realtime.
+R_12_10cp leaderboard-style metrics: score 2D 15.9, pose recall @ 5 m 30.3 %, @ 1 m 7.0 % (1012 s). R_13_15cp: score 2D 39.1, pose recall @ 5 m 92.5 %, @ 1 m 10.1 % (1404 s, 1941 s wall under load). Runtime under load (9 to 16 concurrent runs): R_10 (934 s) took 1358 s wall, i.e. slower than realtime when sharing the machine; at idle the reference runs about 2x realtime.
 
 **Where the error is**: aligning each trajectory only on t > 80 s, the remainder is 1.6 (R_06), 2.9 (R_07), 2.5 (R_08), 0.6 (R_04) m RMSE while the first 20 to 40 s are 8 to 19 m off. The first minute after initialisation (biases and velocity still converging, no smoothing) dominates the ATE of every medium and hard sequence; the losses against the open baseline are exactly those sequences.
 
-**Decision**: the reference is at open-baseline level on the controlled set (mean 3.75 vs 3.65 m, better on 6 of 12). The next lever is the initial segment: experiment 023 (bidirectional pass, non-causal, benchmark-only) and later a causal improvement of the initialiser. Also to note: R_02's scale 0.908 and R_12's 0.953 are the worst scale cases; R_12 at 1012 s is the first sequence where pose recall @ 5 m is far from 100 %.
+**Decision**: the reference is ahead of the open baseline on the controlled set as a whole (mean 3.73 vs 4.01 m over 13 sequences, better on 7 of 13, including the two longest). The next lever is the initial segment: experiment 023 (bidirectional pass, non-causal, benchmark-only) and later a causal improvement of the initialiser. Also to note: R_02's scale 0.908 and R_12's 0.953 are the worst scale cases; R_12 at 1012 s is the first sequence where pose recall @ 5 m is far from 100 %.
+
+## 018 / 019: CLAHE, and 2 px measurement noise (2026-10-02, pc, commit a1bb2c6)
+
+**Hypothesis**: (018) CLAHE instead of global histogram equalisation gives KLT more local contrast in the dark and uneven frames; (019) the undistorted wide-angle images may deserve a larger pixel noise than 1 px.
+
+**Change** (one knob each from `ov_ref003`): `histogram_method: "CLAHE"` (`configs/explore-018/clahe`); `up_msckf_sigma_px: 2`, `up_slam_sigma_px: 2` (`configs/explore-019/sigma2`).
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference ov_ref003 | 0.254 (0.983) | 0.239 (0.979) | 0.716 (0.962) | 0.706 (0.964) | 2.93 (0.973) | 4.71 (0.959) | 2.62 (0.971), 41.3 / 3.4 | 1.58 (0.969), 59.6 / 27.9 |
+| CLAHE | **0.191** (0.969), 1 re-init | **0.195** (0.978) | 0.982 (0.975) | **0.659** (0.963) | **2.47** (0.974) | **1.18** (0.980) | **0.74** (0.970), **72.4 / 88.9** | **1.06** (0.973), **70.2 / 54.9** |
+| sigma 2 px | 0.363 (0.960) | 0.420 (0.958) | 0.982 (0.938) | 1.777 (0.945) | 4.33 (0.945) | 3.71 (0.946) | 1.82 (0.942), 53.5 / 20.2 | 2.55 (0.951), 43.0 / 7.9 |
+
+**Decision**: keep CLAHE (better in 7 of 8 cells, R_08 k=100 and R_11 k=0 are the best values seen for those sequences); becomes `configs/ov_ref004`, validated on all 13 controlled sequences in 024. The one re-init on R_01 k=0 ended well (0.191) but needs a look: a false trigger costs ~2 s of poses. Discard sigma 2 px (worse everywhere, scale worse).
 
 ## 017: focal length x0.965, stereo-side scale probe (2026-10-02, pc, commit 6d6abc8)
 

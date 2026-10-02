@@ -3,12 +3,13 @@
 
 Inputs are TUM files in seconds (IMU pose in world, xyzw). The backward run was
 produced on reversed time t' = pivot2 - t, so its timestamps are mapped back
-first. On the overlap window [t_end - overlap, t_end] both runs are converged;
+first. On the window [t0+align_from, t0+align_to] both runs are converged (the forward
+run after ~80 s, the backward run more than ~60 s after its own start at t0+W);
 a Sim3 (Umeyama) from backward to forward positions is estimated there, the
 backward segment is transformed, and the output takes the backward poses before
 the crossover time and the forward poses after it.
 
-Usage: stitch_bidir.py forward.tum backward.tum reverse_info.json out.tum [--overlap 40] [--crossover 20]
+Usage: stitch_bidir.py forward.tum backward.tum reverse_info.json out.tum [--align-from 80 --align-to 140 --crossover-at 110]
 """
 import argparse
 import json
@@ -46,8 +47,9 @@ def main():
     ap.add_argument("backward", type=Path)
     ap.add_argument("reverse_info", type=Path)
     ap.add_argument("out", type=Path)
-    ap.add_argument("--overlap", type=float, default=40.0, help="seconds before t_end used to align the two runs")
-    ap.add_argument("--crossover", type=float, default=20.0, help="seconds before t_end where the output switches to forward")
+    ap.add_argument("--align-from", type=float, default=80.0, help="alignment window start, seconds after t0 (forward run converged)")
+    ap.add_argument("--align-to", type=float, default=140.0, help="alignment window end, seconds after t0 (backward run converged: window - 60)")
+    ap.add_argument("--crossover-at", type=float, default=110.0, help="seconds after t0 where the output switches from backward to forward")
     args = ap.parse_args()
     info = json.loads(args.reverse_info.read_text())
     t_end = info["t0"] + info["window_s"]
@@ -59,8 +61,8 @@ def main():
     tb, pb, qb = tb[order], pb[order], qb[order]
 
     # overlap: forward poses matched to backward poses by timestamp (same image clock, exact)
-    lo = t_end - args.overlap
-    mb = (tb >= lo) & (tb <= t_end)
+    lo, hi = info["t0"] + args.align_from, info["t0"] + args.align_to
+    mb = (tb >= lo) & (tb <= hi)
     idx_f = {round(t, 6): i for i, t in enumerate(tf)}
     pairs = [(i, idx_f[round(t, 6)]) for i, t in zip(np.where(mb)[0], tb[mb]) if round(t, 6) in idx_f]
     if len(pairs) < 50:
@@ -72,7 +74,7 @@ def main():
     pb2 = s * (Rm @ pb.T).T + t
     qb2 = (R.from_matrix(Rm) * R.from_quat(qb)).as_quat()
 
-    cross = t_end - args.crossover
+    cross = info["t0"] + args.crossover_at
     keep_b = tb < cross
     keep_f = tf >= cross
     T = np.concatenate([tb[keep_b], tf[keep_f]])

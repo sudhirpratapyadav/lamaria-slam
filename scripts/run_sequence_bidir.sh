@@ -4,7 +4,7 @@
 # trajectory, then the usual submission file and evaluation. Non-causal.
 #
 # Usage: scripts/run_sequence_bidir.sh CONFIG_DIR SEQ_DIR OUT_DIR
-# Env: WINDOW (default 120), OVERLAP (40), CROSSOVER (20), plus run_sequence.sh env
+# Env: WINDOW (default 200), ALIGN_FROM (80), ALIGN_TO (140), CROSSOVER_AT (110), plus run_sequence.sh env
 # (SKIP_FRAMES applies to the forward run only; DROP_PRE_INIT as usual).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,11 +12,11 @@ CONFIG_DIR="$(cd "$1" && pwd)"; SEQ_DIR="$(cd "$2" && pwd)"; OUT_DIR="$3"
 RUNNER="${RUNNER:-$ROOT/build/runner/stereo_offline}"
 PY="${PY:-$ROOT/.venv/bin/python}"
 SEQ="$(basename "$SEQ_DIR")"
-WINDOW="${WINDOW:-120}"; OVERLAP="${OVERLAP:-40}"; CROSSOVER="${CROSSOVER:-20}"
+WINDOW="${WINDOW:-200}"; ALIGN_FROM="${ALIGN_FROM:-80}"; ALIGN_TO="${ALIGN_TO:-140}"; CROSSOVER_AT="${CROSSOVER_AT:-110}"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 
-# 1. forward pass (writes $OUT_DIR/forward/<SEQ>.txt and its own eval.json)
-"$ROOT/scripts/run_sequence.sh" "$CONFIG_DIR" "$SEQ_DIR" "$OUT_DIR/forward"
+# 1. forward pass (writes $OUT_DIR/forward/<SEQ>.txt and its own eval.json); reused if present
+[ -f "$OUT_DIR/forward/eval.json" ] || "$ROOT/scripts/run_sequence.sh" "$CONFIG_DIR" "$SEQ_DIR" "$OUT_DIR/forward"
 
 # 2. reversed input over the sequence start, run with the same yaml files
 "$PY" "$ROOT/scripts/make_reversed_input.py" "$SEQ_DIR/runner_input" "$OUT_DIR/reversed_input" --window "$WINDOW" > "$OUT_DIR/reverse_info.log"
@@ -28,11 +28,11 @@ cp "$OUT_DIR/forward"/*.yaml "$OUT_DIR/backward/"
 
 # 3. stitch, submission file, evaluation
 "$PY" "$ROOT/scripts/stitch_bidir.py" "$OUT_DIR/forward/trajectory.tum" "$OUT_DIR/backward/trajectory.tum" \
-  "$OUT_DIR/reversed_input/reverse_info.json" "$OUT_DIR/trajectory.tum" --overlap "$OVERLAP" --crossover "$CROSSOVER" | tee "$OUT_DIR/stitch_stats.json"
+  "$OUT_DIR/reversed_input/reverse_info.json" "$OUT_DIR/trajectory.tum" --align-from "$ALIGN_FROM" --align-to "$ALIGN_TO" --crossover-at "$CROSSOVER_AT" | tee "$OUT_DIR/stitch_stats.json"
 "$PY" "$ROOT/scripts/tum_to_submission.py" "$OUT_DIR/trajectory.tum" "$SEQ_DIR/runner_input/image_timestamps_ns.txt" \
   "$OUT_DIR/$SEQ.txt" ${DROP_PRE_INIT:+--drop-before-first} | tee "$OUT_DIR/submission_stats.json"
 cp "$OUT_DIR/forward/run_info.txt" "$OUT_DIR/run_info.txt"
-echo "bidir: WINDOW=$WINDOW OVERLAP=$OVERLAP CROSSOVER=$CROSSOVER" >> "$OUT_DIR/run_info.txt"
+echo "bidir: WINDOW=$WINDOW ALIGN_FROM=$ALIGN_FROM ALIGN_TO=$ALIGN_TO CROSSOVER_AT=$CROSSOVER_AT" >> "$OUT_DIR/run_info.txt"
 ARIA_CALIB="$(ls "$SEQ_DIR"/aria_calibrations/*.json 2>/dev/null | head -1 || true)"
 cd "$ROOT/third_party/lamaria"
 "$PY" "$ROOT/scripts/evaluate.py" "$OUT_DIR/$SEQ.txt" "$SEQ_DIR" --out-dir "$OUT_DIR" ${ARIA_CALIB:+--aria-calib "$ARIA_CALIB"} 2> "$OUT_DIR/eval.log"

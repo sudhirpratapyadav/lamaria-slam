@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-10-02 19:31 IST. Edit in place; this is the "where are we now" page.
+Last updated: 2026-10-02 20:06 IST. Edit in place; this is the "where are we now" page.
 
 ## Host
 
@@ -26,6 +26,7 @@ This PC (16 cores, 15 GB RAM, Quadro P620). A100 and Jetson Nano not started.
 | Config | R_01_easy | R_04_medium | R_08_hard | R_11_5cp (ATE; score 2D / recall@1m) |
 |---|---|---|---|---|
 | ov_ref003 (reference), start 0 / 100 | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | 2.62 / 1.58; 41.3 / 59.6 score, 3 / 28 % recall@1m |
+| ov_ref003 + CLAHE (018, candidate ov_ref004), start 0 / 100 | 0.191 / 0.195 | 0.982 / 0.659 | 2.47 / 1.18 | 0.74 / 1.06; 72.4 / 70.2 score, 89 / 55 % recall@1m |
 | ov_ref001 (first reference) | 0.301 / 0.281 | 0.739 / 1.078 | 4.49 / 3.59 | 1.36 / 2.84; 58.9 / 38.9 score |
 | ov_baseline (datasheet noise, dt calib on) | 0.169 | diverged (41.7) | 10.59 | - |
 
@@ -39,7 +40,7 @@ Against the published stereo+IMU baselines on the same sequences and metric (pap
 | OpenVINS + Maplab (paper, open baseline on the leaderboard) | 0.65 | 1.05 | 3.97 |
 | OKVIS2 (paper) | 0.02 | 1.36 | 6.81 |
 
-So on these three we are at open-baseline level: ahead on the easy and medium sequence, slightly behind on the hard one.
+Whole controlled set (022, ov_ref003, start 0, single runs): mean ATE 3.73 m over 13 sequences vs 4.01 m OpenVINS+Maplab and 4.39 m OpenVINS in the paper; better on 7 of 13 (R_01, R_02, R_03, R_04, R_08, R_12, R_13), worse on R_06, R_07, R_10, R_11 (heading drift through texture-poor stretches). Full table in experiments.md, section 022.
 
 Leaderboard main-set metrics, computed locally on R_11_5cp: best run so far score 2D 69.7, CP recall @ 1 m 80 %, pose recall @ 5 m 100 %, pose recall @ 1 m 78 % (012, 400 features, lucky init); with the reproducible initialiser (ov_ref003) 41 to 60 score, 3 to 28 % recall @ 1 m. R_11 is initialisation-dominated. R_12 downloaded, R_13 downloading. Cost: 2 to 2.4x faster than realtime, ~1.2 cores, under 140 MB RAM.
 
@@ -51,8 +52,8 @@ Leaderboard main-set metrics, computed locally on R_11_5cp: best run so far scor
 
 ## Next (in order)
 
-1. The systematic scale error (estimate 2 to 4.5 % too large, confirmed against surveyed control points on R_11). Found: the raw Aria accelerometer reads ~1.03 g; dividing it by 1.03 (011) brings the metric scale to 1.00 and halves the SE3 error on R_04, but the sim3 ATE gets worse because stereo and IMU then disagree (007 showed the stereo-free scale is equally large). Running/queued: 012 (features 400 / clones 15), 013 (ov_ref002 candidate = re-init + load-independent init), 014 (init window 4 s / init features 100), 015 (stereo off + accel correction). Discarded: 004, 005, 006, 008, 010.
-2. Determinism caveat (009): OpenVINS's dynamic init is bounded by wall-clock time, so results depend on machine load; ov_ref002 bounds it by iterations instead.
+1. Running/queued: 020/021 (init MLE off / to convergence), 024 (ov_ref004 = ov_ref003 + CLAHE on all 13 controlled sequences), 023 (bidirectional pass on 4 more sequences).
+2. Then: tracker quality in texture-poor stretches (feature lifetime, FAST threshold, grid), loop closure for the long sequences, timing at idle for the Nano budget, additional-set sequences as they arrive (10 downloading).
 3. Then: fisheye input (needs `.vrs` download approval), loop closure for the long sequences.
 4. Extend every comparison to all controlled-set sequences as they arrive (R_02 ... R_10).
 
