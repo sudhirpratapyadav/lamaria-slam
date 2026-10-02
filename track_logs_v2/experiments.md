@@ -8,7 +8,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A02 noise x10 | R_01 0.145 live / **0.033 final**; R_04 0.84 / **0.69**; R_08, R_11 running | | very slow under load (0.1x realtime), final BA non-causal |
-| B Basalt | B06 robust driver | all 5 tested divergences rescued with one restart (R_10 4.2 vs OV 6.1, R_07 1.3 vs 3.2) | | B07 = robust on 13 x 2 running |
+| B Basalt | B07 robust, 13 x 2 offsets | **2.43 m** (OpenVINS 2.83), better on 10/13 | B08 running | ~2x realtime on <2 cores |
 | C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
 | D OpenVINS line | D01 ov_ref005 + window 21 | 3.44 vs 2.83 over 13 | mean score 22.3 vs 22.0 (2_11 up to 27.3 / 68.5 %) | D02 blur-adaptive window running |
 
@@ -87,6 +87,31 @@ Additional set (score 2D / recall @ 5 m; ov_ref005 from v1 037 in brackets): 1_1
 Cost: 2011 / 2579 s wall under heavy load (0.07 to 0.1x realtime, CPU share 70 %), 0.6 / 0.8 GB RSS. OKVIS2 runs its full optimisation budget without the realtime limit; a clean timing is owed.
 
 **Decision**: continue; noise x10 is OKVIS2's working point so far. Next: R_08 and R_11 (diverged at x1), then x20, keyframing, realtime budget vs accuracy, fisheye input.
+
+## B07: robust Basalt on all 13 controlled sequences, two offsets (2026-10-03, pc)
+
+**Setup**: `basalt_ref1` through `run_basalt_robust.sh` (divergence restart + stitching), offsets 0 and 100, pinhole ASL input.
+
+**Result** (ATE m sim3; restarts; score 2D for the control-point sequences; OpenVINS ov_ref005 for comparison):
+
+| Seq | OV k=0 / k=100 | Basalt robust k=0 / k=100 | restarts | score (Basalt / OV) |
+|---|---|---|---|---|
+| R_01 | 0.289 / 0.176 | **0.151 / 0.156** | 0 / 0 | |
+| R_02 | 0.584 / 0.358 | **0.173 / 0.215** | 0 / 3 | |
+| R_03 | 0.216 / 0.195 | 0.434 / 0.415 | 1 / 0 | |
+| R_04 | 1.480 / 0.675 | **0.781** / 0.935 | 0 / 1 | |
+| R_05 | 1.307 / 1.715 | **1.139 / 1.153** | 0 / 0 | |
+| R_06 | 2.081 / 1.906 | **1.124 / 0.764** | 0 / 0 | |
+| R_07 | 3.203 / 1.974 | **1.236 / 1.220** | 1 / 0 | |
+| R_08 | 1.484 / 1.964 | **1.006 / 1.368** | 0 / 1 | |
+| R_09 | 3.843 / 6.696 | **2.762 / 2.414** | 0 / 0 | |
+| R_10 | 6.102 / 6.336 | **4.412 / 3.877** | 1 / 0 | |
+| R_11 | 0.684 / 0.476 | 2.605 / 2.078 | 0 / 0 | 73.3 / 77.0 vs 72 |
+| R_12 | 9.211 / 8.579 | 12.857 / 12.936 | 0 / 3 | 12.0 / 14.0 vs 13 / 6 |
+| R_13 | 5.188 / 6.940 | **3.349 / 3.544** | 0 / 0 | 45.2 / 44.3 vs 39 / 30 |
+| **mean** | **2.83** | **2.43** | | |
+
+**Decision**: robust Basalt (`basalt_ref1` + segments driver) is the best controlled-set result so far: better on 10 of 13 by two-offset mean, worse on R_03 (small), R_11 (ATE, though its score is higher) and R_12. At about 2x realtime on fewer than 2 cores. Next: the additional set (B08), then Basalt's own knobs again on top of the robust driver (restart thresholds, noise x20 vs x30, keyframes), the offline mapper, and the kb4 fisheye input.
 
 ## B06: Basalt with script-level divergence recovery (2026-10-03, pc)
 

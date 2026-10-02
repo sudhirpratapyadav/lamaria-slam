@@ -27,3 +27,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 02:55** A02 OKVIS2 noise x10: R_01 final 0.033 m (best so far), R_04 0.84 live / 0.69 final. Launched on R_08 and R_11 (two at a time: memory).
 - **2026-10-03 03:26** D01 complete: fixed window 21 not adopted (controlled 3.44 vs 2.83 m; additional mean score 22.3 vs 22.0 with large swings). D02 adaptive window running.
 - **2026-10-03 03:31** D02 adaptive window (25 px below sharpness 15): between the fixed window and the reference (2_11 score 23.0 / 52 %, R_07 2.1, but R_08 2.2 vs 1.5). D03 = window 21 below sharpness 8 on the same eight sequences.
+- **2026-10-03 03:32** B07: robust Basalt two-offset mean 2.43 m on the 13 controlled sequences (OpenVINS ov_ref005 2.83), better on 10/13. B08 = robust Basalt on the ten additional sequences launched.
