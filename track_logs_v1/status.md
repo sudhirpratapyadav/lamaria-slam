@@ -1,4 +1,4 @@
-# Current status
+# Current status (v1, closed 2026-10-02 23:50; archived, see track_logs_v2/)
 
 Last updated: 2026-10-02 23:38 IST. Edit in place; this is the "where are we now" page.
 

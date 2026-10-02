@@ -1,3 +1,27 @@
+# Experiments (v1, closed 2026-10-02 23:50)
+
+## v1 summary: what worked, what did not, what we learned
+
+**Scope**: one day on this PC, OpenVINS (MSCKF) stereo+IMU on the LaMAria pinhole ASL data, 36 experiments, about 300 runs, all 23 training sequences on disk.
+
+**Result**: reference `configs/ov_ref005` at a two-offset mean ATE of 2.83 m over the 13 controlled sequences (paper: OpenVINS+Maplab 4.01 m, OpenVINS 4.39 m, single runs). On the test-like additional set we are at open-baseline level (scores 41 / 14 / 15 / 21, recall @ 5 m 100 / 37 / 24 / 49 % on sequence_1_19 / 1_20 / 2_11 / 2_12 with ov_ref004; ov_ref005 numbers in 037). Verdict for the leaderboard: around rank 5, likely above the open baseline, far from AnonSLAM (75 / 61 / 60) and Aria's SLAM (91 / 79 / 71). Not submitted (owner: only when top 3 and confident).
+
+**Kept (in order of effect)**: 8x8 extraction grid (036, −0.40 m); CLAHE (026, −0.36 m); 400 KLT features (012); dynamic initialisation bounded by iterations instead of wall clock (013, reproducibility); IMU white-noise densities x10 and camera-IMU offset fixed at 0 (001, needed to survive R_04); runner-level divergence detection with re-initialisation and stitching, 1 s grace (009, 024).
+
+**Discarded with evidence**: online camera extrinsics/intrinsics (004), IMU noise x3/x5/x20 (005, 008), online IMU intrinsics (006), fixed dt +4.3 ms (010), uniform accelerometer scale (011, 015: fixes metric scale, hurts sim3), 15 clones (012), init window / init features / init MLE settings (014, 020, 021), stereo off (007), focal probe (017), 2 px noise (019), dense grid 10 px (028, tie), ZUPT throughout / analytical integration (027, no-ops), factory IMU rectification (031, neutral), backward pass over the start (023, no gain), raw fisheye input even with an exact lens model (033), FAST 10/15 (025, 032, mixed), 100 SLAM features (025).
+
+**Lessons**
+1. OpenVINS is deterministic only at equal CPU load (wall-clock-bounded init); fixed. Seeds = start offsets. A change counts only on the two-offset mean over all 13 sequences; the same config varies 2x between offsets on long sequences.
+2. The 2 to 4 % sim3 scale overestimate is real against surveyed control points and is not the stereo baseline, focal, IMU factory calibration or weighting; still unexplained. The leaderboard's Sim3 alignment forgives it.
+3. There are no loops in any training sequence (revisit 0 to 5 %); ATE is accumulated heading drift (0.3 to 0.8 % per 100 m on clean walks, 1.5 to 1.9 % in blurred / low-light stretches). Loop closure cannot help here; drift in bad stretches is the lever.
+4. The additional set, not the controlled set, decides the leaderboard: recall @ 5 m collapses on the drifty sequences.
+5. Config tuning of a filter-based VIO plateaus around here; reaching the top entries needs a different estimator class (keyframe bundle adjustment over long windows, robust tracking through blur, likely non-causal refinement). That is v2's question.
+6. Harness facts: pad the right image, mask padding; pass absolute config paths; no YAML comment on a boolean line; never edit `run_sequence.sh` while runs execute; `.vrs` extraction via projectaria_tools works without the VRS CLI.
+
+**Cost**: ov_ref005 runs about 1.4x realtime on one core of this PC (needs an idle measurement); 400 features + CLAHE cost about 1.75x the CPU of the first reference.
+
+---
+
 # Experiments
 
 Timestamped but editable. This is the single record of what was tried: a scoreboard at the top, then one section per experiment with hypothesis, change, exact command, per-sequence numbers, cost, decision, and insights. Raw outputs live in `results/<exp>/` (git-ignored); each run folder has `run_info.txt` with the commit, host and command, plus the exact yaml used.

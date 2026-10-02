@@ -38,11 +38,11 @@ Goal ladder: beat the open baseline (OpenVINS+Maplab) first, then AnonSLAM, then
 
 ```
 docs/          design notes and benchmark notes
-track_logs_v1/ decision log, current status, experiments (scoreboard + per-experiment records)
+track_logs_v2/ decision log, current status, experiments (current version; v1 archived in track_logs_v1/)
 scripts/       download, run, evaluate, package-submission helpers
 configs/       estimator configurations (added as we go)
 data/          datasets (git-ignored)
 results/       run outputs (git-ignored)
 ```
 
-Hosts and results are tracked in `track_logs_v1/experiments.md` (scoreboard at the top) and `track_logs_v1/status.md`.
+Hosts and results are tracked in `track_logs_v2/` (current) and `track_logs_v1/` (archived OpenVINS tuning, with a summary at the top of its experiments.md).
