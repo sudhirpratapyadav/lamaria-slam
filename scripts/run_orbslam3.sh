@@ -19,8 +19,10 @@ mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 NOISE_SCALE=1.0; WALK_SCALE=1.0
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 
-"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$SEQ_DIR/okvis_input" > "$OUT_DIR/input.log"
-mkdir -p "$SEQ_DIR/basalt_input"; [ -L "$SEQ_DIR/basalt_input/mav0" ] || ln -sfn ../okvis_input "$SEQ_DIR/basalt_input/mav0"
+SKIP="${SKIP_FRAMES:-0}"; OKIN="$SEQ_DIR/okvis_input"; [ "$SKIP" = "0" ] || OKIN="$SEQ_DIR/okvis_input_skip$SKIP"
+"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$OKIN" --skip-frames "$SKIP" > "$OUT_DIR/input.log"
+BIN_DIR="$SEQ_DIR/basalt_input"; [ "$SKIP" = "0" ] || BIN_DIR="$SEQ_DIR/basalt_input_skip$SKIP"
+mkdir -p "$BIN_DIR"; [ -L "$BIN_DIR/mav0" ] || ln -sfn "../$(basename "$OKIN")" "$BIN_DIR/mav0"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 "$PY" "$ROOT/scripts/make_orbslam3_settings.py" "$CALIB" "$OUT_DIR/orbslam3.yaml" --options "$CONFIG_DIR/options.json" \
   --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE"
@@ -35,10 +37,16 @@ cp "$SEQ_DIR/runner_input/image_timestamps_ns.txt" "$OUT_DIR/timestamps.txt"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 cd "$OUT_DIR"
-/usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
-  "$ORB_BIN" "$ORB_VOC" "$OUT_DIR/orbslam3.yaml" "$SEQ_DIR/basalt_input" "$OUT_DIR/timestamps.txt" run \
-  > "$OUT_DIR/orbslam3.log" 2>&1 || { echo "orbslam3 failed, see $OUT_DIR/orbslam3.log"; tail -5 "$OUT_DIR/orbslam3.log"; exit 1; }
-[ -f "$OUT_DIR/f_run.txt" ] || { echo "no f_run.txt written; files: $(ls "$OUT_DIR")"; exit 1; }
+# ORB-SLAM3 segfaults sporadically (timing-dependent); retry a few times
+ok=0
+for attempt in 1 2 3; do
+  rm -f "$OUT_DIR/f_run.txt"
+  if /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
+     "$ORB_BIN" "$ORB_VOC" "$OUT_DIR/orbslam3.yaml" "$BIN_DIR" "$OUT_DIR/timestamps.txt" run \
+     > "$OUT_DIR/orbslam3.log" 2>&1 && [ -f "$OUT_DIR/f_run.txt" ]; then ok=1; echo "attempts: $attempt" >> "$OUT_DIR/run_info.txt"; break; fi
+  echo "attempt $attempt failed: $(tail -1 "$OUT_DIR/orbslam3.log" | cut -c1-100)"
+done
+[ "$ok" = 1 ] || { echo "orbslam3 failed 3 times, see $OUT_DIR/orbslam3.log"; exit 1; }
 "$PY" - "$OUT_DIR" <<'EOF'
 import sys
 from pathlib import Path

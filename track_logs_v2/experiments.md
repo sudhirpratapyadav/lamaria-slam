@@ -9,7 +9,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | see v1 037 | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A01 defaults, R_01 only | R_01: 0.237 live / **0.043 final BA** | | non-causal final BA; slow under load |
 | B Basalt | B04 (noise x20, 4 levels, 10 kfs), 4 seqs | R_01 0.15, R_04 0.78, R_08 1.01, R_11 2.60 | R_11 score 73.5 | ~2x realtime on <2 cores; B05 on 13 x 2 offsets running |
-| C ORB-SLAM3 | - | | | |
+| C ORB-SLAM3 | C01 defaults, R_01 fisheye | R_01: **0.031** | | loop closing; timing-dependent crash, retries added |
 | D OpenVINS + BA smoother | - | | | |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
@@ -19,6 +19,14 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 **Result**, R_01_easy: live ATE sim3 0.237 m (scale 0.958); final-BA ATE 0.043 m (scale 0.976); poses for all 2898 images. Paper: OKVIS2 0.02 m, OpenVINS 0.66 m; our OpenVINS ov_ref005 0.19 / 0.29 m. Cost: 1466 s wall (10x slower than realtime) at 0.83 cores average under a heavily loaded machine (15 other estimators running), 564 MB RSS. A clean timing is owed.
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path, already as good as tuned OpenVINS. Next: R_04, R_08, R_11 with defaults, then noise scaling (OKVIS2 has its own IMU priors), keyframing, and the fisheye input (OKVIS2 has a native equidistant model).
+
+## C01: ORB-SLAM3 stereo-inertial out of the box, fisheye input (2026-10-03, pc, ORB_SLAM3 4452a3c + C++14, viewer off)
+
+**Setup**: `scripts/run_orbslam3.sh` with `configs/orbslam3_default` (EuRoC/TUM-VI defaults: 1200 ORB features, 8 levels), KannalaBrandt8 from the fitted fisheye calibration (`data/training_fisheye`), IMU noise x1, loop closing on. The right raw frames are stamped 25 us after the left ones; alias links let the example load them by the left timestamp.
+
+**Result**, R_01_easy: ATE sim3 **0.031 m** (scale 0.969), 2888 of 2898 images with a pose (10 before initialisation). Paper: ORB-SLAM3 0.03 m. The first attempt segfaulted 70 s in; the same command run under gdb completed normally (timing-dependent crash, a known ORB-SLAM3 trait), so the run script now retries up to three times.
+
+**Decision**: continue with high priority; together with OKVIS2's final-BA 0.043 m this confirms that optimisation-based systems are a different league on the easy sequence (OpenVINS 0.19, Basalt 0.15). Next: R_04, R_08, R_11 on fisheye; pinhole input variant; noise scaling; the hard sequences decide.
 
 ## B04: Basalt combinations (2026-10-03, pc)
 
