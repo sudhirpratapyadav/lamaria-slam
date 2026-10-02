@@ -19,7 +19,7 @@ NOISE_SCALE=1.0; WALK_SCALE=1.0; THREADS=4
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 
 "$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$SEQ_DIR/okvis_input" > "$OUT_DIR/input.log"
-mkdir -p "$SEQ_DIR/basalt_input"; rm -f "$SEQ_DIR/basalt_input/mav0"; ln -s ../okvis_input "$SEQ_DIR/basalt_input/mav0"
+mkdir -p "$SEQ_DIR/basalt_input"; [ -L "$SEQ_DIR/basalt_input/mav0" ] || ln -sfn ../okvis_input "$SEQ_DIR/basalt_input/mav0"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 "$PY" "$ROOT/scripts/make_basalt_calib.py" "$CALIB" "$OUT_DIR/calib.json" --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE"
 cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
