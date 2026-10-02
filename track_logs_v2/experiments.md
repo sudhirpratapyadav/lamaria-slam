@@ -7,7 +7,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A01 defaults | R_01 0.237 live / **0.043 final**; R_04 1.56 / 1.44 (scale 0.89); R_08, R_11 diverged | | A02 noise x10 running; 6 GB RSS on long sequences |
+| A OKVIS2 | A02 noise x10 | R_01 0.145 live / **0.033 final**; R_04 0.84 / **0.69**; R_08, R_11 running | | very slow under load (0.1x realtime), final BA non-causal |
 | B Basalt | B06 robust driver | all 5 tested divergences rescued with one restart (R_10 4.2 vs OV 6.1, R_07 1.3 vs 3.2) | | B07 = robust on 13 x 2 running |
 | C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
 | D OpenVINS line | D01 ov_ref005 + window 21 | 2.72 vs 1.99 over 11 (worse on sharp sequences) | additional set rerunning | D02 blur-adaptive window next |
@@ -45,6 +45,24 @@ R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.89
 
 **Reading**: a wide window costs precision on sharp sequences (R_08, R_10) and buys robustness on blurred ones. The right form is a blur-adaptive window: measure sharpness per frame (Laplacian variance) and widen the KLT window only when the frame is blurred. Implemented in the runner as D02 (`klt_win_blur`, `klt_blur_threshold`).
 
+## A02: OKVIS2, IMU noise x10 (2026-10-03, pc)
+
+**Change**: `NOISE_SCALE=10` on the white-noise densities (`configs/okvis2_n10`), everything else default (loop closures, final BA, no realtime limit).
+
+**Result** (ATE m sim3, offset 0):
+
+| | R_01 live | R_01 final BA | R_04 live | R_04 final BA |
+|---|---|---|---|---|
+| A01 defaults | 0.237 | 0.043 | 1.555 (scale 0.894) | 1.441 |
+| A02 noise x10 | 0.145 | **0.033** (scale 0.982) | 0.839 | **0.693** (scale 0.921) |
+| Basalt ref1 / robust | 0.151 | | 0.788 | |
+| ORB-SLAM3 (fisheye) | | 0.031 | 0.794 (25 % frames lost) | |
+| OpenVINS ov_ref005 | 0.289 | | 1.480 | |
+
+Cost: 2011 / 2579 s wall under heavy load (0.07 to 0.1x realtime, CPU share 70 %), 0.6 / 0.8 GB RSS. OKVIS2 runs its full optimisation budget without the realtime limit; a clean timing is owed.
+
+**Decision**: continue; noise x10 is OKVIS2's working point so far. Next: R_08 and R_11 (diverged at x1), then x20, keyframing, realtime budget vs accuracy, fisheye input.
+
 ## B06: Basalt with script-level divergence recovery (2026-10-03, pc)
 
 **Change**: `scripts/basalt_segments.py` / `run_basalt_robust.sh`: run Basalt, detect divergence in its output (per-frame speed > 6 m/s or jump > 1 m), keep the poses up to 20 frames before it, restart Basalt from that frame on a trimmed input, map the new segment's first pose onto the last kept pose (SE3), repeat. Same `basalt_ref1` configuration.
@@ -58,7 +76,7 @@ R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.89
 | R_04 k=100 | 38.8 | 0.929 | 1 | 0.675 |
 | R_08 k=100 | 49.7 | **0.963** | 1 | 1.964 |
 | R_03 k=0 | 6.16 | 0.435 | 1 | 0.216 |
-| R_12 k=100 | 54.7 | (running) | | 8.579 |
+| R_12 k=100 | 54.7 | 13.24 (score 12.9) | 3 | 8.579 (score 5.9) |
 
 Each needed exactly one restart; poses exist for every frame (the restart gap is carried forward like in the OpenVINS runner).
 
