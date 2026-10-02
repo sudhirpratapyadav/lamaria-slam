@@ -106,6 +106,21 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## M01: mix-and-match analysis, per-sequence choice between Basalt and OpenVINS (2026-10-03)
+
+Using B07/B08 (robust Basalt) and v1 036/037 (OpenVINS ov_ref005):
+
+| | OpenVINS | Basalt | oracle (best per sequence) | rule: Basalt if < 1000 s else OpenVINS |
+|---|---|---|---|---|
+| controlled 13, two-offset mean ATE | 2.83 | 2.43 | **1.97** | - |
+| additional 10, mean score 2D | 21.8 | 16.9 | **25.9** | 24.2 |
+
+The two lines fail on different sequences (Basalt on the 2 km walks and the moving platform, OpenVINS on 1_19 / 2_11 / 4_10), so a selector would already beat both; a duration threshold captures most of it on the additional set but a selector on something the estimator can observe (restart count, visual-inertial consistency, agreement between the two runs) is the proper version. Noted as a v3 option: an ensemble is cheap here because Basalt + OpenVINS together cost about 3 cores at 1.4 to 2x realtime.
+
+## B13: Basalt fisheye with a 40 px optical-flow grid (2026-10-03, pc)
+
+R_01 0.214 (grid 50: 0.110), R_08 2.829 (3.693; pinhole 1.006). Discard: denser flow does not recover R_08 and hurts R_01.
+
 ## B11: Basalt fisheye at the second offset (2026-10-03, pc)
 
 **Result** (ATE m, offset 100; two-offset means in the last row, pinhole robust / fisheye):
