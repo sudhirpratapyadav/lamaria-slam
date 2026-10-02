@@ -9,7 +9,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A02 noise x10 | R_01 0.145 / **0.033 final**; R_04 0.84 / 0.69; R_08 5.0 / 5.2; R_11 1.43 / 1.64 (score 67) | | slowest (0.1x realtime under load); A03/A04 running |
 | B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; B09 on the long walks |
-| C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
+| C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
@@ -95,6 +95,16 @@ Cost: 2011 / 2579 s wall under heavy load (0.07 to 0.1x realtime, CPU share 70 %
 R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no divergence any more, but far behind OpenVINS 1.5 to 2.0 and Basalt 1.0 to 1.4). R_11_5cp: live 1.429 / final 1.640 (scale 0.79), score 67.2 / 62.8, recall @ 1 m 44.9 / 43.1 (OpenVINS 0.68 / 72, Basalt robust 2.6 / 73.3). The final BA does not help on the hard sequences (there are no loops; its loop-closure heuristic may even hurt).
 
 **Decision**: continue; x10 fixes the divergence but OKVIS2 is now the slowest and, on hard sequences, the least accurate of the optimisation-based candidates. A03 = x20 with loop closures off, A04 = x10 with 10 keyframes / 5 IMU frames, both on R_04 and R_08.
+
+## A03 / A04: OKVIS2 noise x20 without loop closures; x10 with 10 keyframes (2026-10-03, pc)
+
+**A03** (`okvis2_a03_n20_nolc`): diverged on both R_04 (26.7 m, scale 0.77) and R_08 (41.4 m), no final trajectory. Discard: OKVIS2 needs its loop-closure / pose-graph path even without loops, and x20 is too much.
+
+**A04** (`okvis2_a04_n10_kf10`, num_keyframes 10, num_imu_frames 5): pending.
+
+## C02: ORB-SLAM3 noise x10, no keyframe insertion when lost (2026-10-03, pc)
+
+R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
 ## B09: Basalt knobs on the 2 km walks (2026-10-03, pc)
 
