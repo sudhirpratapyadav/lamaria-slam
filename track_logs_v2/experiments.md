@@ -12,6 +12,22 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | - | | | |
 | D OpenVINS + BA smoother | - | | | |
 
+## B02: Basalt, IMU noise x10 (2026-10-03, pc)
+
+**Change**: `NOISE_SCALE=10` on the white-noise densities (walks x1), as OpenVINS needed. `configs/basalt_n10`.
+
+**Result** (ATE m sim3, offset 0; OpenVINS ov_ref005 k=0 for comparison):
+
+| | R_01 | R_04 | R_08 | R_11 |
+|---|---|---|---|---|
+| Basalt default (B01) | 1.558 | - | - | - |
+| Basalt noise x10 | 0.338 (0.997) | 1.549 (0.989) | 3.837 (0.963) | 1.614 (0.934), score 52.1 / recall@1m 16.3 |
+| OpenVINS ov_ref005 | 0.289 | 1.480 | 1.484 | 0.684, score 72 |
+
+Runtime: 102 / 165 / 344 / 269 s at 1.6 to 1.9 cores, i.e. about 2x realtime on fewer than 2 cores (OpenVINS ~1.4x realtime on one core). Basalt's sim3 scale is 0.99 to 1.00 on R_01/R_04 where OpenVINS shows 0.96 to 0.98, so the v1 scale offset is estimator-specific.
+
+**Decision**: continue; the noise scaling was the big step (4.6x on R_01). Round B03: optical-flow grid 30 px, 4 pyramid levels, 10 keyframes, noise x5 and x20, one knob each.
+
 ## B01: Basalt out of the box (2026-10-03, pc, binary release 2026-03-22)
 
 **Setup**: `scripts/run_basalt.sh` with `configs/basalt_default` (= Basalt's `euroc_config.json`), calibration from the LaMAria pinhole JSON (`make_basalt_calib.py`), IMU noise as in the JSON (x1), 4 threads, pinhole ASL input.
