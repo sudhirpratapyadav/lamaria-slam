@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     // Divergence detection + re-initialisation (runner-level, see track_logs_v1 experiment 009).
     // 0 disables a check. On divergence the estimator is rebuilt, re-fed the last seconds of IMU,
     // and its new local frame is stitched onto the last good pose so the output stays continuous.
-    double reinit_max_velocity = 0, reinit_max_jump = 0, reinit_imu_replay_s = 3.0, reinit_grace_s = 3.0;
+    double reinit_max_velocity = 0, reinit_max_jump = 0, reinit_imu_replay_s = 3.0, reinit_grace_s = 1.0;
     parser->parse_config("reinit_max_velocity", reinit_max_velocity, false);
     parser->parse_config("reinit_grace_s", reinit_grace_s, false);  // no checks this long after an (re)initialisation
     parser->parse_config("reinit_max_jump", reinit_max_jump, false);

@@ -27,7 +27,26 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
 | 022 | `ov_ref003`, k=0 | R_13_15cp (1404 s, 15 CPs) | 39.1 | - | 92.5 | 10.1 | 3.55 (10.35 / 8.37 / 6.65) |
 
-## 023: bidirectional pass over the sequence start (2026-10-02, pc, commit a1bb2c6; in progress)
+## 024: ov_ref004 (= ov_ref003 + CLAHE) on all 13 controlled sequences (2026-10-02, pc, commit c7b9614)
+
+**Hypothesis**: CLAHE, which won 7 of 8 cells on the 4-sequence set (018), generalises to the whole controlled set.
+
+**Change**: `configs/ov_ref004`, start 0, single run per sequence; runner now has the 3 s re-init grace period (not in 018).
+
+**Result** (ATE m sim3; ov_ref003 from 022 for comparison):
+
+| Seq | R_01 | R_02 | R_03 | R_04 | R_05 | R_06 | R_07 | R_08 | R_09 | R_10 | R_11 | R_12 | R_13 | mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ov_ref003 | 0.254 | 0.605 | 0.287 | 0.716 | 1.347 | 6.155 | 3.896 | 2.93 | 4.977 | 12.893 | 2.62 | 8.296 | 3.551 | 3.73 |
+| ov_ref004 (CLAHE) | 1.434 (1 re-init) | 0.693 | 0.223 | 0.982 | 1.462 | **3.683** | **3.445** | **2.47** | 5.938 | **10.021** | **0.74** | 9.079 | 6.544 | 3.59 |
+
+R_11: score 72.4, recall @ 1 m 88.9 %. R_12: score 12.8, recall @ 5 m 29.4 %. R_13: score 29.4, recall @ 5 m 68.9 % (ov_ref003: 39.1, 92.5 %).
+
+**Grace-period check** (R_01, CLAHE, k=0): grace 0 s and 1 s both give 0.191 m with one re-init 1.6 s after init; grace 3 s gives 1.434 m. A large jump right after initialisation is a real bad-init signal, so the runner default is now 1 s (026 onwards).
+
+**Decision**: not adopted yet. Better on 6, worse on 7; the mean gain (3.59 vs 3.73) is inside single-run noise, and the two biggest losses need explanation: R_01 (0.25 to 1.43) was the 3 s grace period (above), and R_13 (3.6 to 6.5, recall @ 5 m 92 to 69 %) is a single long run that may be init luck. Next: both references at a second start offset on all 13 sequences (026) before deciding, and the grace period re-examined.
+
+## 023: bidirectional pass over the sequence start (2026-10-02, pc, commit a1bb2c6; closed)
 
 **Hypothesis**: the first minute after initialisation dominates the ATE (022 diagnostic); running a second estimator on the time-reversed first W seconds, which starts where the forward run is converged, and stitching it onto the forward trajectory on a window where both are converged, should remove most of that early error. Non-causal; benchmark use only, flagged as such on any submission.
 
@@ -37,11 +56,15 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 
 | Sequence | forward only (ov_ref003) | bidirectional W=200 | stitch overlap RMSE |
 |---|---|---|---|
+| R_04_medium | 0.716 | 0.770 | 0.09 m |
 | R_06_medium | 6.155 | 5.758 | 0.18 m |
+| R_07_medium | 3.896 | 3.886 | 0.17 m |
+| R_08_hard | 2.931 | 3.023 | 0.23 m |
+| R_11_5cp | 2.618 | 2.672 (score 40.7) | 0.09 m |
 
 **Diagnostic that changed the picture**: on R_06 the error profile after aligning on t > 80 s is a smooth ramp (19 m at t = 0 down to 1.3 m at 120 s) and the backward run shows the same ramp. That is a heading error accumulated in the first 80 s, not an initialisation transient: image sharpness collapses between 30 and 60 s (Laplacian variance 5 to 9 against 40 to 140 later) with only 7 to 9 MSCKF features, so heading rests on the gyro there, and the drift is the same in both directions. A gyro scale error was ruled out (integrated gyro versus pGT rotation: 0.985 to 1.03, R_11 1.003 with a tight spread). So this is genuine visual-inertial drift through a texture-poor stretch that happens to be early in R_06; the bidirectional pass cannot remove it, only re-distribute it.
 
-**Decision**: pending; running on R_04, R_07, R_08, R_11 after 024 to measure the typical gain before deciding whether the extra pass is worth keeping for submissions. The texture-poor-stretch problem points at the tracker (feature quality in low texture, longer feature lifetimes) and at loop closure, not at the initialiser.
+**Decision**: discard. No gain on five sequences (within ±0.1 m except R_06, −0.4 m). The 'first minute dominates' reading of 022 was a misinterpretation: aligning on t > 80 s makes the start look worst simply because it is farthest in time from the alignment window, i.e. this is ordinary drift. The scripts stay (useful for other offline experiments). What remains true: texture-poor stretches drive heading drift (R_06), and the remedy is a better tracker there and loop closure, not initialisation work.
 
 ## 022: reference on the whole controlled set (2026-10-02, pc, commit 6d6abc8)
 
@@ -73,6 +96,22 @@ R_12_10cp leaderboard-style metrics: score 2D 15.9, pose recall @ 5 m 30.3 %, @ 
 **Where the error is**: aligning each trajectory only on t > 80 s, the remainder is 1.6 (R_06), 2.9 (R_07), 2.5 (R_08), 0.6 (R_04) m RMSE while the first 20 to 40 s are 8 to 19 m off. The first minute after initialisation (biases and velocity still converging, no smoothing) dominates the ATE of every medium and hard sequence; the losses against the open baseline are exactly those sequences.
 
 **Decision**: the reference is ahead of the open baseline on the controlled set as a whole (mean 3.73 vs 4.01 m over 13 sequences, better on 7 of 13, including the two longest). The next lever is the initial segment: experiment 023 (bidirectional pass, non-causal, benchmark-only) and later a causal improvement of the initialiser. Also to note: R_02's scale 0.908 and R_12's 0.953 are the worst scale cases; R_12 at 1012 s is the first sequence where pose recall @ 5 m is far from 100 %.
+
+## 020 / 021: dynamic-init MLE off, or to full convergence (2026-10-02, pc, commit a1bb2c6)
+
+**Hypothesis**: 016 showed R_11 flips between 0.8 and 2.6 m depending on how far the init MLE runs; either skipping the refinement (closed-form init only, `init_dyn_mle_max_iter: 0`) or running it to convergence (200 iterations) might give a more reliable initial state.
+
+**Change**: one knob each from `ov_ref003` (`configs/explore-020/mle0`, `configs/explore-021/mle200`).
+
+**Result** (ATE m sim3, sim3 scale, re-inits; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference ov_ref003 (50 iter) | 0.254 | 0.239 | 0.716 | 0.706 | 2.93 | 4.71 | 2.62, 41.3 / 3.4 | 1.58, 59.6 / 27.9 |
+| MLE off | 0.368, 1 re-init | 0.237 | 0.590 | 0.712 | 2.88 | 2.10, 2 re-inits | 2.62, 41.4 / 3.6 | 2.27, 54.0 / 17.6, 3 re-inits |
+| MLE 200 iter | 0.254 | 0.239 | 0.716 | 0.706 | 2.93 | 4.71 | 2.62, 41.3 / 3.4 | 1.58, 59.6 / 27.9 |
+
+**Decision**: discard both. 200 iterations is identical to 50 (the MLE converges). Without the MLE the closed-form init is poorer and the runner's divergence detector then fires 1 to 3 times, after which the result is sometimes better (R_08 k=100: 2.10, the best at that offset) and sometimes worse (R_01 k=0); not a consistent gain, but a useful observation: a re-init a few seconds in is cheap and the detector is doing its job.
 
 ## 018 / 019: CLAHE, and 2 px measurement noise (2026-10-02, pc, commit a1bb2c6)
 
