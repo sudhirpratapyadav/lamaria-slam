@@ -19,7 +19,7 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | # | Config | Sequence | score 2D | CP recall @ 1 m | pose recall @ 5 m | pose recall @ 1 m | ATE sim3 (paper: OpenVINS / OV+Maplab / OKVIS2) |
 |---|---|---|---|---|---|---|---|
 | 003 | `ov_ref001` | R_11_5cp (477 s, 5 CPs, 1627 pGT keyframes) | 58.9 | 40.0 | 100.0 | 35.8 | 1.36 (1.04 / 1.62 / 1.85) |
-| 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 60.0 / 60.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
+| 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 80.0 / 80.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
 
 ## 012: tracking capacity, 400 features or 15 clones (2026-10-02, pc, commit a09458c)
 
