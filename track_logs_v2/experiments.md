@@ -20,6 +20,25 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path, already as good as tuned OpenVINS. Next: R_04, R_08, R_11 with defaults, then noise scaling (OKVIS2 has its own IMU priors), keyframing, and the fisheye input (OKVIS2 has a native equidistant model).
 
+## B03: Basalt single-knob round (2026-10-03, pc)
+
+**Change** (one knob each from B02 = noise x10): noise x5 / x20; optical-flow detection grid 30 px (default 50); optical-flow pyramid levels 4 (default 3); max keyframes 10 (default 7). `configs/basalt_r3_*`.
+
+**Result** (ATE m sim3, offset 0; R_11 also score 2D):
+
+| Variant | R_01 | R_04 | R_08 | R_11 |
+|---|---|---|---|---|
+| B02 noise x10 | 0.338 | 1.549 | 3.837 | 1.614 (52.1) |
+| noise x5 | 0.298 | 2.025 | 4.532 | 3.236 (33.0) |
+| noise x20 | 0.367 | **1.009** | **1.307** | **1.028 (69.5)** |
+| grid 30 px | 0.645 | 1.612 | 1.666 | 1.984 (52.2) |
+| pyramid levels 4 | **0.138** | **1.010** | **1.347** | 1.376 (69.5) |
+| keyframes 10 | 0.239 | 1.502 | 3.939 | 1.755 (48.6) |
+
+OpenVINS ov_ref005 k=0: 0.289 / 1.480 / 1.484 / 0.684 (72).
+
+**Decision**: noise x20 and 4 pyramid levels are each large gains on three of four sequences; combine them in B04 (x20 + 4 levels; with 5 levels; x30; plus 10 keyframes).
+
 ## B02: Basalt, IMU noise x10 (2026-10-03, pc)
 
 **Change**: `NOISE_SCALE=10` on the white-noise densities (walks x1), as OpenVINS needed. `configs/basalt_n10`.
