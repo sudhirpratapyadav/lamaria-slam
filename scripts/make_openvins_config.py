@@ -31,6 +31,9 @@ def main():
     ap.add_argument("out_dir", type=Path)
     ap.add_argument("--noise-scale", type=float, default=1.0,
                     help="multiply the JSON IMU white-noise densities by this")
+    ap.add_argument("--timeshift", type=float, default=0.0, help="initial camera-IMU time offset written as timeshift_cam_imu (s)")
+    ap.add_argument("--acc-scale", type=float, default=1.0,
+                    help="accelerometer scale factor k (measured = k * true); written as kalibr Ta = diag(k), OpenVINS applies 1/k")
     ap.add_argument("--walk-scale", type=float, default=None,
                     help="multiply the JSON bias random walks by this (default: same as --noise-scale)")
     args = ap.parse_args()
@@ -55,7 +58,7 @@ def main():
             f"cam{i}:\n  T_cam_imu:\n{mat_rows(T_cam_imu)}\n  cam_overlaps: [{1 - i}]\n"
             f"  camera_model: {model}\n  distortion_coeffs: {dist}\n  distortion_model: {dist_model}\n"
             f"  intrinsics: {intr}\n  resolution: [{W}, {H}]\n"
-            f"  rostopic: /cam{i}/image_raw\n  timeshift_cam_imu: 0.0\n"
+            f"  rostopic: /cam{i}/image_raw\n  timeshift_cam_imu: {args.timeshift}\n"
         )
     (args.out_dir / "imucam.yaml").write_text("%YAML:1.0\n---\n" + "".join(cams))
 
@@ -70,11 +73,11 @@ def main():
         f"  gyroscope_noise_density: {imu['gyro_noise_density'] * s:.10g}\n"
         f"  gyroscope_random_walk: {imu['gyro_bias_random_walk_sigma'] * w:.10g}\n"
         f"  rostopic: /imu0\n  time_offset: 0.0\n  update_rate: {imu['imu_rate']:.1f}\n  model: kalibr\n"
-        f"  Tw:\n{eye3}\n  R_IMUtoGYRO:\n{eye3}\n  Ta:\n{eye3}\n  R_IMUtoACC:\n{eye3}\n"
+        f"  Tw:\n{eye3}\n  R_IMUtoGYRO:\n{eye3}\n  Ta:\n{mat_rows(np.eye(3) * args.acc_scale)}\n  R_IMUtoACC:\n{eye3}\n"
         "  Tg:\n" + mat_rows(np.zeros((3, 3))) + "\n"
     )
     (args.out_dir / "imu.yaml").write_text(imu_yaml)
-    print(f"wrote {args.out_dir}/imucam.yaml and imu.yaml (noise scale {s}, gravity {imu['gravity_magnitude']})")
+    print(f"wrote {args.out_dir}/imucam.yaml and imu.yaml (noise scale {s}, walk scale {w}, acc scale {args.acc_scale}, timeshift {args.timeshift}, gravity {imu['gravity_magnitude']})")
 
 
 if __name__ == "__main__":

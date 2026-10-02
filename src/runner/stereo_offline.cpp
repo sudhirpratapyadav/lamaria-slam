@@ -38,7 +38,18 @@ int main(int argc, char **argv) {
     opts.num_opencv_threads = 2;
     opts.use_multi_threading_pubs = false;
     opts.use_multi_threading_subs = false;
-    auto sys = std::make_shared<ov_msckf::VioManager>(opts);
+    // Divergence detection + re-initialisation (runner-level, see track_logs_v1 experiment 009).
+    // 0 disables a check. On divergence the estimator is rebuilt, re-fed the last seconds of IMU,
+    // and its new local frame is stitched onto the last good pose so the output stays continuous.
+    double reinit_max_velocity = 0, reinit_max_jump = 0, reinit_imu_replay_s = 3.0;
+    parser->parse_config("reinit_max_velocity", reinit_max_velocity, false);
+    parser->parse_config("reinit_max_jump", reinit_max_jump, false);
+    parser->parse_config("reinit_imu_replay_s", reinit_imu_replay_s, false);
+    auto make_system = [&]() { return std::make_shared<ov_msckf::VioManager>(opts); };
+    auto sys = make_system();
+    Eigen::Isometry3d world_from_segment = Eigen::Isometry3d::Identity(), last_good = Eigen::Isometry3d::Identity();
+    bool have_last_good = false, pending_stitch = false;
+    size_t reinits = 0;
     std::ifstream imu_file(data / "imu.csv"), cam_file(data / "stereo.csv");
     if (!imu_file || !cam_file) throw std::runtime_error("Missing imu.csv or stereo.csv");
     std::vector<ov_core::ImuData> imus;
@@ -109,10 +120,36 @@ int main(int argc, char **argv) {
       frames++;
       const auto state = sys->get_state();
       if (sys->initialized() && state->_timestamp > last_state) {
-        const auto p = state->_imu->pos();
-        Eigen::Quaterniond q(state->_imu->Rot().transpose());
-        if (!p.allFinite() || !q.coeffs().allFinite()) throw std::runtime_error("Non-finite pose");
-        q.normalize();
+        const auto p_raw = state->_imu->pos();
+        Eigen::Quaterniond q_raw(state->_imu->Rot().transpose());
+        const double speed = state->_imu->vel().norm();
+        Eigen::Isometry3d T_seg = Eigen::Isometry3d::Identity();
+        T_seg.linear() = q_raw.normalized().toRotationMatrix(); T_seg.translation() = p_raw;
+        if (pending_stitch) {
+          // first pose of the rebuilt estimator: map its frame onto the last good pose
+          world_from_segment = last_good * T_seg.inverse();
+          pending_stitch = false;
+        }
+        Eigen::Isometry3d T = world_from_segment * T_seg;
+        const bool nonfinite = !p_raw.allFinite() || !q_raw.coeffs().allFinite();
+        const bool too_fast = reinit_max_velocity > 0 && speed > reinit_max_velocity;
+        const bool jumped = reinit_max_jump > 0 && have_last_good && (T.translation() - last_good.translation()).norm() > reinit_max_jump;
+        if (nonfinite || too_fast || jumped) {
+          reinits++;
+          std::cout << "reinit #" << reinits << " at " << std::fixed << std::setprecision(3) << timestamp
+                    << (nonfinite ? " non-finite" : too_fast ? " speed " : " jump ") << (too_fast ? speed : 0.0) << std::endl;
+          sys = make_system();
+          pending_stitch = have_last_good;  // if nothing good yet, the new segment simply starts at identity
+          last_state = -1;
+          // replay recent IMU so the dynamic initialiser has a window immediately
+          size_t j = idx;
+          while (j > 0 && imus[idx - 1].timestamp - imus[j - 1].timestamp < reinit_imu_replay_s) j--;
+          for (; j < idx; j++) sys->feed_measurement_imu(imus[j]);
+          continue;
+        }
+        last_good = T; have_last_good = true;
+        const Eigen::Vector3d p = T.translation();
+        const Eigen::Quaterniond q(T.linear());
         trajectory << state->_timestamp << ' '
                    << p.x() << ' ' << p.y() << ' ' << p.z() << ' '
                    << q.x() << ' ' << q.y() << ' ' << q.z() << ' ' << q.w() << '\n';
@@ -131,7 +168,7 @@ int main(int argc, char **argv) {
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     std::ofstream stats(out / "run_stats.json");
     stats << "{\"frames\":" << frames << ",\"poses\":" << poses << ",\"imu_samples\":" << idx
-          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"skipped_start_frames\":" << skipped_start << ",\"wall_seconds\":" << wall << "}\n";
+          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"skipped_start_frames\":" << skipped_start << ",\"reinits\":" << reinits << ",\"wall_seconds\":" << wall << "}\n";
     std::cout << "Finished: " << frames << " stereo pairs, " << poses << " poses, " << wall << " seconds" << std::endl;
     if (!poses) throw std::runtime_error("Estimator never initialized");
   } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }

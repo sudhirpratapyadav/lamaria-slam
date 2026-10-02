@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-10-02 20:50 IST. Edit in place; this is the "where are we now" page.
+Last updated: 2026-10-02 18:22 IST. Edit in place; this is the "where are we now" page.
 
 ## Host
 
@@ -50,7 +50,7 @@ Leaderboard main-set metrics, computed locally (R_11_5cp, ov_ref001, single run)
 
 ## Next (in order)
 
-1. Experiment 004 (running): the systematic 1 to 5 % scale error. Variants: online camera extrinsic refinement, online intrinsic refinement, each on 3 sequences x 2 start offsets.
+1. The systematic scale error (estimate 2 to 4.5 % too large, confirmed against surveyed control points on R_11). Discarded so far: online camera extrinsics (004), online intrinsics (004), IMU noise x3/x5 (005), online IMU intrinsics (006). Running or queued: stereo constraints off (007, decides IMU-vs-stereo as scale source), noise x20 (008), divergence detection + re-init (009), fixed camera-IMU offset +4.3 ms (010).
 3. IMU noise sweep (densities x1..x10, walks separately), tracking knobs, then fisheye input (needs `.vrs` download approval), then loop closure for the long sequences.
 4. Extend every comparison to all controlled-set sequences as they arrive (R_02 ... R_10).
 

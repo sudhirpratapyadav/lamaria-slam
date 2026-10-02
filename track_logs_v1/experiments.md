@@ -17,6 +17,74 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 |---|---|---|---|---|---|---|---|
 | 003 | `ov_ref001` | R_11_5cp (477 s, 5 CPs, 1627 pGT keyframes) | 58.9 | 40.0 | 100.0 | 35.8 | 1.36 (1.04 / 1.62 / 1.85) |
 
+## 007: stereo constraints off, scale from the IMU alone (2026-10-02, pc, commit 5bac949)
+
+**Hypothesis**: if the systematic scale overestimate comes from the stereo geometry (baseline or focal length), running the two cameras as independent monocular trackers (`use_stereo: false`) so that metric scale comes only from the IMU should remove it.
+
+**Change**: `use_stereo: false` from `ov_ref001` (`configs/explore-007/nostereo`).
+
+**Result** (ATE m, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference (stereo) | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | not run |
+| stereo off | 0.358 (0.986) | 0.369 (0.984) | 0.774 (0.960) | 0.920 (0.966) | 3.50 (0.966) | 5.36 (0.968) | 1.62 (0.970), 50.8 / 9.2 | 1.50 (0.967), 55.1 / 19.3 |
+
+**Cost**: slower (465 s for R_08 against ~300 s) because both cameras run full monocular tracking.
+
+**Decision**: discard as a config, but the diagnostic answer is clear: the scale error is the same without stereo, so it is not the stereo baseline or focal length. The metric scale that the IMU provides is itself 2 to 4 % too large. Next: the Aria IMU data in the ASL folders is raw (projectaria_tools delivers it without the factory rectification), and R_11 reads 1.026 g at true rest; experiment 011 applies a fixed accelerometer scale correction (Ta = 1.03 I, OpenVINS divides the measurement by it).
+
+## 006: online IMU intrinsic calibration (2026-10-02, pc, commit 5bac949)
+
+**Hypothesis**: the Aria IMU data in the ASL files is raw (projectaria_tools `accel_msec2` without rectification), and the accelerometer magnitude at rest differs per recording by up to 2.6 %, so letting OpenVINS estimate the IMU scale/skew matrices online (`calib_imu_intrinsics: true`, kalibr model) might remove the systematic scale error.
+
+**Change**: `calib_imu_intrinsics: true` from `ov_ref001` (`configs/explore-006/imuintr`).
+
+**Result** (ATE m, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | not run |
+| IMU intrinsics online | 0.375 (0.985) | 0.302 (0.980) | 0.667 (0.945) | 0.360 (0.950) | 6.60 (0.960) | 3.37 (0.976) | 1.63 (0.963), 55.7 / 24.3 | 1.62 (0.961), 54.0 / 17.6 |
+
+**Decision**: discard. Scale unchanged (0.945 to 0.985), results inside the start-offset spread and inconsistent across sequences (better on R_04, worse on R_01 and R_11). The raw-IMU scale hypothesis does not explain the error.
+
+## 005: IMU white-noise densities x3 and x5 instead of x10 (2026-10-02, pc, commit 5bac949)
+
+**Hypothesis**: with densities x10 the filter trusts vision over the IMU; trusting the IMU more (x3, x5) should pull the metric scale toward 1 and reduce the systematic scale overestimate.
+
+**Change**: `NOISE_SCALE=3` (n3d) or `5` (n5d), random walks unchanged (`configs/explore-005/`). Standard set is now 4 sequences (R_11_5cp added) x 2 offsets.
+
+**Result** (ATE m, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference x10 | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | not run |
+| x3 | 0.277 (0.989) | 0.289 (0.985) | 1.255 (0.958) | 1.426 (0.952) | 7.77 (0.955) | diverged | 2.83 (0.948), 39.6 / 1.2 | diverged |
+| x5 | 0.323 (0.991) | 0.311 (0.986) | 1.175 (0.960) | 1.399 (0.953) | 5.89 (0.968) | diverged | 2.01 (0.955), 46.6 / 12.1 | 2.75 (0.952), 40.8 / 3.1 |
+
+**Decision**: discard. Less inflation is worse on every sequence beyond R_01 and brings back divergence (3 of 16 runs). Scale is unchanged, so the scale overestimate is not a question of IMU-versus-vision weighting. Follow-up: x20 (experiment 008), since the trend is monotonic in the other direction. The divergences (silent, at a particular start offset) renew the case for divergence detection with re-initialisation.
+
+## 004: online camera extrinsic / intrinsic refinement (2026-10-02, pc, commit 5bac949)
+
+**Hypothesis**: the systematic scale overestimate (estimated path 2 to 4 % too long, sim3 scale 0.95 to 0.98 in every run) could come from a slightly wrong stereo geometry; letting OpenVINS refine the camera extrinsics or intrinsics online would then pull the scale toward 1.
+
+**Change** (one knob per variant, from `ov_ref001`): `calib_cam_extrinsics: true` (variant extr) or `calib_cam_intrinsics: true` (variant intr). Configs in `configs/explore-004/`.
+
+Command: `SKIP_FRAMES=k DROP_PRE_INIT=1 scripts/run_sequence.sh configs/explore-004/<v> data/training/<seq> results/004-scale/<seq>_<v>_skip<k>` for k in 0, 100.
+
+**Result** (ATE m, sim3 scale in brackets; reference = 002 rows for the same offsets):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 |
+|---|---|---|---|---|---|---|
+| reference ov_ref001 | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) |
+| extrinsics online | 0.345 (0.984) | 0.343 (0.983) | 0.489 (0.964) | 1.265 (0.954) | 7.18 (0.966) | 4.78 (0.977) |
+| intrinsics online | 0.461 (0.994) | 0.412 (0.984) | 0.896 (0.961) | 1.294 (0.951) | 9.73 (0.945) | 6.65 (0.959) |
+
+**Cost**: same runtime as the reference.
+
+**Decision**: discard both. Neither changes the scale (intrinsics only on R_01, and at the cost of accuracy), and both are worse on the long sequence. The scale error is not something the filter can calibrate away online with these knobs. Control-point check (003): the Sim3 scale against surveyed points on R_11 is 0.955, same as against the pseudo-GT, so the error is really in our estimate.
+
 ## 003: first control-point sequence, leaderboard metrics locally (2026-10-02, pc, commit 2ecc5c2 + evaluate.py fix)
 
 **Hypothesis**: the harness can produce the leaderboard's main-set metrics (score 2D, CP recall @ 1 m, pose recall @ 5 m) on a training sequence with control points, so that from now on every change is reported in those terms as well as ATE.

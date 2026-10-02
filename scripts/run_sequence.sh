@@ -20,14 +20,16 @@ mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 # and optional options.sh (e.g. NOISE_SCALE=5).
 NOISE_SCALE=1.0
 WALK_SCALE=
+TIMESHIFT=0.0
+ACC_SCALE=1.0
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 cp "$CONFIG_DIR/estimator.yaml" "$OUT_DIR/"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
-"$PY" "$ROOT/scripts/make_openvins_config.py" "$CALIB" "$OUT_DIR" --noise-scale "$NOISE_SCALE" ${WALK_SCALE:+--walk-scale "$WALK_SCALE"}
+"$PY" "$ROOT/scripts/make_openvins_config.py" "$CALIB" "$OUT_DIR" --noise-scale "$NOISE_SCALE" ${WALK_SCALE:+--walk-scale "$WALK_SCALE"} --timeshift "$TIMESHIFT" --acc-scale "$ACC_SCALE"
 {
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
-  echo "command: $RUNNER $OUT_DIR/estimator.yaml $SEQ_DIR/runner_input $OUT_DIR  (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=${WALK_SCALE:-$NOISE_SCALE} SKIP_FRAMES=${SKIP_FRAMES:-0})"
+  echo "command: $RUNNER $OUT_DIR/estimator.yaml $SEQ_DIR/runner_input $OUT_DIR  (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=${WALK_SCALE:-$NOISE_SCALE} TIMESHIFT=$TIMESHIFT ACC_SCALE=$ACC_SCALE SKIP_FRAMES=${SKIP_FRAMES:-0})"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 
