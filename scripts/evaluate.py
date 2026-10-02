@@ -18,6 +18,11 @@ from pathlib import Path
 import numpy as np
 from evo.core import sync
 
+import lamaria
+
+# the control-point / pGT entry points are top-level scripts in the lamaria repo, not in the package
+sys.path.insert(0, str(Path(lamaria.__file__).resolve().parent.parent))
+
 from lamaria.eval.evo_evaluation import convert_trajectory_to_evo_posetrajectory, evaluate_wrt_mps
 from lamaria.structs.trajectory import Trajectory
 
@@ -66,24 +71,32 @@ def main():
     if cp_json is not None and args.aria_calib is not None:
         out = args.out_dir or args.estimate.parent
         out.mkdir(parents=True, exist_ok=True)
-        import evaluate_wrt_control_points as cp_eval  # noqa: E402  (lamaria repo module)
-        import evaluate_wrt_pgt as pgt_eval  # noqa: E402
+        # Same steps as the official evaluate_wrt_control_points.py, kept inline so we
+        # keep the SparseEvalResult object (reloading it from .npy loses the CP classes).
         from lamaria.eval.pgt_evaluation import evaluate_wrt_pgt
-        from lamaria.structs.sparse_eval import SparseEvalResult
+        from lamaria.eval.sparse_evaluation import evaluate_wrt_control_points
+        from lamaria.structs.control_point import load_cp_json, run_control_point_triangulation
+        from lamaria.utils.aria import initialize_reconstruction_from_calibration_file
         from lamaria.utils.metrics import (calculate_control_point_recall, calculate_control_point_score,
                                            calculate_pose_recall)
-        ok = cp_eval.run(args.estimate, cp_json, args.aria_calib, out, "imu")
-        result["cp_eval_ok"] = bool(ok)
-        if ok:
-            sres = SparseEvalResult.load_from_npy(out / "sparse_eval_result.npy")
+        traj = Trajectory.load_from_file(args.estimate, invert_poses=False, corresponding_sensor="imu")
+        recon = initialize_reconstruction_from_calibration_file(args.aria_calib)
+        control_points, ts_to_images = load_cp_json(cp_json)
+        recon = traj.add_estimate_poses_to_reconstruction(recon, ts_to_images)
+        run_control_point_triangulation(recon, control_points)
+        sres = evaluate_wrt_control_points(recon, control_points)
+        result["cp_eval_ok"] = sres is not None
+        if sres is not None:
+            sres.save_as_npy(out / "sparse_eval_result.npy")
             result["cp_score"] = float(calculate_control_point_score(sres))
             result["cp_recall_1m"] = float(calculate_control_point_recall(sres))
+            result["cp_count"] = len(sres.cp_summary)
             err = evaluate_wrt_pgt(Trajectory.load_from_file(args.estimate, invert_poses=False),
                                    Trajectory.load_from_file(gt_pgt, invert_poses=False), sres.alignment)
             if err is not None:
                 for t in (1.0, 5.0):
                     result[f"pose_recall_{int(t)}m"] = float(calculate_pose_recall(err, len(gt), t))
-        del pgt_eval
+                result["pgt_xy_error_median_m"] = float(np.median(err))
     elif cp_json is not None:
         result["cp_eval_ok"] = "skipped: pass --aria-calib"
 

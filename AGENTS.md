@@ -4,7 +4,7 @@ Read this first. It is the full context for any agent (or person) starting work 
 
 ## Mission
 
-Climb the **LaMAria benchmark, Stereo + IMU track** (https://lamaria.ethz.ch/leaderboard) with our own visual-inertial SLAM. Work loop: try a change, measure on the training sequences, keep it if it helps, record it, repeat. Details of the benchmark, targets and plan are in `README.md` and `docs/benchmark_notes.md`; do not duplicate them here, read them.
+Climb the **LaMAria benchmark, Stereo + IMU track** (https://lamaria.ethz.ch/leaderboard) with our own visual-inertial SLAM. Work loop: try a change, measure on the training sequences, keep it if it helps, record it, repeat. Details of the benchmark, targets and plan are in `README.md`, `purpose.md` and `docs/benchmark_notes.md`; do not duplicate them here, read them. Current state and numbers: `track_logs_v1/status.md`.
 
 Hosts, in order: **this PC first**, then the A100 server, then the Jetson Nano. The owner (Harish, user of this machine; the git author is Sudhir Pratap Yadav) decides when to move to the next host. Do not start on another host unprompted.
 
@@ -41,9 +41,9 @@ That repo holds the Jetson/P3-DX web app and a month of OpenVINS work. Reusable 
 
 ## Working conventions
 
-- **Experiments**: one file per experiment in `experiments/` named `NNN-short-title.md` with hypothesis, change, per-sequence result, cost, decision (template in `experiments/README.md`). Update the scoreboard `experiments/LOG.md` after every kept result. Change one thing at a time and compare against the current best on identical sequences. Record failures.
+- **Tracking lives in `track_logs_v1/`** (the owner bumps the version suffix on substantial changes): `logs.md` is append-only, timestamped decisions; `status.md` is the current situation, edited in place; `experiments.md` holds the scoreboard at the top and one section per experiment (hypothesis, change, exact command, per-sequence result, cost, decision, insights), timestamped but editable. `purpose.md` at the root states the goal. Keep all four current. Change one thing at a time and compare against the current reference on identical sequences, across several start offsets (runs are deterministic). Record failures.
 - **Configs, not code constants**: every tunable lives in a config file under `configs/`, versioned, so a result is reproducible from a commit.
-- **Reproducibility**: record the git commit, host and exact command in each experiment file. Large outputs go to `results/` (git-ignored); commit only small summaries and configs.
+- **Reproducibility**: record the git commit, host and exact command in each experiment section; `scripts/run_sequence.sh` writes them to `results/<exp>/<seq>/run_info.txt`. Large outputs go to `results/` (git-ignored); commit only small summaries and configs.
 - **Scripts** go in `scripts/` and must run on any host (no hard-coded `/home/ubuntu` paths where avoidable; take data and tool paths as arguments or environment variables).
 - **Honesty**: report what was measured, say when a result is a single run or a short window, say when a claim comes only from a screenshot or paper rather than from our own measurement. If tests or evaluations fail, show the output. Do not tune against the hidden test set; there is no ground truth for it, so submit only finished versions to the leaderboard (24 h between test updates) and only with the owner's go-ahead, since a submission is public.
 - **Git**: commit when the owner asks or at the end of a coherent unit of work they have approved; do not push to a remote unless asked. Commit messages end with the attribution line your harness specifies.
@@ -52,9 +52,9 @@ That repo holds the Jetson/P3-DX web app and a month of OpenVINS work. Reusable 
 
 ## First steps for a new agent
 
-1. Read `README.md`, `docs/benchmark_notes.md`, `experiments/README.md`.
+1. Read `README.md`, `purpose.md`, `docs/benchmark_notes.md`, then `track_logs_v1/status.md` and the tail of `track_logs_v1/logs.md`.
 2. Clone `https://github.com/cvg/lamaria` into `third_party/` (git-ignored), read its evaluators (`evaluate_wrt_pgt.py`, `evaluate_wrt_control_points.py`, `evaluate_wrt_mps.py`) and its pipeline code.
-3. Ask the owner to approve the first data download (proposed: `R_01_easy` 1.3 GB, `R_04_medium` 2.3 GB, `R_08_hard` 5.2 GB, ASL format, into `data/`). The download script is `python -m tools.download_lamaria --output_dir data --sequences R_01_easy --type asl`.
-4. Build the harness: run OpenVINS stereo+IMU on a training sequence, write the per-image pose file in the required submission format, score it with the official evaluators, and record it as experiment 001. First reproduce the published open baseline's behaviour (OpenVINS with a sensible fisheye or pinhole config) before changing anything.
+3. Data: the owner approved downloading the whole training set in ASL form (2026-10-02, `scripts/fetch_sequences.sh`, zips deleted after unpacking). Any other download (e.g. raw `.vrs` for fisheye) still needs the owner's approval.
+4. Build the harness: run OpenVINS stereo+IMU on a training sequence, write the per-image pose file in the required submission format, score it with the official evaluators, and record it in `track_logs_v1/experiments.md`. (Done 2026-10-02; see there.) First reproduce the published open baseline's behaviour (OpenVINS with a sensible fisheye or pinhole config) before changing anything.
 5. Decide fisheye-raw versus pinhole-undistorted input by experiment, and the IMU choice and noise parameters likewise (open questions in `docs/benchmark_notes.md`).
 6. Iterate with the ladder in the README: tracking and tuning, initialisation and recovery, then loop closure and mapping (the biggest gap to the leader on medium and long sequences).

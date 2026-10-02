@@ -16,7 +16,8 @@
 // Output: TUM poses of the IMU in the world at the image (camera-clock) timestamp; Hamilton xyzw quaternion.
 int main(int argc, char **argv) {
   try {
-    if (argc != 4) throw std::runtime_error("Usage: stereo_offline CONFIG EXTRACTED_DIR OUTPUT_DIR");
+    if (argc != 4 && argc != 5) throw std::runtime_error("Usage: stereo_offline CONFIG EXTRACTED_DIR OUTPUT_DIR [SKIP_FRAMES]");
+    const size_t skip_frames = argc == 5 ? std::stoul(argv[4]) : 0;
     const std::filesystem::path data(argv[2]), out(argv[3]);
     std::filesystem::create_directories(out);
     std::filesystem::create_directories(out / "tracking_snapshots");
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
     diagnostics << "# timestamp,cam_to_imu_offset_s,bgx,bgy,bgz,bax,bay,baz\n" << std::setprecision(12);
     trajectory << "# timestamp tx ty tz qx qy qz qw; IMU frame, image timestamp\n" << std::fixed << std::setprecision(9);
     timings << "# timestamp,processing_seconds,initialized,msckf_update_points,slam_points\n" << std::setprecision(12);
-    size_t idx = 0, frames = 0, poses = 0, skipped = 0;
+    size_t idx = 0, frames = 0, poses = 0, skipped = 0, skipped_start = 0;
     double last_cam = -1, last_state = -1;
     const auto start = std::chrono::steady_clock::now();
     while (std::getline(cam_file, line)) {
@@ -71,6 +72,8 @@ int main(int argc, char **argv) {
       if (!(row >> timestamp >> left >> right) || timestamp <= last_cam)
         throw std::runtime_error("Invalid or nonmonotonic stereo row");
       last_cam = timestamp;
+      // Start-frame offset: the only way to get "different seeds" from a deterministic estimator.
+      if (skipped_start < skip_frames) { skipped_start++; continue; }
       const double dt = sys->get_state()->_calib_dt_CAMtoIMU->value()(0);
       const double target = timestamp + dt;
       if (target < imus.front().timestamp || target >= imus.back().timestamp) { skipped++; continue; }
@@ -128,7 +131,7 @@ int main(int argc, char **argv) {
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     std::ofstream stats(out / "run_stats.json");
     stats << "{\"frames\":" << frames << ",\"poses\":" << poses << ",\"imu_samples\":" << idx
-          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"wall_seconds\":" << wall << "}\n";
+          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"skipped_start_frames\":" << skipped_start << ",\"wall_seconds\":" << wall << "}\n";
     std::cout << "Finished: " << frames << " stereo pairs, " << poses << " poses, " << wall << " seconds" << std::endl;
     if (!poses) throw std::runtime_error("Estimator never initialized");
   } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }

@@ -29,7 +29,7 @@ Goal ladder: beat the open baseline (OpenVINS+Maplab) first, then AnonSLAM, then
 
 ## Plan
 
-1. **Harness (this PC first)**: download a small slice (`R_01_easy`, `R_04_medium`, `R_08_hard`), run the official evaluators on a baseline (OpenVINS stereo+IMU), and log the numbers in `experiments/`. Reproduce a published baseline before changing anything.
+1. **Harness (this PC first)**: download a small slice (`R_01_easy`, `R_04_medium`, `R_08_hard`), run the official evaluators on a baseline (OpenVINS stereo+IMU), and log the numbers in `track_logs_v1/`. Reproduce a published baseline before changing anything.
 2. **Iterate**, one change at a time, each with a written hypothesis and result: calibration and IMU noise settings, feature tracking (KLT vs descriptor), number of features and clones, fisheye handling, initialisation, failure recovery so a pose is always output, then loop closure and mapping (the big gap to Aria's SLAM on medium/long sequences).
 3. **Three setups**: this PC, then the A100 server, then the Jetson Nano. Same code, same configs; only the host differs. The Nano is the constrained case (4 GB RAM, no heavy builds there). We decide when to move on.
 4. **Submit** only versions that win on the training set across all sequences of a challenge.
@@ -38,11 +38,11 @@ Goal ladder: beat the open baseline (OpenVINS+Maplab) first, then AnonSLAM, then
 
 ```
 docs/          design notes and benchmark notes
-experiments/   one file per experiment: hypothesis, change, result, decision (see experiments/README.md)
+track_logs_v1/ decision log, current status, experiments (scoreboard + per-experiment records)
 scripts/       download, run, evaluate, package-submission helpers
 configs/       estimator configurations (added as we go)
 data/          datasets (git-ignored)
 results/       run outputs (git-ignored)
 ```
 
-Hosts and results are tracked in `experiments/LOG.md`, the running scoreboard.
+Hosts and results are tracked in `track_logs_v1/experiments.md` (scoreboard at the top) and `track_logs_v1/status.md`.

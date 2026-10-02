@@ -27,16 +27,16 @@ CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 {
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
-  echo "command: $RUNNER $OUT_DIR/estimator.yaml $SEQ_DIR/runner_input $OUT_DIR  (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=${WALK_SCALE:-$NOISE_SCALE})"
+  echo "command: $RUNNER $OUT_DIR/estimator.yaml $SEQ_DIR/runner_input $OUT_DIR  (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=${WALK_SCALE:-$NOISE_SCALE} SKIP_FRAMES=${SKIP_FRAMES:-0})"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
-  "$RUNNER" "$OUT_DIR/estimator.yaml" "$SEQ_DIR/runner_input" "$OUT_DIR" > "$OUT_DIR/runner.log" 2>&1 \
+  "$RUNNER" "$OUT_DIR/estimator.yaml" "$SEQ_DIR/runner_input" "$OUT_DIR" "${SKIP_FRAMES:-0}" > "$OUT_DIR/runner.log" 2>&1 \
   || { echo "runner failed, see $OUT_DIR/runner.log"; tail -5 "$OUT_DIR/runner.log"; exit 1; }
 
 "$PY" "$ROOT/scripts/tum_to_submission.py" "$OUT_DIR/trajectory.tum" \
-  "$SEQ_DIR/runner_input/image_timestamps_ns.txt" "$OUT_DIR/$SEQ.txt" | tee "$OUT_DIR/submission_stats.json"
+  "$SEQ_DIR/runner_input/image_timestamps_ns.txt" "$OUT_DIR/$SEQ.txt" ${DROP_PRE_INIT:+--drop-before-first} | tee "$OUT_DIR/submission_stats.json"
 
 ARIA_CALIB="$(ls "$SEQ_DIR"/aria_calibrations/*.json 2>/dev/null | head -1 || true)"
 cd "$ROOT/third_party/lamaria"

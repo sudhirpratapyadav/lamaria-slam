@@ -23,6 +23,8 @@ def main():
     ap.add_argument("image_timestamps_ns", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--tolerance-ms", type=float, default=1.0)
+    ap.add_argument("--drop-before-first", action="store_true",
+                    help="omit images before the first estimate (for diagnostics only; a submission must have every image)")
     args = ap.parse_args()
 
     rows = [l.split() for l in args.tum.read_text().splitlines() if l.strip() and not l.startswith("#")]
@@ -52,6 +54,8 @@ def main():
             filled[i] = max(j, 0) if j >= 0 else last
     with open(args.out, "w") as f:
         for ts, j in zip(img_ts, filled):
+            if args.drop_before_first and ts < est_ts[0] - tol:
+                continue
             f.write(f"{ts} " + " ".join(est[j]) + "\n")
 
     n_match = int((matched >= 0).sum())
