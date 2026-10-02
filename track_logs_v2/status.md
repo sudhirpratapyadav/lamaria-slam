@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 04:56 IST. Edit in place.
+Last updated: 2026-10-03 05:09 IST. Edit in place.
 
 ## What v2 is
 
@@ -28,11 +28,20 @@ Learned/dense methods (DPVO, DPV-SLAM, MASt3R-style) scored badly in the paper o
 
 Controlled set, two-offset mean ATE: 2.83 m. Additional set (ov_ref004, offset 0): score 2D 41 / 14 / 15 / 21, recall @ 5 m 100 / 37 / 24 / 49 % on sequence_1_19 / 1_20 / 2_11 / 2_12; ov_ref005 on all ten pending (v1 experiment 037).
 
+## Where the candidates stand (all numbers single runs unless stated; details in experiments.md)
+
+- Basalt (robust driver): controlled two-offset mean **2.43 m** (OpenVINS 2.83); additional-set mean score 16.9 (OpenVINS 22.0): wins short/medium and dark walks, loses the 2 km walks (structural drift, knobs do not help). Fisheye input helps 3 of 4 standard sequences. Cheap (~2x realtime, <2 cores).
+- OKVIS2: R_01 final-BA 0.022 to 0.033 m (best anywhere), R_04 0.68, R_08 2.09 with 10 keyframes; needs noise x10; slowest (0.1x realtime under load, up to 6 GB on long sequences); 15-keyframe round running.
+- ORB-SLAM3: R_01 0.031 m, but loses a quarter of R_04's frames and crashes deterministically on R_08; parked pending a code-level fix.
+- OpenVINS line: window variants parked; ov_ref005 stands (2.83 m / score 22.0).
+- Mix-and-match (M01): a per-sequence choice between Basalt and OpenVINS would give 1.97 m and mean score 25.9 (oracle); a duration rule 24.2. Selector design is a v3 candidate.
+
 ## Next
 
-1. A: build OKVIS2 on this PC, write the adapter (ASL pinhole input and the raw fisheye input), out-of-the-box run on R_01 / R_04 / R_08 / R_11.
-2. B: same for Basalt.
-3. Then the optimisation rounds per candidate, then the full comparison.
+1. OKVIS2: finish the keyframe-window rounds (A06), the standard four with the best setting, then decide whether its cost allows a 13-sequence run.
+2. Basalt: resume the source build for the offline mapper (non-causal BA) at low parallelism; then mapper on the controlled set.
+3. Ensemble: a selector between Basalt and OpenVINS runs (restart counts, consistency, agreement).
+4. ORB-SLAM3: one debugging round on the R_08 crash if time allows.
 
 ## Blockers
 
