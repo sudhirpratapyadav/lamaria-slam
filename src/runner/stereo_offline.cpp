@@ -13,7 +13,7 @@
 #include <stdexcept>
 
 // Input: header timestamps in seconds, gyro rad/s, acceleration m/s^2.
-// Output: TUM poses of the IMU in the world; Hamilton xyzw quaternion.
+// Output: TUM poses of the IMU in the world at the image (camera-clock) timestamp; Hamilton xyzw quaternion.
 int main(int argc, char **argv) {
   try {
     if (argc != 4) throw std::runtime_error("Usage: stereo_offline CONFIG EXTRACTED_DIR OUTPUT_DIR");
@@ -21,7 +21,9 @@ int main(int argc, char **argv) {
     std::filesystem::create_directories(out);
     std::filesystem::create_directories(out / "tracking_snapshots");
     auto parser = std::make_shared<ov_core::YamlParser>(argv[1]);
-    ov_core::Printer::setPrintLevel("WARNING");
+    std::string verbosity = "WARNING";
+    parser->parse_config("verbosity", verbosity, false);
+    ov_core::Printer::setPrintLevel(verbosity);
     ov_msckf::VioManagerOptions opts;
     opts.print_and_load(parser);
     bool stationary_guard = false;
@@ -55,7 +57,7 @@ int main(int argc, char **argv) {
     std::ofstream trajectory(out / "trajectory.tum"), timings(out / "frame_times.csv");
     std::ofstream diagnostics(out / "state_diagnostics.csv");
     diagnostics << "# timestamp,cam_to_imu_offset_s,bgx,bgy,bgz,bax,bay,baz\n" << std::setprecision(12);
-    trajectory << "# timestamp tx ty tz qx qy qz qw; IMU frame, IMU clock\n" << std::fixed << std::setprecision(9);
+    trajectory << "# timestamp tx ty tz qx qy qz qw; IMU frame, image timestamp\n" << std::fixed << std::setprecision(9);
     timings << "# timestamp,processing_seconds,initialized,msckf_update_points,slam_points\n" << std::setprecision(12);
     size_t idx = 0, frames = 0, poses = 0, skipped = 0;
     double last_cam = -1, last_state = -1;
@@ -83,10 +85,18 @@ int main(int argc, char **argv) {
         if (img.empty()) throw std::runtime_error("Cannot read image: " + name);
         if (opts.downsample_cameras) cv::pyrDown(img, img);
         const auto model = opts.camera_intrinsics.at(cam.images.size());
-        if (img.cols != model->w() || img.rows != model->h())
-          throw std::runtime_error("Image dimensions do not match calibration: " + name);
+        if (img.cols > model->w() || img.rows > model->h())
+          throw std::runtime_error("Image larger than calibration: " + name);
+        // Smaller images (LaMAria pinhole: 757x569 right vs 758x572 left) are padded at the
+        // bottom/right so intrinsics stay valid; the padding is masked out (255 = ignore).
+        cv::Mat mask = cv::Mat::zeros(model->h(), model->w(), CV_8UC1);
+        if (img.cols != model->w() || img.rows != model->h()) {
+          mask.setTo(255);
+          mask(cv::Rect(0, 0, img.cols, img.rows)).setTo(0);
+          cv::copyMakeBorder(img, img, 0, model->h() - img.rows, 0, model->w() - img.cols, cv::BORDER_CONSTANT, 0);
+        }
         cam.images.push_back(img);
-        cam.masks.push_back(cv::Mat::zeros(img.size(), CV_8UC1));
+        cam.masks.push_back(mask);
       }
       const auto before = std::chrono::steady_clock::now();
       sys->feed_measurement_camera(cam);
@@ -100,7 +110,7 @@ int main(int argc, char **argv) {
         Eigen::Quaterniond q(state->_imu->Rot().transpose());
         if (!p.allFinite() || !q.coeffs().allFinite()) throw std::runtime_error("Non-finite pose");
         q.normalize();
-        trajectory << state->_timestamp + state->_calib_dt_CAMtoIMU->value()(0) << ' '
+        trajectory << state->_timestamp << ' '
                    << p.x() << ' ' << p.y() << ' ' << p.z() << ' '
                    << q.x() << ' ' << q.y() << ' ' << q.z() << ' ' << q.w() << '\n';
         const auto bg = state->_imu->bias_g(), ba = state->_imu->bias_a();

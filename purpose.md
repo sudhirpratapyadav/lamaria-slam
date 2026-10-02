@@ -29,4 +29,4 @@ In priority order, as set by the owner:
 
 The estimator, its configs, the failure-recovery logic, the loop-closure / mapping layer, and the measurement habits (per-sequence numbers, drift over long windows, scale checks, timing-offset checks). The calibration and dataset loaders are LaMAria-specific and will be swapped for the robot's.
 
-Related: `README.md` (plan and layout), `AGENTS.md` (constraints and conventions for agents), `docs/benchmark_notes.md` (benchmark facts), `log_tracks/` (running logs, status, experiments).
+Related: `README.md` (plan and layout), `AGENTS.md` (constraints and conventions for agents), `docs/benchmark_notes.md` (benchmark facts), `track_logs_v1/` (running logs, status, experiments).
