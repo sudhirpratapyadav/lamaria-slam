@@ -33,3 +33,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 04:26** D03 inconsistent; OpenVINS window variants parked (reference stays ov_ref005). Status refreshed.
 - **2026-10-03 04:27** Diagnostic on sequence_3_17 (2 km, 49 m elevation, sharp frames): horizontal drift with scale 0.92-0.93 for both; Basalt 2.1 m/100 m vs OpenVINS 1.2. On 1_19 Basalt is 3x better. B09: Basalt window/weighting knobs (noise x10, keyframes 7 / 15, 5 states) on 3_17 and 3_18 with the robust driver.
 - **2026-10-03 04:27** B08 robust Basalt on the additional set: mean score 16.9 vs OpenVINS 22.0; wins 1_19 (64 vs 40), 2_11, 4_10; loses the 2 km walks (3_17/3_18) and 2_12/4_11. Split picture between sets; B09 attacks Basalt's long-range drift.
+- **2026-10-03 04:49** B09: no Basalt knob fixes the 2 km walks (scores 0-6 vs OpenVINS 10-13); structural long-range drift. B10 = Basalt on the native kb4 fisheye input (R_01/R_04/R_08/R_11) launched.

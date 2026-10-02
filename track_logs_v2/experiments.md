@@ -96,6 +96,22 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 **Decision**: continue; x10 fixes the divergence but OKVIS2 is now the slowest and, on hard sequences, the least accurate of the optimisation-based candidates. A03 = x20 with loop closures off, A04 = x10 with 10 keyframes / 5 IMU frames, both on R_04 and R_08.
 
+## B09: Basalt knobs on the 2 km walks (2026-10-03, pc)
+
+**Change** (robust driver, from `basalt_ref1` = noise x20, 4 levels, 10 keyframes): noise x10; keyframes 7; keyframes 15; 5 states (the last failed to run, see log). On sequence_3_17 and 3_18 only.
+
+**Result** (score 2D / recall @ 5 m; ATE, sim3 scale):
+
+| Variant | sequence_3_17 | sequence_3_18 |
+|---|---|---|
+| ref1 (B08) | 4.3 / 3.4 (48.1, 0.917) | 2.4 / 4.2 (81.0) |
+| noise x10 | 6.3 / 9.0 (39.6, 0.901) | 2.5 / 5.5 (53.9, 1.063) |
+| keyframes 7 | 0.2 / 0.0 (51.4) | 3.9 / 4.3 (70.6) |
+| keyframes 15 | 1.7 / 3.0 (48.7) | 0.0 / 0.2 (82.5) |
+| OpenVINS ov_ref005 | 9.9 / 21.6 (16.1) | 13.1 / 33.0 (26.0) |
+
+**Decision**: none of Basalt's window / weighting knobs touches the 2 km drift (scale wanders 0.90 to 1.10 along these walks); this is structural, not a setting. Basalt stays the better system on short and medium walks, OpenVINS on the long ones; a per-sequence selection or a fusion of the two lines is a legitimate v3 option. Next for Basalt: the native kb4 fisheye input (B10) and the mapper.
+
 ## B08: robust Basalt on the ten additional-set sequences (2026-10-03, pc)
 
 **Setup**: `basalt_ref1` with the robust driver, offset 0, pinhole input.
