@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 00:56 IST. Edit in place.
+Last updated: 2026-10-03 02:14 IST. Edit in place.
 
 ## What v2 is
 
@@ -12,10 +12,10 @@ Rules carried over: owner decides on submissions (only when top 3 and confident)
 
 | # | Approach | Why it could win | Risk | Status |
 |---|---|---|---|---|
-| A | OKVIS2 (keyframe stereo-inertial, BA + loop closure, BSD) | best published open numbers on several long controlled sequences (paper Table 2); native fisheye models; real-time capable | fails one sequence in the paper; heavy build (Ceres, DBoW) | A01 defaults: R_01 live 0.237 / final-BA **0.043 m**; R_04/R_08/R_11 running (first attempt lost to an input race, fixed) |
-| B | Basalt (VIO with marginalisation + mapping/BA stage, BSD) | very light on CPU (Nano-friendly), KB fisheye native, strong on EuRoC/TUM-VI | no published LaMAria numbers; mapping stage is offline | B04 reference basalt_ref1 (noise x20, 4 levels, 10 kfs): 0.15 / 0.78 / 1.01 / 2.60 (R_01/04/08/11), R_11 score 73.5; B05 on 13 x 2 offsets running |
-| C | ORB-SLAM3 stereo-inertial (GPL) | highest accuracy where it works (0.03 m on R_01, 0.43 on R_02 in the paper), loop closing and multi-map | brittle (fails / jumps on hard sequences), heavy CPU | C01 defaults on fisheye: R_01 **0.031 m**; sporadic segfault (retries added); R_04/R_08/R_11 running |
-| D | OpenVINS (v1 reference) + further tracker work and a non-causal keyframe BA smoother | reuses everything from v1; v1 034 found a 21 px KLT window lifts the blurry test-like sequences (recall@5m 37 to 94 %) | smoother is engineering from scratch | D01 (ov_ref005 + window 21) on all 13 x 2 offsets + 10 additional queued behind v1 037 |
+| A | OKVIS2 (keyframe stereo-inertial, BA + loop closure, BSD) | best published open numbers on several long controlled sequences (paper Table 2); native fisheye models; real-time capable | fails one sequence in the paper; heavy build (Ceres, DBoW) | A01 defaults: R_01 live 0.237 / final-BA **0.043 m**; R_04 1.56/1.44 (scale 0.89); R_08, R_11 diverge; 6 GB RSS, 1 h+ per long sequence under load. A02 noise x10 running |
+| B | Basalt (VIO with marginalisation + mapping/BA stage, BSD) | very light on CPU (Nano-friendly), KB fisheye native, strong on EuRoC/TUM-VI | no published LaMAria numbers; mapping stage is offline | basalt_ref1 + robust driver (B06): beats OpenVINS on most cells when it holds, and every divergence is rescued by one restart (R_10 4.2 m vs OV 6.1). B07 = robust on 13 x 2 running |
+| C | ORB-SLAM3 stereo-inertial (GPL) | highest accuracy where it works (0.03 m on R_01, 0.43 on R_02 in the paper), loop closing and multi-map | brittle (fails / jumps on hard sequences), heavy CPU | C01 fisheye: R_01 **0.031 m**, R_04 0.79 with 25 % of frames lost, R_11 1.00 (score 65.6), R_08 crashes 3/3. Brittle |
+| D | OpenVINS (v1 reference) + further tracker work and a non-causal keyframe BA smoother | reuses everything from v1; v1 034 found a 21 px KLT window lifts the blurry test-like sequences (recall@5m 37 to 94 %) | smoother is engineering from scratch | D01 window 21: worse on sharp sequences (2.72 vs 1.99 over 11); D02 blur-adaptive window (wide only when Laplacian variance < 15) running |
 | E | VINS-Fusion (stereo+IMU, optimisation-based, loop closure) | classic, robust, cheap | older code base; pinhole only | optional |
 
 Learned/dense methods (DPVO, DPV-SLAM, MASt3R-style) scored badly in the paper on this data and need the GPU: deferred to the A100 stage, owner's call.

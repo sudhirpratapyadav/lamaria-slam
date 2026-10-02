@@ -7,9 +7,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A01 defaults | R_01 0.237 live / **0.043 final**; R_04 1.56 / 1.44 (scale 0.89) | | A02 noise x10 queued |
-| B Basalt | B05 ref1, 13 x 2 offsets | 14.2 m mean (6 of 26 diverged); beats OpenVINS on 18/20 non-diverged cells; R_13 3.4 (score 44) | | needs divergence recovery (B06) |
-| C ORB-SLAM3 | C01 defaults, R_01 fisheye | R_01: **0.031** | | loop closing; timing-dependent crash, retries added |
+| A OKVIS2 | A01 defaults | R_01 0.237 live / **0.043 final**; R_04 1.56 / 1.44 (scale 0.89); R_08, R_11 diverged | | A02 noise x10 running; 6 GB RSS on long sequences |
+| B Basalt | B06 robust driver | all 5 tested divergences rescued with one restart (R_10 4.2 vs OV 6.1, R_07 1.3 vs 3.2) | | B07 = robust on 13 x 2 running |
+| C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
 | D OpenVINS line | D01 ov_ref005 + window 21 | 2.72 vs 1.99 over 11 (worse on sharp sequences) | additional set rerunning | D02 blur-adaptive window next |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
@@ -18,7 +18,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Result**, R_01_easy: live ATE sim3 0.237 m (scale 0.958); final-BA ATE 0.043 m (scale 0.976); poses for all 2898 images. Paper: OKVIS2 0.02 m, OpenVINS 0.66 m; our OpenVINS ov_ref005 0.19 / 0.29 m. Cost: 1466 s wall (10x slower than realtime) at 0.83 cores average under a heavily loaded machine (15 other estimators running), 564 MB RSS. A clean timing is owed.
 
-R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.898), all 5253 poses, 1988 s wall under load. Basalt 0.79, ORB-SLAM3 0.79 (with gaps), OpenVINS 1.48 on the same run. The low scale says the datasheet IMU noise makes OKVIS2 over-trust the IMU; noise scaling (A02) is the next round. R_08 / R_11 pending (their post-processing had to be redone by hand after a script edit).
+R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.898), all 5253 poses, 1988 s wall under load. Basalt 0.79, ORB-SLAM3 0.79 (with gaps), OpenVINS 1.48 on the same run. The low scale says the datasheet IMU noise makes OKVIS2 over-trust the IMU; noise scaling (A02) is the next round. R_08_hard and R_11_5cp (defaults): diverged (ATE 95 / 42 m, sim3 scale 0: the estimate runs off to kilometres), 87 / 65 min wall and 6.5 / 6.1 GB RSS under load. So the datasheet noise makes OKVIS2 fail on the hard sequences exactly as it did OpenVINS and Basalt before their noise scaling.
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path. Next: A02 noise x10 on R_01/R_04, then keyframing and the fisheye input (OKVIS2 has a native equidistant model).
 
@@ -44,6 +44,25 @@ R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.89
 | mean of 11 | 1.99 | 2.72 |
 
 **Reading**: a wide window costs precision on sharp sequences (R_08, R_10) and buys robustness on blurred ones. The right form is a blur-adaptive window: measure sharpness per frame (Laplacian variance) and widen the KLT window only when the frame is blurred. Implemented in the runner as D02 (`klt_win_blur`, `klt_blur_threshold`).
+
+## B06: Basalt with script-level divergence recovery (2026-10-03, pc)
+
+**Change**: `scripts/basalt_segments.py` / `run_basalt_robust.sh`: run Basalt, detect divergence in its output (per-frame speed > 6 m/s or jump > 1 m), keep the poses up to 20 frames before it, restart Basalt from that frame on a trimmed input, map the new segment's first pose onto the last kept pose (SE3), repeat. Same `basalt_ref1` configuration.
+
+**Result** on the six diverged B05 cells (ATE m sim3; B05 value; OpenVINS ov_ref005 at the same offset):
+
+| Cell | B05 (no recovery) | B06 robust | restarts | OpenVINS |
+|---|---|---|---|---|
+| R_10 k=0 | 113 | **4.235** | 1 | 6.102 |
+| R_07 k=0 | 65.3 | **1.255** | 1 | 3.203 |
+| R_04 k=100 | 38.8 | 0.929 | 1 | 0.675 |
+| R_08 k=100 | 49.7 | **0.963** | 1 | 1.964 |
+| R_03 k=0 | 6.16 | 0.435 | 1 | 0.216 |
+| R_12 k=100 | 54.7 | (running) | | 8.579 |
+
+Each needed exactly one restart; poses exist for every frame (the restart gap is carried forward like in the OpenVINS runner).
+
+**Decision**: keep; the robust driver is Basalt's runner from here. B07 = robust Basalt on all 13 at two offsets for the proper comparison with ov_ref005 (2.83 m).
 
 ## B05: Basalt reference on all 13 controlled sequences, two offsets (2026-10-03, pc)
 
@@ -77,7 +96,9 @@ Two-offset means: OpenVINS 2.83 m, Basalt 14.2 m (dominated by the six divergenc
 
 **Result**, R_01_easy: ATE sim3 **0.031 m** (scale 0.969), 2888 of 2898 images with a pose (10 before initialisation). Paper: ORB-SLAM3 0.03 m. The first attempt segfaulted 70 s in; the same command run under gdb completed normally (timing-dependent crash, a known ORB-SLAM3 trait), so the run script now retries up to three times.
 
-**Decision**: continue with high priority; together with OKVIS2's final-BA 0.043 m this confirms that optimisation-based systems are a different league on the easy sequence (OpenVINS 0.19, Basalt 0.15). Next: R_04, R_08, R_11 on fisheye; pinhole input variant; noise scaling; the hard sequences decide.
+R_04_medium: 0.794 m (scale 0.922) but poses for only 3923 of 5253 frames (tracking lost for a quarter of the sequence; those frames get carried-forward poses in the submission). R_11_5cp: 0.999 m, score 65.6, recall @ 1 m 53.5, 9528 of 9547 poses. R_08_hard: crashed three times right after the second inertial BA ("end VIBA 2"), 1.5 GB RSS; no result.
+
+**Decision**: continue, with lower priority than A and B: superb when it holds (R_01), but it loses tracking (R_04) and crashes deterministically on R_08 as built. Next tries: pinhole input, IMU noise scaling, `IMU.InsertKFsWhenLost`, and a look at the crash site.
 
 ## B04: Basalt combinations (2026-10-03, pc)
 

@@ -68,7 +68,7 @@ void TrackKLT::feed_new_camera(const CameraData &message) {
 
     // Extract image pyramid
     std::vector<cv::Mat> imgpyr;
-    cv::buildOpticalFlowPyramid(img, imgpyr, win_size, pyr_levels);
+    cv::buildOpticalFlowPyramid(img, imgpyr, build_win_size, pyr_levels);
 
     // Save!
     img_curr[cam_id] = img;

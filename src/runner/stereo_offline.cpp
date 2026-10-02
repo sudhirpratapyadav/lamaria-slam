@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
         cv::Scalar mu, sigma; cv::meanStdDev(lap, mu, sigma);
         const double sharpness = sigma[0] * sigma[0];
         auto klt = std::dynamic_pointer_cast<ov_core::TrackKLT>(sys->get_track_feats());
-        if (klt) klt->set_klt_params(sharpness < klt_blur_threshold ? klt_win_blur : klt_win_base, klt_pyr_base);
+        if (klt) klt->set_klt_params(sharpness < klt_blur_threshold ? klt_win_blur : klt_win_base, klt_pyr_base, std::max(klt_win_base, klt_win_blur));
         if (frames % 150 == 0) std::cout << "sharpness " << sharpness << std::endl;
       }
       const auto before = std::chrono::steady_clock::now();

@@ -142,12 +142,15 @@ protected:
   // How many pyramid levels to track
   int pyr_levels = 5;
   cv::Size win_size = cv::Size(15, 15);
+  cv::Size build_win_size = cv::Size(15, 15);
 
 public:
   /// LaMAria: expose the KLT window and pyramid depth (blurred frames need larger windows)
-  void set_klt_params(int win, int levels) {
+  void set_klt_params(int win, int levels, int build_win = 0) {
     win_size = cv::Size(win, win);
     pyr_levels = levels;
+    // pyramids must be built with a border at least as large as any window used for tracking
+    build_win_size = cv::Size(std::max(win, build_win), std::max(win, build_win));
   }
 
 protected:
