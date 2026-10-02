@@ -10,3 +10,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 00:03** B01 Basalt default on R_01: ATE 1.56 m (OpenVINS 0.19-0.29), fast (66 s, 2.8 cores). Round B02: IMU noise x10 on the standard four.
 - **2026-10-03 00:09** Owner: push each approach as far as it goes, mix and match across candidates, decide very late (no early elimination). Rule for v2.
 - **2026-10-03 00:10** B02 Basalt noise x10: R_01 0.34 m (from 1.56), R_04 1.55, R_11 1.61 (score 52.1); sim3 scale 0.99-1.00 (OpenVINS 0.96-0.98). Round B03 queued: grid 30 px, 4 pyramid levels, 10 keyframes, noise x5, noise x20, each on the standard four.
+- **2026-10-03 00:27** A01 OKVIS2 default on R_01: live 0.237 m, final-BA 0.043 m (paper 0.02; OpenVINS 0.19-0.29). 24 min under heavy load. Launched defaults on R_04, R_08, R_11.
