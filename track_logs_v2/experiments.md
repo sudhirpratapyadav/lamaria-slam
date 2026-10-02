@@ -8,7 +8,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A02 noise x10 | R_01 0.145 / **0.033 final**; R_04 0.84 / 0.69; R_08 5.0 / 5.2; R_11 1.43 / 1.64 (score 67) | | slowest (0.1x realtime under load); A03/A04 running |
-| B Basalt | B07 robust, 13 x 2 offsets | **2.43 m** (OpenVINS 2.83), better on 10/13 | B08 running | ~2x realtime on <2 cores |
+| B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; B09 on the long walks |
 | C ORB-SLAM3 | C01 defaults, fisheye | R_01 **0.031**; R_04 0.79 (25 % frames lost); R_11 1.00 (score 65.6); R_08 crashes | | brittle: loses tracking, crashes |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
@@ -95,6 +95,30 @@ Cost: 2011 / 2579 s wall under heavy load (0.07 to 0.1x realtime, CPU share 70 %
 R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no divergence any more, but far behind OpenVINS 1.5 to 2.0 and Basalt 1.0 to 1.4). R_11_5cp: live 1.429 / final 1.640 (scale 0.79), score 67.2 / 62.8, recall @ 1 m 44.9 / 43.1 (OpenVINS 0.68 / 72, Basalt robust 2.6 / 73.3). The final BA does not help on the hard sequences (there are no loops; its loop-closure heuristic may even hurt).
 
 **Decision**: continue; x10 fixes the divergence but OKVIS2 is now the slowest and, on hard sequences, the least accurate of the optimisation-based candidates. A03 = x20 with loop closures off, A04 = x10 with 10 keyframes / 5 IMU frames, both on R_04 and R_08.
+
+## B08: robust Basalt on the ten additional-set sequences (2026-10-03, pc)
+
+**Setup**: `basalt_ref1` with the robust driver, offset 0, pinhole input.
+
+**Result** (score 2D / recall @ 5 m; OpenVINS ov_ref005 from v1 037 in brackets; restarts):
+
+| Sequence | Basalt robust | OpenVINS | restarts |
+|---|---|---|---|
+| sequence_1_19 | **64.1 / 100** (ATE 1.02) | 40.0 / 99.9 | 0 |
+| sequence_1_20 | 39.6 / 93.6 (3.56) | 46.3 / 99.9 | 0 |
+| sequence_2_11 | **20.7 / 45.9** (30.9) | 11.6 / 15.7 | 0 |
+| sequence_2_12 | 5.3 / 12.6 (27.3) | 29.0 / 60.4 | 3 |
+| sequence_3_17 | 4.3 / 3.4 (48.1) | 9.9 / 21.6 | 0 |
+| sequence_3_18 | 2.4 / 4.2 (81.0) | 13.1 / 33.0 | 0 |
+| sequence_4_10 (low light) | **8.4 / 15.3** (29.1) | 0.9 / 0.0 | 2 |
+| sequence_4_11 | 9.9 / 18.9 (14.9) | 30.2 / 66.2 | 1 |
+| sequence_5_11 (moving platform) | 6.9 | 28.4 | 1 |
+| sequence_5_12 (moving platform) | 7.6 | 8.5 | 1 |
+| **mean score** | **16.9** | **22.0** | |
+
+Diagnostic on 3_17 (2 km, 49 m of elevation, sharp frames): both systems drift horizontally with a scale of 0.92 to 0.93; Basalt 2.1 m per 100 m against 1.2 for OpenVINS. On 1_19 Basalt is 3x more accurate.
+
+**Decision**: continue, but the picture is split: Basalt wins the controlled set (2.43 vs 2.83 m) and the shorter / dark walks, OpenVINS wins the long walks. Basalt's long-range drift is the thing to attack (B09: keyframe window, IMU weighting on 3_17 / 3_18), then its mapper. No decision between candidates yet, by design.
 
 ## B07: robust Basalt on all 13 controlled sequences, two offsets (2026-10-03, pc)
 
