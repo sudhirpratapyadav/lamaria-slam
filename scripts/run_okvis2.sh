@@ -19,7 +19,8 @@ mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 NOISE_SCALE=1.0; WALK_SCALE=1.0
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 
-"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$SEQ_DIR/okvis_input" > "$OUT_DIR/input.log"
+SKIP="${SKIP_FRAMES:-0}"; OKIN="$SEQ_DIR/okvis_input"; [ "$SKIP" = "0" ] || OKIN="$SEQ_DIR/okvis_input_skip$SKIP"
+"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$OKIN" --skip-frames "$SKIP" > "$OUT_DIR/input.log"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 "$PY" "$ROOT/scripts/make_okvis2_config.py" "$CALIB" "$OUT_DIR/okvis2.yaml" --options "$CONFIG_DIR/options.json" \
   --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE"
@@ -28,13 +29,13 @@ cp "$CONFIG_DIR/options.json" "$OUT_DIR/"
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
   echo "okvis2: $(git -C "$ROOT/third_party/okvis2" rev-parse --short HEAD)"
-  echo "command: $OKVIS_APP $OUT_DIR/okvis2.yaml $SEQ_DIR/okvis_input  (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE)"
+  echo "command: $OKVIS_APP $OUT_DIR/okvis2.yaml $OKIN  (SKIP_FRAMES=$SKIP NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE)"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 
 # OKVIS2 writes its csv files next to the dataset; run from OUT_DIR and point it at a symlink so
 # outputs land here.
-rm -f "$OUT_DIR/dataset"; ln -s "$SEQ_DIR/okvis_input" "$OUT_DIR/dataset"
+rm -f "$OUT_DIR/dataset"; ln -s "$OKIN" "$OUT_DIR/dataset"
 cd "$OUT_DIR"
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
   "$OKVIS_APP" "$OUT_DIR/okvis2.yaml" "$OUT_DIR/dataset" > "$OUT_DIR/okvis2.log" 2>&1 \
@@ -42,7 +43,7 @@ cd "$OUT_DIR"
 # outputs may land in the dataset dir or next to it depending on the build; collect both
 for f in okvis2-slam_trajectory.csv okvis2-slam-final_trajectory.csv okvis2-slam-final_map.csv; do
   [ -f "$OUT_DIR/dataset/$f" ] && mv "$OUT_DIR/dataset/$f" "$OUT_DIR/$f" || true
-  [ -f "$SEQ_DIR/okvis_input/$f" ] && mv "$SEQ_DIR/okvis_input/$f" "$OUT_DIR/$f" || true
+  [ -f "$OKIN/$f" ] && mv "$OKIN/$f" "$OUT_DIR/$f" || true
 done
 
 "$PY" - "$OUT_DIR" <<'EOF'

@@ -18,8 +18,10 @@ mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 NOISE_SCALE=1.0; WALK_SCALE=1.0; THREADS=4
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 
-"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$SEQ_DIR/okvis_input" > "$OUT_DIR/input.log"
-mkdir -p "$SEQ_DIR/basalt_input"; [ -L "$SEQ_DIR/basalt_input/mav0" ] || ln -sfn ../okvis_input "$SEQ_DIR/basalt_input/mav0"
+SKIP="${SKIP_FRAMES:-0}"; OKIN="$SEQ_DIR/okvis_input"; [ "$SKIP" = "0" ] || OKIN="$SEQ_DIR/okvis_input_skip$SKIP"
+"$PY" "$ROOT/scripts/make_okvis2_input.py" "$SEQ_DIR/runner_input" "$OKIN" --skip-frames "$SKIP" > "$OUT_DIR/input.log"
+BIN_DIR="$SEQ_DIR/basalt_input"; [ "$SKIP" = "0" ] || BIN_DIR="$SEQ_DIR/basalt_input_skip$SKIP"
+mkdir -p "$BIN_DIR"; [ -L "$BIN_DIR/mav0" ] || ln -sfn "../$(basename "$OKIN")" "$BIN_DIR/mav0"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 "$PY" "$ROOT/scripts/make_basalt_calib.py" "$CALIB" "$OUT_DIR/calib.json" --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE"
 cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
@@ -27,12 +29,12 @@ cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
   echo "basalt: $(cat "$HOME/.basalt/install.json" 2>/dev/null | tr -d '\n' | cut -c1-200)"
-  echo "command: $BASALT_BIN --dataset-path $SEQ_DIR/basalt_input --dataset-type euroc --cam-calib $OUT_DIR/calib.json --config-path $OUT_DIR/config.json --save-trajectory tum --num-threads $THREADS (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE)"
+  echo "command: $BASALT_BIN --dataset-path $BIN_DIR (SKIP_FRAMES=$SKIP) --dataset-type euroc --cam-calib $OUT_DIR/calib.json --config-path $OUT_DIR/config.json --save-trajectory tum --num-threads $THREADS (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE)"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 cd "$OUT_DIR"
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
-  "$BASALT_BIN" --dataset-path "$SEQ_DIR/basalt_input" --dataset-type euroc --cam-calib "$OUT_DIR/calib.json" \
+  "$BASALT_BIN" --dataset-path "$BIN_DIR" --dataset-type euroc --cam-calib "$OUT_DIR/calib.json" \
   --config-path "$OUT_DIR/config.json" --save-trajectory tum --show-gui false --num-threads "$THREADS" --use-imu true \
   > "$OUT_DIR/basalt.log" 2>&1 || { echo "basalt failed, see $OUT_DIR/basalt.log"; tail -5 "$OUT_DIR/basalt.log"; exit 1; }
 TRAJ="$(ls "$OUT_DIR"/trajectory*.txt "$OUT_DIR"/*.tum 2>/dev/null | head -1 || true)"

@@ -13,6 +13,7 @@ CONFIG_DIR="$(cd "$1" && pwd)"; SEQ_DIR="$(cd "$2" && pwd)"; OUT_DIR="$3"
 ORB_BIN="${ORB_BIN:-$ROOT/third_party/ORB_SLAM3/Examples/Stereo-Inertial/stereo_inertial_euroc}"
 ORB_VOC="${ORB_VOC:-$ROOT/third_party/ORB_SLAM3/Vocabulary/ORBvoc.txt}"
 PY="${PY:-$ROOT/.venv/bin/python}"
+export LD_LIBRARY_PATH="$ROOT/third_party/Pangolin/install/lib:${LD_LIBRARY_PATH:-}"
 SEQ="$(basename "$SEQ_DIR")"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 NOISE_SCALE=1.0; WALK_SCALE=1.0

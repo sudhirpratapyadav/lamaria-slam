@@ -17,11 +17,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("runner_input", type=Path)
     ap.add_argument("out", type=Path)
+    ap.add_argument("--skip-frames", type=int, default=0, help="drop the first N stereo frames (start-offset experiments)")
     args = ap.parse_args()
     src, out = args.runner_input.resolve(), args.out
     # Idempotent and atomic: other estimators may be reading these files concurrently.
     marker = out / "built_from.txt"
-    if marker.exists() and marker.read_text().strip() == str(src) and (out / "imu0" / "data.csv").exists():
+    if marker.exists() and marker.read_text().strip() == f"{src} skip={args.skip_frames}" and (out / "imu0" / "data.csv").exists():
         print(f"{out}: already built")
         return
     for cam in ("cam0", "cam1"):
@@ -31,7 +32,7 @@ def main():
             link.unlink()
         os.symlink(os.path.relpath((src / cam / "data").resolve(), out / cam), link)
     (out / "imu0").mkdir(exist_ok=True)
-    rows = [l.split(",") for l in (src / "stereo.csv").read_text().splitlines() if l and not l.startswith("#")]
+    rows = [l.split(",") for l in (src / "stereo.csv").read_text().splitlines() if l and not l.startswith("#")][args.skip_frames:]
     for cam, col in (("cam0", 1), ("cam1", 2)):
         tmp = out / cam / "data.csv.tmp"
         with open(tmp, "w") as f:
@@ -50,7 +51,7 @@ def main():
             g.write(f"{int(round(float(p[0]) * 1e9))}," + ",".join(p[1:7]) + "\n")
             n += 1
     tmp.replace(out / "imu0" / "data.csv")
-    marker.write_text(str(src) + "\n")
+    marker.write_text(f"{src} skip={args.skip_frames}\n")
     print(f"{out}: {len(rows)} stereo frames, {n} IMU rows")
 
 

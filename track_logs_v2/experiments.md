@@ -8,7 +8,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | see v1 037 | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A01 defaults, R_01 only | R_01: 0.237 live / **0.043 final BA** | | non-causal final BA; slow under load |
-| B Basalt | B02 noise x10, 4 seqs | R_01 0.34, R_04 1.55, R_08 3.84, R_11 1.61 | R_11 score 52 | ~2x realtime on <2 cores |
+| B Basalt | B04 (noise x20, 4 levels, 10 kfs), 4 seqs | R_01 0.15, R_04 0.78, R_08 1.01, R_11 2.60 | R_11 score 73.5 | ~2x realtime on <2 cores; B05 on 13 x 2 offsets running |
 | C ORB-SLAM3 | - | | | |
 | D OpenVINS + BA smoother | - | | | |
 
@@ -19,6 +19,25 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 **Result**, R_01_easy: live ATE sim3 0.237 m (scale 0.958); final-BA ATE 0.043 m (scale 0.976); poses for all 2898 images. Paper: OKVIS2 0.02 m, OpenVINS 0.66 m; our OpenVINS ov_ref005 0.19 / 0.29 m. Cost: 1466 s wall (10x slower than realtime) at 0.83 cores average under a heavily loaded machine (15 other estimators running), 564 MB RSS. A clean timing is owed.
 
 **Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path, already as good as tuned OpenVINS. Next: R_04, R_08, R_11 with defaults, then noise scaling (OKVIS2 has its own IMU priors), keyframing, and the fisheye input (OKVIS2 has a native equidistant model).
+
+## B04: Basalt combinations (2026-10-03, pc)
+
+**Change**: combinations of the B03 winners: noise x20 + 4 levels (n20l4); + 5 levels (n20l5); x30 + 4 levels (n30l4); x20 + 4 levels + 10 keyframes (n20l4k10). `configs/basalt_r4_*`. Four runs had to be repeated after a symlink race between concurrent Basalt runs (fixed with `ln -sfn`).
+
+**Result** (ATE m sim3, offset 0; R_11 score 2D in brackets):
+
+| Variant | R_01 | R_04 | R_08 | R_11 |
+|---|---|---|---|---|
+| B02 noise x10 | 0.338 | 1.549 | 3.837 | 1.614 (52) |
+| B03 noise x20 | 0.367 | 1.009 | 1.307 | 1.028 (69.5) |
+| B03 levels 4 | 0.138 | 1.010 | 1.347 | 1.376 (69.5) |
+| x20 + levels 4 | 0.143 | 0.862 | 1.110 | 2.562 (74.1) |
+| x20 + levels 5 | 0.285 | 0.806 | 1.652 | 2.449 (63.6) |
+| x30 + levels 4 | 0.147 | 1.007 | 0.927 | 3.049 (69.9) |
+| **x20 + levels 4 + 10 keyframes** | 0.152 | **0.775** | **1.006** | 2.595 (73.5) |
+| OpenVINS ov_ref005 (k=0) | 0.289 | 1.480 | 1.484 | 0.684 (72) |
+
+**Decision**: `configs/basalt_r4_n20l4k10` becomes the Basalt reference (B-ref1): ahead of tuned OpenVINS on R_01/R_04/R_08 and on the R_11 score, at about 2x realtime on fewer than 2 cores. R_11's ATE is unstable across Basalt variants (1.0 to 3.0) while its score stays 64 to 74; needs the two-offset view. Next: all 13 controlled at two offsets (B05), then Basalt's offline mapper (non-causal BA + loop closure) on top (B06), then the fisheye kb4 input (Basalt handles it natively).
 
 ## B03: Basalt single-knob round (2026-10-03, pc)
 
