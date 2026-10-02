@@ -1,0 +1,57 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b827394..f6cc0e3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -79,7 +79,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+ set(CMAKE_CXX_FLAGS_CIDEBUG  "-O0 -DEIGEN_INITIALIZE_MATRICES_BY_NAN")
+ set(CMAKE_CXX_FLAGS_CIRELWITHDEBINFO "-O3 -DEIGEN_INITIALIZE_MATRICES_BY_NAN")
+ 
+-set(BASALT_CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=unused-parameter -ftemplate-backtrace-limit=0")
++set(BASALT_CXX_FLAGS "-Wall -Wextra -Wno-error=unused-parameter -ftemplate-backtrace-limit=0")
+ 
+ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+   set(BASALT_CXX_FLAGS "${BASALT_CXX_FLAGS} -Wno-exceptions -fcolor-diagnostics -Wno-error=deprecated-declarations")
+diff --git a/src/mapper.cpp b/src/mapper.cpp
+index ff9df90..c7b8902 100644
+--- a/src/mapper.cpp
++++ b/src/mapper.cpp
+@@ -344,6 +344,8 @@ int main(int argc, char** argv) {
+     filter();
+     optimize();
+ 
++    saveTrajectoryButton();  // LaMAria: headless runs need the trajectory on disk
++
+     auto time_end = std::chrono::high_resolution_clock::now();
+ 
+     if (!result_path.empty()) {
+diff --git a/vcpkg.json b/vcpkg.json
+index e36dd6b..5c7302a 100644
+--- a/vcpkg.json
++++ b/vcpkg.json
+@@ -1,12 +1,6 @@
+ {
+   "name": "basalt",
+   "version-string": "0.1.7",
+-  "overrides": [
+-    {
+-      "name": "realsense2",
+-      "version": "2.51.1"
+-    }
+-  ],
+   "dependencies": [
+     "boost-date-time",
+     "boost-filesystem",
+@@ -38,13 +32,6 @@
+         "png"
+       ]
+     },
+-    {
+-      "name": "realsense2",
+-      "features": [
+-        "rs-usb-backend",
+-        "tm2"
+-      ]
+-    },
+     "tbb",
+     "basalt-headers",
+     "opengv",
