@@ -15,7 +15,8 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 | 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7 (init luck, see 016) |
 | 016 | 2026-10-02 | pc | `ov_ref003` = ov_ref002 + 400 features | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | **reference**; R_11 2.62 / 1.58 m, score 41.3 / 59.6: init-dominated |
 | 022 | 2026-10-02 | pc | ov_ref003 on all 13 controlled sequences (k=0) | mean 3.73 m vs open baseline 4.01 m (paper) | | | better on 7/13 incl. R_12, R_13; losses R_06, R_07, R_10, R_11 |
-| 026 | 2026-10-02 | pc | `ov_ref004` = ov_ref003 + CLAHE, 2 offsets x 13 sequences | mean 3.23 m (ref003: 3.59 m) | | | **reference**; R_06/R_08/R_11 gain 1.2 to 2.0 m |
+| 026 | 2026-10-02 | pc | `ov_ref004` = ov_ref003 + CLAHE, 2 offsets x 13 sequences | mean 3.23 m (ref003: 3.59 m) | | | R_06/R_08/R_11 gain 1.2 to 2.0 m |
+| 036 | 2026-10-02 | pc | `ov_ref005` = ov_ref004 + 8x8 extraction grid, 2 offsets x 13 | mean 2.83 m | | | **reference**; R_10 10.1 to 6.2 m, R_06, R_09, R_11 gain |
 | discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
@@ -70,6 +71,23 @@ Runtime on R_01: 78 s against 60 s for pinhole at the same load (equidistant pro
 | ideal equidistant resample (033c, `scripts/fisheye_remap.py`, exact model, full FOV) | R_01 0.226 / 0.245 | R_04 2.309 / 1.447 | | | | |
 
 **Decision**: discard fisheye as the default input. With an exact lens model R_04 is still 2.3 / 1.4 m against 1.0 / 0.7 m for pinhole and R_01 0.23 / 0.25 against 0.19 / 0.20; model fidelity explained only part of the loss, the outer field none of it. OpenVINS's KLT front-end simply does better on the undistorted pinhole images (uniform pixel footprint; the 758x572 canvas keeps most of the field anyway). R_11's gain (score 83 at both offsets) is an isolated case worth remembering. The pipeline stays (`vrs_to_runner_input.py`, `fit_fisheye_kb.py`, `fisheye_remap.py`); the fetch of the other nine `.vrs` was cancelled and the resampled frames deleted to save disk.
+
+## 036: 8x8 extraction grid at the second offset, adoption as ov_ref005 (2026-10-02, pc, commit 3f3f3fc)
+
+**Result** (ATE m sim3, per-sequence mean of offsets 0 and 100):
+
+| Seq | R_01 | R_02 | R_03 | R_04 | R_05 | R_06 | R_07 | R_08 | R_09 | R_10 | R_11 | R_12 | R_13 | mean |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ov_ref004 | 0.19 | 0.81 | 0.20 | 0.82 | 1.42 | 2.89 | 2.38 | 1.82 | 6.02 | 10.07 | 0.90 | 8.83 | 5.64 | 3.23 |
+| grid 8x8 (ov_ref005) | 0.23 | **0.47** | 0.21 | 1.08 | 1.51 | **1.99** | 2.59 | 1.72 | **5.27** | **6.22** | **0.58** | 8.89 | 6.06 | **2.83** |
+
+R_11 at offset 100: 0.476 m. R_13 offset 100: 6.94 m, score 29.8, recall @ 5 m 61.8 %.
+
+**Decision**: keep; `configs/ov_ref005` = ov_ref004 + `grid_x: 8, grid_y: 8` is the reference. Mean −0.40 m over 26 runs, better on 6 of 13 but the gains are the large ones on the hard and long sequences (R_10 −3.9 m) and the losses are all inside the offset spread (R_04 +0.26, R_13 +0.42, R_07 +0.21). Rationale: with 400 features a 5x5 grid lets features clump on textured patches; 8x8 forces coverage of the periphery, which constrains rotation and reduces heading drift.
+
+## 035: timing on R_01 (2026-10-02, pc; not at idle, load 19)
+
+ov_ref001: 121 s wall, 108 MB; ov_ref004: 213 s wall, 109 MB, for 144.9 s of data (2898 frames), both at 95 to 104 % of one core while 13 other estimators ran. Relative cost of the kept changes (400 features + CLAHE): about 1.75x. At light load the original reference ran 2.4x faster than realtime (001), so ov_ref004 is roughly 1.4x realtime on one core of this PC; the Jetson budget needs a real idle measurement and a per-stage profile (front-end dominates).
 
 ## 032: 8x8 extraction grid, FAST 15 (2026-10-02, pc, commit 5abf68a; offset 0, second offset running as 036)
 
