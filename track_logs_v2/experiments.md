@@ -7,10 +7,10 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A01 defaults, R_01 only | R_01: 0.237 live / **0.043 final BA** | | non-causal final BA; slow under load |
+| A OKVIS2 | A01 defaults | R_01 0.237 live / **0.043 final**; R_04 1.56 / 1.44 (scale 0.89) | | A02 noise x10 queued |
 | B Basalt | B05 ref1, 13 x 2 offsets | 14.2 m mean (6 of 26 diverged); beats OpenVINS on 18/20 non-diverged cells; R_13 3.4 (score 44) | | needs divergence recovery (B06) |
 | C ORB-SLAM3 | C01 defaults, R_01 fisheye | R_01: **0.031** | | loop closing; timing-dependent crash, retries added |
-| D OpenVINS + BA smoother | - | | | |
+| D OpenVINS line | D01 ov_ref005 + window 21 | 2.72 vs 1.99 over 11 (worse on sharp sequences) | additional set rerunning | D02 blur-adaptive window next |
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
 
@@ -18,7 +18,32 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Result**, R_01_easy: live ATE sim3 0.237 m (scale 0.958); final-BA ATE 0.043 m (scale 0.976); poses for all 2898 images. Paper: OKVIS2 0.02 m, OpenVINS 0.66 m; our OpenVINS ov_ref005 0.19 / 0.29 m. Cost: 1466 s wall (10x slower than realtime) at 0.83 cores average under a heavily loaded machine (15 other estimators running), 564 MB RSS. A clean timing is owed.
 
-**Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path, already as good as tuned OpenVINS. Next: R_04, R_08, R_11 with defaults, then noise scaling (OKVIS2 has its own IMU priors), keyframing, and the fisheye input (OKVIS2 has a native equidistant model).
+R_04_medium (defaults): live 1.555 m (scale 0.894), final BA 1.441 m (scale 0.898), all 5253 poses, 1988 s wall under load. Basalt 0.79, ORB-SLAM3 0.79 (with gaps), OpenVINS 1.48 on the same run. The low scale says the datasheet IMU noise makes OKVIS2 over-trust the IMU; noise scaling (A02) is the next round. R_08 / R_11 pending (their post-processing had to be redone by hand after a script edit).
+
+**Decision**: continue with high priority. The final-BA trajectory is the non-causal, benchmark-eligible path; the live one is the causal (robot) path. Next: A02 noise x10 on R_01/R_04, then keyframing and the fisheye input (OKVIS2 has a native equidistant model).
+
+## D01: OpenVINS ov_ref005 + KLT window 21 px (2026-10-03, pc; controlled part, additional set still running)
+
+**Hypothesis**: v1 034 found the 21 px window lifts the blurry additional-set walks (sequence_1_20 recall @ 5 m 37 to 94 %); on top of ov_ref005 it should keep the controlled-set numbers.
+
+**Result** (ATE m sim3, two offsets; 11 of 13 controlled sequences done, R_12/R_13 and the additional set rerunning after a job time-out):
+
+| Seq | ov_ref005 k=0 / k=100 | + window 21 k=0 / k=100 |
+|---|---|---|
+| R_01 | 0.289 / 0.176 | 0.194 / 0.349 |
+| R_02 | 0.584 / 0.358 | 0.475 / 0.782 |
+| R_03 | 0.216 / 0.195 | 0.141 / 0.183 |
+| R_04 | 1.480 / 0.675 | 1.078 / 1.032 |
+| R_05 | 1.307 / 1.715 | 1.205 / 0.629 |
+| R_06 | 2.081 / 1.906 | 2.491 / 2.760 |
+| R_07 | 3.203 / 1.974 | 4.447 / 2.354 |
+| R_08 | 1.484 / 1.964 | 4.920 / 5.378 |
+| R_09 | 3.843 / 6.696 | 3.800 / 4.991 |
+| R_10 | 6.102 / 6.336 | 11.130 / 9.677 |
+| R_11 | 0.684 / 0.476 | 1.190 / 0.528 |
+| mean of 11 | 1.99 | 2.72 |
+
+**Reading**: a wide window costs precision on sharp sequences (R_08, R_10) and buys robustness on blurred ones. The right form is a blur-adaptive window: measure sharpness per frame (Laplacian variance) and widen the KLT window only when the frame is blurred. Implemented in the runner as D02 (`klt_win_blur`, `klt_blur_threshold`).
 
 ## B05: Basalt reference on all 13 controlled sequences, two offsets (2026-10-03, pc)
 

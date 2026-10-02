@@ -125,6 +125,9 @@ public:
   /// Set true to skip per-frame re-triangulation of all active tracks (only feeds get_active_image/get_active_tracks).
   bool skip_active_track_viz = false;
 
+  /// LaMAria: access the feature tracker (e.g. to set a blur-adaptive KLT window per frame)
+  std::shared_ptr<ov_core::TrackBase> get_track_feats() { return trackFEATS; }
+
   /// Return the image used when projecting the active tracks
   void get_active_image(double &timestamp, cv::Mat &image) {
     timestamp = active_tracks_time;

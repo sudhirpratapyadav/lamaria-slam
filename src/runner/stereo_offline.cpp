@@ -3,6 +3,7 @@
 #include "state/State.h"
 #include "utils/opencv_yaml_parse.h"
 #include "utils/print.h"
+#include "track/TrackKLT.h"
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <filesystem>
@@ -46,6 +47,13 @@ int main(int argc, char **argv) {
     parser->parse_config("reinit_grace_s", reinit_grace_s, false);  // no checks this long after an (re)initialisation
     parser->parse_config("reinit_max_jump", reinit_max_jump, false);
     parser->parse_config("reinit_imu_replay_s", reinit_imu_replay_s, false);
+    // Blur-adaptive KLT window (v2 D02): when the left image's Laplacian variance is below
+    // klt_blur_threshold, use klt_win_blur instead of the configured window (0 = off).
+    int klt_win_blur = 0; double klt_blur_threshold = 0;
+    parser->parse_config("klt_win_blur", klt_win_blur, false);
+    parser->parse_config("klt_blur_threshold", klt_blur_threshold, false);
+    const int klt_win_base = opts.klt_win_size > 0 ? opts.klt_win_size : 15;
+    const int klt_pyr_base = opts.klt_pyr_levels > 0 ? opts.klt_pyr_levels : 5;
     auto make_system = [&]() { return std::make_shared<ov_msckf::VioManager>(opts); };
     auto sys = make_system();
     Eigen::Isometry3d world_from_segment = Eigen::Isometry3d::Identity(), last_good = Eigen::Isometry3d::Identity();
@@ -127,6 +135,14 @@ int main(int argc, char **argv) {
         }
         cam.images.push_back(img);
         cam.masks.push_back(mask);
+      }
+      if (klt_win_blur > 0) {
+        cv::Mat lap; cv::Laplacian(cam.images.at(0), lap, CV_64F);
+        cv::Scalar mu, sigma; cv::meanStdDev(lap, mu, sigma);
+        const double sharpness = sigma[0] * sigma[0];
+        auto klt = std::dynamic_pointer_cast<ov_core::TrackKLT>(sys->get_track_feats());
+        if (klt) klt->set_klt_params(sharpness < klt_blur_threshold ? klt_win_blur : klt_win_base, klt_pyr_base);
+        if (frames % 150 == 0) std::cout << "sharpness " << sharpness << std::endl;
       }
       const auto before = std::chrono::steady_clock::now();
       sys->feed_measurement_camera(cam);
