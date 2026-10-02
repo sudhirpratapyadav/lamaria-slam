@@ -10,12 +10,104 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 |---|---|---|---|---|---|---|---|
 | 001 | 2026-10-02 | pc | `ov_ref001`: OpenVINS stereo+IMU, pinhole ASL, dynamic init, time offset fixed, IMU noise densities x10 | 0.301 | 0.739 | 4.49 | reference; datasheet-noise first attempt: 0.169 / diverged / 10.59 |
 | 002 | 2026-10-02 | pc | same, 6 start offsets each | 0.17 to 0.34 (mean 0.25) | 0.74 to 1.08 (mean 0.90) | 3.3 to 7.4 (mean 4.85) | no divergence in 18 runs; this spread is the noise floor |
+| 009 | 2026-10-02 | pc | + runner divergence detection / re-init | unchanged | unchanged | unchanged | no false triggers; rescues the one diverging x3 run (67.6 to 11.4 m) |
+| 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7, recall@1m 78 % |
+| discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
 
 | # | Config | Sequence | score 2D | CP recall @ 1 m | pose recall @ 5 m | pose recall @ 1 m | ATE sim3 (paper: OpenVINS / OV+Maplab / OKVIS2) |
 |---|---|---|---|---|---|---|---|
 | 003 | `ov_ref001` | R_11_5cp (477 s, 5 CPs, 1627 pGT keyframes) | 58.9 | 40.0 | 100.0 | 35.8 | 1.36 (1.04 / 1.62 / 1.85) |
+| 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 60.0 / 60.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
+
+## 012: tracking capacity, 400 features or 15 clones (2026-10-02, pc, commit a09458c)
+
+**Hypothesis**: more tracked features (better-conditioned updates, more SLAM landmarks) or a longer sliding window should reduce drift; cost is front-end time.
+
+**Change** (one knob each from `ov_ref001`): `num_pts: 400` (pts400) or `max_clones: 15` (clones15), `configs/explore-012/`.
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference (200 pts, 11 clones) | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | 2.84 (0.964), 38.9 / 0.2 |
+| 400 features | **0.254** (0.983) | **0.239** (0.979) | **0.716** (0.962) | **0.706** (0.964) | **2.93** (0.973) | 4.71 (0.959) | **0.81** (0.965), **69.5 / 78.5** | **0.75** (0.972), **69.7 / 77.3** |
+| 15 clones | 0.644 (0.969) | 0.206 (0.976) | 0.647 (0.960) | 0.779 (0.955) | 5.06 (0.966) | 3.52 (0.977) | 2.29 (0.962), 43.6 / 8.4 | 2.61 (0.960), 40.8 / 1.7 |
+
+**Cost**: R_08 wall 629 s (pts400) and 585 s (clones15) against 274 s for the reference, but these ran with 16 to 24 estimators sharing 16 cores, so the ratio is not clean; a dedicated timing run at idle is owed before the config goes near the Nano.
+
+**Decision**: keep 400 features (better on 7 of 8 cells, R_11 best so far and stable across offsets; the one worse cell, R_08 k=100, is inside the start-offset spread). Discard 15 clones (mixed, worse on R_11). Scale unchanged by either, as expected. 400 features goes into `configs/ov_ref003` (= ov_ref002 + num_pts 400), validated as experiment 016.
+
+## 011: accelerometer scale factor 1.03 (2026-10-02, pc, commit a09458c)
+
+**Hypothesis**: the Aria IMU in the ASL files is raw (no factory rectification) and reads about 1.03 g at rest, and 007 showed the IMU-derived scale is 2 to 4 % too large; dividing the accelerometer by 1.03 (kalibr `Ta = 1.03 I`, applied by OpenVINS as 1/k) should bring the metric scale to 1.
+
+**Change**: `ACC_SCALE=1.03` (`configs/explore-011/acc103`), everything else as `ov_ref001`.
+
+**Result** (ATE m sim3, sim3 scale; SE3 ATE = no scale fit; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | 2.84 (0.964), 38.9 / 0.2 |
+| acc scale 1.03 | 0.375 (1.002) | 0.320 (1.000) | 0.878 (0.991) | 1.026 (0.986) | 5.68 (0.988) | 6.74 (0.993) | 3.35 (0.988), 33.3 / 0.6 | 5.43 (0.951) |
+
+SE3 ATE (k=0): R_01 0.336 → 0.376, R_04 2.09 → 0.99, R_08 7.00 → 5.93, R_11 4.64 → 3.53. Control-point Sim3 scale on R_11: 0.955 → 0.990.
+
+**Decision**: the hypothesis is confirmed for the scale (sim3 scale 0.99 to 1.00 everywhere, SE3 errors much lower), but the sim3 ATE and the R_11 score get worse, so it is not adopted as is. Reading: the corrected IMU scale now disagrees with the stereo scale, which 007 showed to be equally 3 to 4 % large on its own. Either the stereo baseline in the calibration is off by the same amount (unlikely by coincidence) or the raw-IMU scale error is not a uniform factor. Next: 015 = stereo off + accelerometer correction (IMU-only scale, corrected); if that gives scale 1 and reference-level sim3 ATE, the stereo geometry is the remaining conflict.
+
+## 010: fixed camera-IMU time offset +4.3 ms (2026-10-02, pc, commit a09458c)
+
+**Hypothesis**: with online offset calibration the baseline runs converged to about +4.3 ms; fixing that value (instead of 0) might improve accuracy without the instability of estimating it online.
+
+**Change**: `TIMESHIFT=0.0043` written as `timeshift_cam_imu` (`configs/explore-010/dt4`), offset calibration still off.
+
+**Result** (ATE m, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference dt=0 | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | 2.84 (0.964), 38.9 / 0.2 |
+| dt = +4.3 ms | 0.419 (0.980) | 0.256 (0.981) | 1.718 (0.939) | 2.198 (0.941) | 6.36 (0.961) | 6.82 (0.962) | 3.17 (0.974), 36.7 / 0.7 | 0.85 (0.976), 68.7 / 87.9 |
+
+**Decision**: discard; worse on R_04 and R_08 by more than the spread. Side finding: R_11 at offset 100 reached 0.85 m / score 68.7 / recall @ 1 m 87.9, the best R_11 run so far, while offset 0 gave 3.2 m with the same config. R_11's outcome is dominated by how well the first seconds initialise; initialisation quality (window length, features) is the next lever (014).
+
+## 009: divergence detection with re-initialisation (2026-10-02, pc, commit a09458c)
+
+**Hypothesis**: divergence is silent (poses keep coming while the trajectory flies off) and costs the whole remainder of a sequence; detecting it from the state speed or a per-frame jump, rebuilding the estimator, and stitching the new segment onto the last good pose should bound the damage without hurting runs that never diverge.
+
+**Change**: runner-level check after every update: speed above `reinit_max_velocity` (6 m/s) or per-frame jump above `reinit_max_jump` (1 m) rebuilds the VioManager, replays the last 3 s of IMU, and maps the new local frame onto the last good pose. Config `configs/explore-009/reinit` (= ov_ref001 + the three keys); `n3d_reinit` applies the same to the x3 config that diverged in 005.
+
+**Result** (ATE m, sim3 scale, number of re-inits):
+
+| Run | reference (005 for x3) | with re-init |
+|---|---|---|
+| R_01 k=0 / k=100 | 0.301 / 0.281 | 0.300 / 0.281, 0 re-inits |
+| R_04 k=0 / k=100 | 0.739 / 1.078 | 0.736 / 1.078, 0 re-inits |
+| R_08 k=0 / k=100 | 4.49 / 3.59 | 4.47 / 3.59, 0 re-inits |
+| R_11 k=0 / k=100 | 1.36 (58.9 / 35.8) / not run | 1.36 (58.9 / 35.8) / 2.84 (38.9 / 0.2), 0 re-inits |
+| R_08 x3 k=100 | 67.6 diverged | 11.4, 1 re-init at 490 s (speed 6.0 m/s) |
+| R_11 x3 k=100 | 29.6 diverged | 2.30, 0 re-inits (see below) |
+
+**Determinism finding**: the R_11 x3 k=100 run did not diverge this time, with no re-init. Two further parallel reruns of the exact 005 configuration both give 2.304 m, identical to each other but not to the 005 run, and the first pose differs: the 005 run initialised 0.25 s later. OpenVINS's dynamic initialiser has a wall-clock budget (`init_dyn_mle_max_time: 0.05` s), so under heavier CPU load (005 ran 16 jobs alongside 004) it does fewer optimisation iterations and initialises differently. Consequences: (1) results are reproducible only at equal machine load; (2) part of the divergence seen in 005 was a load artefact; (3) on the robot the initialisation quality would depend on CPU load. Fix queued as 013: `init_dyn_mle_max_time` raised so the iteration cap (`init_dyn_mle_max_iter: 50`) is what bounds it, single-threaded MLE.
+
+**Cost**: none measurable when no re-init fires; a re-init costs about 2 s of poses (filled by carry-forward in the submission) plus the initialisation window.
+
+**Decision**: keep the mechanism (no false triggers in 8 runs, saves the one real divergence). Thresholds are walking-specific (6 m/s); for moving-platform sequences a speed threshold will need to be higher or replaced by a consistency check. Becomes part of the next reference (013).
+
+## 008: IMU white-noise densities x20 (2026-10-02, pc, commit a09458c)
+
+**Hypothesis**: 005 showed less inflation (x3, x5) is worse than x10; if the trend is monotonic, x20 is better still.
+
+**Change**: `NOISE_SCALE=20`, walks unchanged (`configs/explore-008/n20d`).
+
+**Result** (ATE m, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference x10 | 0.301 (0.982) | 0.281 (0.979) | 0.739 (0.962) | 1.078 (0.952) | 4.49 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | not run |
+| x20 | 0.331 (0.963) | 0.328 (0.965) | 0.740 (0.942) | 1.632 (0.931) | 4.09 (0.964) | 3.57 (0.970) | 3.00 (0.967), 41.0 / 7.1 | 0.95 (0.961), 66.4 / 63.7 |
+
+**Decision**: discard. Not monotonic: x20 degrades the scale on R_01 and R_04 (0.93 to 0.965) and makes R_11 swing 3x between start offsets. x10 stays. Scale versus IMU weighting across 005/008 on R_01: x3 0.989, x5 0.991, x10 0.982, x20 0.963, so trusting the IMU more does pull the scale toward 1 on the easy sequence, but at the price of divergence on the others; a proper fix must address the IMU model, not the weighting.
 
 ## 007: stereo constraints off, scale from the IMU alone (2026-10-02, pc, commit 5bac949)
 

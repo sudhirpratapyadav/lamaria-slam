@@ -1,6 +1,6 @@
 # Current status
 
-Last updated: 2026-10-02 18:22 IST. Edit in place; this is the "where are we now" page.
+Last updated: 2026-10-02 18:51 IST. Edit in place; this is the "where are we now" page.
 
 ## Host
 
@@ -18,7 +18,7 @@ This PC (16 cores, 15 GB RAM, Quadro P620). A100 and Jetson Nano not started.
 | `scripts/` | `prepare_runner_input.py`, `make_openvins_config.py`, `tum_to_submission.py`, `evaluate.py`, `run_sequence.sh`, `summarize_experiment.py` |
 | `configs/ov_ref001` | **current reference** (dynamic init, time offset fixed, noise densities x10) |
 | `configs/ov_baseline`, `configs/explore-001/` | experiment 001 first attempt and its bring-up variants |
-| GitHub | `git@github.com:sudhirpratapyadav/lamaria-slam.git`, last push 2ecc5c2 (harness + experiment 001). Uncommitted: experiments/ removal, runner skip option, 002 write-up |
+| GitHub | `git@github.com:sudhirpratapyadav/lamaria-slam.git`, last push a09458c (experiments 001-007, re-init runner) |
 | `data/training/*` | full training set downloading one sequence at a time (`results/fetch_all.log`); R_01, R_04, R_08, R_11_5cp ready |
 
 ## Numbers (ATE RMSE after sim3, official evaluator, single deterministic runs)
@@ -50,8 +50,9 @@ Leaderboard main-set metrics, computed locally (R_11_5cp, ov_ref001, single run)
 
 ## Next (in order)
 
-1. The systematic scale error (estimate 2 to 4.5 % too large, confirmed against surveyed control points on R_11). Discarded so far: online camera extrinsics (004), online intrinsics (004), IMU noise x3/x5 (005), online IMU intrinsics (006). Running or queued: stereo constraints off (007, decides IMU-vs-stereo as scale source), noise x20 (008), divergence detection + re-init (009), fixed camera-IMU offset +4.3 ms (010).
-3. IMU noise sweep (densities x1..x10, walks separately), tracking knobs, then fisheye input (needs `.vrs` download approval), then loop closure for the long sequences.
+1. The systematic scale error (estimate 2 to 4.5 % too large, confirmed against surveyed control points on R_11). Found: the raw Aria accelerometer reads ~1.03 g; dividing it by 1.03 (011) brings the metric scale to 1.00 and halves the SE3 error on R_04, but the sim3 ATE gets worse because stereo and IMU then disagree (007 showed the stereo-free scale is equally large). Running/queued: 012 (features 400 / clones 15), 013 (ov_ref002 candidate = re-init + load-independent init), 014 (init window 4 s / init features 100), 015 (stereo off + accel correction). Discarded: 004, 005, 006, 008, 010.
+2. Determinism caveat (009): OpenVINS's dynamic init is bounded by wall-clock time, so results depend on machine load; ov_ref002 bounds it by iterations instead.
+3. Then: fisheye input (needs `.vrs` download approval), loop closure for the long sequences.
 4. Extend every comparison to all controlled-set sequences as they arrive (R_02 ... R_10).
 
 ## Blockers
