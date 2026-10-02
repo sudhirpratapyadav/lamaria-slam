@@ -1,0 +1,8 @@
+data/
+results/*
+!results/.gitkeep
+*.zip
+__pycache__/
+.venv/
+build/
+third_party/
