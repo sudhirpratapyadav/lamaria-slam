@@ -38,11 +38,11 @@ def main():
     ap.add_argument("seq_dir", type=Path)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
-    aria = find_aria(args.seq_dir)
     out = args.seq_dir / "runner_input"
     if (out / "stereo.csv").exists() and not args.force:
         print(f"{out} already prepared")
         return
+    aria = find_aria(args.seq_dir)
     out.mkdir(exist_ok=True)
     for cam in ("cam0", "cam1"):
         link = out / cam

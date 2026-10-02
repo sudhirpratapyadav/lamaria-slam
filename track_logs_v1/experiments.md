@@ -28,6 +28,31 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 | 022 | `ov_ref003`, k=0 | R_12_10cp (1012 s, 10 CPs) | 15.9 | - | 30.3 | 7.0 | 8.30 (18.72 / 16.59 / 16.55) |
 | 022 | `ov_ref003`, k=0 | R_13_15cp (1404 s, 15 CPs) | 39.1 | - | 92.5 | 10.1 | 3.55 (10.35 / 8.37 / 6.65) |
 
+## 031: factory-rectified IMU from the .vrs device calibration (2026-10-02, pc, commit 4f9e4ca)
+
+**Hypothesis**: the ASL IMU is raw; applying the factory rectification (per-axis scale/misalignment and bias) from the `.vrs` should remove the suspected accelerometer scale error and give the initialiser a bias-free start.
+
+**Finding first**: the factory calibration has no scale term worth the name (accel and gyro scale within 0.15 % of 1 on both devices seen) but a large accelerometer bias on the device used for R_01/R_04/R_11 (0.25 / 0.21 / 0.39 m/s^2; R_08's device is near zero). The online bias estimate had already converged near that value, so rectification mostly changes the first seconds.
+
+**Change**: `scripts/rectify_imu_from_vrs.py` builds `data/training_rect/<seq>` (rectified `imu.csv`, everything else symlinked); `ov_ref004` on it.
+
+**Result** (ATE m sim3; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| ov_ref004, raw IMU | 0.191 | 0.195 | 0.982 | 0.659 | 2.47 | 1.18 | 0.74, 72.4 / 88.9 | 1.06, 70.2 / 54.9 |
+| ov_ref004, rectified IMU | 0.183 | 0.174 | 0.837 | 0.731 | 2.08 | 1.66 | 0.94, 69.2 / 62.8 | 1.07, 68.2 / 58.1 |
+
+**Decision**: discard (neutral within the spread; per-sequence means 0.18 vs 0.19, 0.78 vs 0.82, 1.87 vs 1.83, 1.01 vs 0.90), and it would need a `.vrs` per sequence. The sim3 scale is unchanged (0.965 to 0.986), which closes the IMU side of the scale question: the 2 to 4 % is not a sensor calibration term. The `.vrs` files remain useful for the fisheye-input experiment.
+
+## 027: zero-velocity updates throughout, analytical IMU integration (2026-10-02, pc, commit b88fdf7)
+
+**Hypothesis**: ZUPTs whenever the walker stops (`zupt_only_at_beginning: false`) would re-anchor biases and cut drift; analytical covariance propagation might be more accurate than RK4.
+
+**Result**: both identical to the reference on every cell (4 sequences x 2 offsets): the ZUPT disparity test never passes while walking (head motion), and at 1 kHz IMU rate RK4 and analytical propagation agree to the printed precision.
+
+**Decision**: discard both; no-ops on this data.
+
 ## 026: ov_ref003 vs ov_ref004 at two start offsets on all 13 controlled sequences (2026-10-02, pc, commit b88fdf7)
 
 **Hypothesis**: the CLAHE decision (024 was 6 better / 7 worse on single runs) needs a second start offset per sequence to separate the effect from initialisation luck.
