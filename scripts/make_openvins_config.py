@@ -8,6 +8,7 @@ Usage: make_openvins_config.py CALIB_JSON OUT_DIR [--noise-scale S]
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +35,8 @@ def main():
     ap.add_argument("--timeshift", type=float, default=0.0, help="initial camera-IMU time offset written as timeshift_cam_imu (s)")
     ap.add_argument("--acc-scale", type=float, default=1.0,
                     help="accelerometer scale factor k (measured = k * true); written as kalibr Ta = diag(k), OpenVINS applies 1/k")
+    ap.add_argument("--focal-scale", type=float, default=float(os.environ.get("FOCAL_SCALE", "1.0")),
+                    help="multiply both focal lengths (diagnostic for a stereo scale error); env FOCAL_SCALE")
     ap.add_argument("--walk-scale", type=float, default=None,
                     help="multiply the JSON bias random walks by this (default: same as --noise-scale)")
     args = ap.parse_args()
@@ -51,7 +54,7 @@ def main():
         T_cam_imu = np.linalg.inv(T_imu_cam)
         if c["model"] == "PINHOLE":
             model, dist_model, dist = "pinhole", "radtan", [0.0, 0.0, 0.0, 0.0]
-            intr = c["params"][:4]
+            intr = [c["params"][0] * args.focal_scale, c["params"][1] * args.focal_scale, c["params"][2], c["params"][3]]
         else:
             raise SystemExit(f"{c['model']} not supported yet; use the pinhole calibration")
         cams.append(
@@ -77,7 +80,7 @@ def main():
         "  Tg:\n" + mat_rows(np.zeros((3, 3))) + "\n"
     )
     (args.out_dir / "imu.yaml").write_text(imu_yaml)
-    print(f"wrote {args.out_dir}/imucam.yaml and imu.yaml (noise scale {s}, walk scale {w}, acc scale {args.acc_scale}, timeshift {args.timeshift}, gravity {imu['gravity_magnitude']})")
+    print(f"wrote {args.out_dir}/imucam.yaml and imu.yaml (noise scale {s}, walk scale {w}, acc scale {args.acc_scale}, focal scale {args.focal_scale}, timeshift {args.timeshift}, gravity {imu['gravity_magnitude']})")
 
 
 if __name__ == "__main__":

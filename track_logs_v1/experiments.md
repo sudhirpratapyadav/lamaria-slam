@@ -11,7 +11,9 @@ ATE = RMSE in metres after sim3 Umeyama against the controlled-set pseudo-GT (of
 | 001 | 2026-10-02 | pc | `ov_ref001`: OpenVINS stereo+IMU, pinhole ASL, dynamic init, time offset fixed, IMU noise densities x10 | 0.301 | 0.739 | 4.49 | reference; datasheet-noise first attempt: 0.169 / diverged / 10.59 |
 | 002 | 2026-10-02 | pc | same, 6 start offsets each | 0.17 to 0.34 (mean 0.25) | 0.74 to 1.08 (mean 0.90) | 3.3 to 7.4 (mean 4.85) | no divergence in 18 runs; this spread is the noise floor |
 | 009 | 2026-10-02 | pc | + runner divergence detection / re-init | unchanged | unchanged | unchanged | no false triggers; rescues the one diverging x3 run (67.6 to 11.4 m) |
-| 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7, recall@1m 78 % |
+| 013 | 2026-10-02 | pc | `ov_ref002` = + re-init + iteration-bounded init | 0.300 / 0.281 | 0.736 / 1.078 | 4.46 / 3.59 | reference; identical to ov_ref001 numbers |
+| 012 | 2026-10-02 | pc | + 400 KLT features (k=0 / k=100) | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | kept; R_11: 0.81 / 0.75 m, score 69.5 / 69.7 (init luck, see 016) |
+| 016 | 2026-10-02 | pc | `ov_ref003` = ov_ref002 + 400 features | 0.254 / 0.239 | 0.716 / 0.706 | 2.93 / 4.71 | **reference**; R_11 2.62 / 1.58 m, score 41.3 / 59.6: init-dominated |
 | discarded | 2026-10-02 | pc | 004 cam extrinsics/intrinsics online, 005 noise x3/x5, 006 IMU intrinsics online, 007 stereo off, 008 noise x20, 010 dt +4.3 ms, 012 clones 15 | | | | see sections; 011 acc scale 1.03 fixes metric scale but worsens sim3 ATE, open |
 
 Leaderboard-metric sequences (the main-set metrics, computed locally with the official evaluators):
@@ -20,6 +22,58 @@ Leaderboard-metric sequences (the main-set metrics, computed locally with the of
 |---|---|---|---|---|---|---|---|
 | 003 | `ov_ref001` | R_11_5cp (477 s, 5 CPs, 1627 pGT keyframes) | 58.9 | 40.0 | 100.0 | 35.8 | 1.36 (1.04 / 1.62 / 1.85) |
 | 012 | `ov_ref001` + 400 features, k=0 / k=100 | R_11_5cp | 69.5 / 69.7 | 80.0 / 80.0 | 100 / 100 | 78.5 / 77.3 | 0.81 / 0.75 |
+
+## 016: ov_ref003 = ov_ref002 + 400 features, validation (2026-10-02, pc, commit d06be7f)
+
+**Hypothesis**: combining the kept changes (re-init, iteration-bounded init, 400 features) reproduces the 012 numbers.
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Config | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| 012 pts400 (time-bounded init) | 0.254 | 0.239 | 0.716 | 0.706 | 2.93 | 4.71 | 0.81 (0.965), 69.5 / 78.5 | 0.75 (0.972), 69.7 / 77.3 |
+| ov_ref003 (iteration-bounded init) | 0.254 (0.983) | 0.239 (0.979) | 0.716 (0.962) | 0.706 (0.964) | 2.93 (0.973) | 4.71 (0.959) | 2.62 (0.971), 41.3 / 3.4 | 1.58 (0.969), 59.6 / 27.9 |
+
+**Decision**: keep ov_ref003 as the reference (R_01/R_04/R_08 identical to 012, all better than ov_ref002), but the R_11 lesson is important: the only difference is that the dynamic-init MLE now runs to its iteration cap instead of being cut at 50 ms, and that alone turns R_11 from 0.8 m into 1.6 to 2.6 m. R_11's result is decided by initialisation luck, not by tracking. The 012 R_11 numbers are therefore not a reliable property of "400 features". Next: initialiser variants that change what the MLE does (020: no MLE refinement, closed-form init only; 021: MLE to full convergence), and a look at why R_11's first seconds are hard (it starts at true rest; a static init might be the better path there).
+
+## 015: stereo off + accelerometer scale 1.03 (2026-10-02, pc, commit d06be7f)
+
+**Hypothesis**: if the sim3-ATE degradation in 011 came from the corrected IMU disagreeing with the stereo scale, removing the stereo constraints (scale from the corrected IMU alone) should give scale 1 and reference-level sim3 ATE.
+
+**Change**: `use_stereo: false` + `ACC_SCALE=1.03` (`configs/explore-015/nostereo_acc103`).
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| stereo off (007) | 0.358 (0.986) | 0.369 (0.984) | 0.774 (0.960) | 0.920 (0.966) | 3.50 (0.966) | 5.36 (0.968) | 1.62 (0.970), 50.8 / 9.2 | 1.50 (0.967), 55.1 / 19.3 |
+| stereo off + acc 1.03 | 0.355 (1.007) | 0.404 (1.008) | 1.033 (0.995) | 1.324 (0.997) | 2.80 (0.999) | 4.63 (0.999) | 3.34 (0.993), 32.4 / 3.9 | 2.03 (0.991), 45.0 / 9.3 |
+
+**Decision**: discard. The metric scale is right with the correction (0.99 to 1.01, IMU-only), but sim3 ATE is still worse on R_04 and R_11, so the loss is not a stereo-versus-IMU conflict: a single uniform factor is the wrong IMU model (per-axis scale and misalignment differ, and R_04's rest magnitude reads low rather than high). Conclusion of the scale investigation (004 to 015): the 2 to 4 % metric scale error comes from the raw, unrectified Aria accelerometer; fixing it properly needs the factory IMU rectification from the `.vrs` device calibration (not in the JSON calibrations we have). For the leaderboard metrics (Sim3 alignment on control points) the global scale is forgiven, so this is parked until the `.vrs` files are available; for the robot it matters and is noted in `purpose.md` terms as a calibration-quality lesson.
+
+## 014: initialiser window 4 s or 100 init features (2026-10-02, pc, commit d06be7f)
+
+**Hypothesis**: R_11 swings 0.85 to 3.2 m with the start offset, so a longer dynamic-init window (`init_window_time: 4.0`) or more init features (`init_max_features: 100`) might make the initial state more reliable.
+
+**Change**: one knob each from `ov_ref002` (`configs/explore-014/`).
+
+**Result** (ATE m sim3, sim3 scale; R_11 also score 2D / pose recall @ 1 m):
+
+| Variant | R_01 k=0 | R_01 k=100 | R_04 k=0 | R_04 k=100 | R_08 k=0 | R_08 k=100 | R_11 k=0 | R_11 k=100 |
+|---|---|---|---|---|---|---|---|---|
+| reference ov_ref002 | 0.300 (0.982) | 0.281 (0.979) | 0.736 (0.962) | 1.078 (0.952) | 4.46 (0.964) | 3.59 (0.974) | 1.36 (0.954), 58.9 / 35.8 | 2.84 (0.964), 38.9 / 0.2 |
+| init window 4 s | 0.247 (0.992) | 0.418 (0.971) | 0.868 (0.964) | 0.721 (0.958) | 4.10 (0.971) | 4.16 (0.964) | 2.59 (0.970), 40.3 / 2.6 | 1.88 (0.964), 53.0 / 35.3 |
+| init features 100 | 0.235 (0.990) | 0.361 (0.976) | 0.577 (0.957) | 0.795 (0.955) | 6.89 (0.964) | 3.86 (0.974) | 2.98 (0.956), 38.1 / 1.2 | 1.92 (0.958), 53.3 / 32.3, 1 re-init |
+
+**Decision**: discard both; every cell moves within the start-offset spread, in both directions. The initial state is not improved by a longer window or more init features; the 400-feature change (012) did far more for R_11 than any init knob.
+
+## 013: ov_ref002 = ov_ref001 + re-init + load-independent initialisation (2026-10-02, pc, commit d06be7f)
+
+**Hypothesis**: bounding the dynamic initialiser by iterations (`init_dyn_mle_max_time: 10`, `init_dyn_mle_max_threads: 1`) instead of 50 ms of wall clock, plus the runner re-init of 009, gives the same accuracy as ov_ref001 with reproducible, load-independent results.
+
+**Result**: identical to the reference in every cell (R_01 0.300 / 0.281, R_04 0.736 / 1.078, R_08 4.46 / 3.59, R_11 1.36 / 2.84 with score 58.9 / 38.9), 0 re-inits. The MLE evidently converged inside 50 ms at this load anyway; the change protects against the case where it does not.
+
+**Decision**: keep; `configs/ov_ref002` is the reference from here (numbers unchanged from 001/002), `ov_ref003` adds the 400 features from 012 and is validated in 016.
 
 ## 012: tracking capacity, 400 features or 15 clones (2026-10-02, pc, commit a09458c)
 
