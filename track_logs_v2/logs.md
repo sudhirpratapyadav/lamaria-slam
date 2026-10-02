@@ -28,3 +28,5 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 03:26** D01 complete: fixed window 21 not adopted (controlled 3.44 vs 2.83 m; additional mean score 22.3 vs 22.0 with large swings). D02 adaptive window running.
 - **2026-10-03 03:31** D02 adaptive window (25 px below sharpness 15): between the fixed window and the reference (2_11 score 23.0 / 52 %, R_07 2.1, but R_08 2.2 vs 1.5). D03 = window 21 below sharpness 8 on the same eight sequences.
 - **2026-10-03 03:32** B07: robust Basalt two-offset mean 2.43 m on the 13 controlled sequences (OpenVINS ov_ref005 2.83), better on 10/13. B08 = robust Basalt on the ten additional sequences launched.
+- **2026-10-03 03:34** Disk: pruned OKVIS2 map dumps and OpenVINS tracking snapshots from results (6.7 to 3.1 GB), 19 GB free. A02 OKVIS2 x10 R_11: live 1.43 / final 1.64 m, scale 0.79, score 67 (not better than OpenVINS/Basalt there).
+- **2026-10-03 04:03** A02 OKVIS2 x10 on R_08: 5.0 / 5.2 m (slow, 67 min); R_11 1.43 / 1.64 (score 67). A03 (x20, loop closures off) and A04 (x10, 10 keyframes) launched on R_04 and R_08.
