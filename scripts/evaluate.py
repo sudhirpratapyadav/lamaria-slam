@@ -48,23 +48,25 @@ def main():
     seq = args.seq_dir.name
     gt_pgt = next(iter(args.seq_dir.glob("ground_truth/**/pGT/*.txt")), None) or \
         next(iter(args.seq_dir.glob("ground_truth/**/*.txt")), None)
-    if gt_pgt is None:
-        sys.exit(f"no pseudo-GT under {args.seq_dir}/ground_truth")
-    result = {"sequence": seq, "estimate": str(args.estimate), "pgt": str(gt_pgt)}
-
+    # moving-platform sequences have no pseudo-GT, only control points: ATE / pose recall are skipped there
+    result = {"sequence": seq, "estimate": str(args.estimate), "pgt": None if gt_pgt is None else str(gt_pgt)}
     est = Trajectory.load_from_file(args.estimate, invert_poses=False)
-    gt = Trajectory.load_from_file(gt_pgt, invert_poses=False)
     result["est_poses"] = len(est)
-    result["gt_keyframes"] = len(gt)
     result["est_duration_s"] = (est.timestamps[-1] - est.timestamps[0]) / 1e9
-    result["gt_duration_s"] = (gt.timestamps[-1] - gt.timestamps[0]) / 1e9
-
-    ate = evaluate_wrt_mps(
-        Trajectory.load_from_file(args.estimate, invert_poses=False),
-        Trajectory.load_from_file(gt_pgt, invert_poses=False),
-    )
-    result["ate_rmse_m"] = None if ate is None else float(ate)
-    result["sim3_scale"] = umeyama_scale(args.estimate, gt_pgt)
+    gt = None
+    if gt_pgt is not None:
+        gt = Trajectory.load_from_file(gt_pgt, invert_poses=False)
+        result["gt_keyframes"] = len(gt)
+        result["gt_duration_s"] = (gt.timestamps[-1] - gt.timestamps[0]) / 1e9
+        ate = evaluate_wrt_mps(
+            Trajectory.load_from_file(args.estimate, invert_poses=False),
+            Trajectory.load_from_file(gt_pgt, invert_poses=False),
+        )
+        result["ate_rmse_m"] = None if ate is None else float(ate)
+        result["sim3_scale"] = umeyama_scale(args.estimate, gt_pgt)
+    else:
+        result["ate_rmse_m"] = None
+        result["sim3_scale"] = None
 
     cp_json = next(iter(args.seq_dir.glob("ground_truth/**/control_points/*.json")), None) or \
         next(iter(args.seq_dir.glob("ground_truth/**/*.json")), None)
@@ -91,8 +93,8 @@ def main():
             result["cp_score"] = float(calculate_control_point_score(sres))
             result["cp_recall_1m"] = float(calculate_control_point_recall(sres))
             result["cp_count"] = len(sres.cp_summary)
-            err = evaluate_wrt_pgt(Trajectory.load_from_file(args.estimate, invert_poses=False),
-                                   Trajectory.load_from_file(gt_pgt, invert_poses=False), sres.alignment)
+            err = None if gt is None else evaluate_wrt_pgt(Trajectory.load_from_file(args.estimate, invert_poses=False),
+                                                          Trajectory.load_from_file(gt_pgt, invert_poses=False), sres.alignment)
             if err is not None:
                 for t in (1.0, 5.0):
                     result[f"pose_recall_{int(t)}m"] = float(calculate_pose_recall(err, len(gt), t))

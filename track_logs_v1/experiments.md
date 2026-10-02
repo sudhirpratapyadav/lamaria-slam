@@ -112,6 +112,29 @@ Runtime on R_01: 78 s against 60 s for pinhole at the same load (equidistant pro
 
 **Decision**: the pyramid option changed nothing (identical to 3 decimals; either OpenCV caps the levels or the setting is not reaching the tracker: to check). The 21 px window is the largest single effect seen on the test-like sequences (recall @ 5 m 37 to 94 % and 24 to 66 %), at a cost on R_07 and R_11. Carried into v2 as candidate D's first optimisation round on top of ov_ref005, validated on all 13 at two offsets and the ten additional-set sequences.
 
+## 037: ov_ref005 on the additional set (2026-10-03, pc, commit 42ad4da; last v1 experiment, appended after closure)
+
+**Setup**: `configs/ov_ref005` (8x8 grid), start offset 0, single runs; the ten additional-set sequences. sequence_5_11 and 5_12 (moving platform) have no pseudo-GT, so only the control-point metrics exist there (`evaluate.py` now handles that).
+
+**Result** (leaderboard metrics: score 2D, CP recall @ 1 m, pose recall @ 5 m, @ 1 m; ATE sim3 and scale; re-inits):
+
+| Sequence | score 2D | CP recall @1m | recall @5m | recall @1m | ATE (scale) | re-inits |
+|---|---|---|---|---|---|---|
+| sequence_1_19 | 40.0 | 7.1 | 99.9 | 9.4 | 2.92 (0.977) | 0 |
+| sequence_1_20 | 46.3 | 15.4 | 99.9 | 11.7 | 2.09 (0.976) | 0 |
+| sequence_2_11 | 11.6 | 0 | 15.7 | 0 | 11.24 (0.992) | 0 |
+| sequence_2_12 | 29.0 | 5.0 | 60.4 | 3.3 | 4.90 (0.960) | 1 |
+| sequence_3_17 | 9.9 | 0 | 21.6 | 0.3 | 16.05 (0.933) | 3 |
+| sequence_3_18 | 13.1 | 0 | 33.0 | 0.8 | 26.02 (1.015) | 0 |
+| sequence_4_10 | 0.9 | 0 | 0.0 | 0 | 16.63 (0.888) | 0 |
+| sequence_4_11 | 30.2 | 6.7 | 66.2 | 4.0 | 5.94 (0.933) | 0 |
+| sequence_5_11 (moving platform, no pGT) | 28.4 | 7.1 | - | - | - | 0 |
+| sequence_5_12 (moving platform, no pGT) | 8.5 | 0 | - | - | - | 0 |
+
+Against ov_ref004 (030, first four): sequence_1_20 improves from 13.9 / 36.6 % to 46.3 / 99.9 % and 2_12 from 21.4 / 48.5 to 29.0 / 60.4; sequence_2_11 worsens (15.0 / 23.6 to 11.6 / 15.7). The sequence_3_* and 4_10 walks are the hardest seen: 4_10 is a total loss (recall 0 %, scale 0.89), 3_17 needed three re-inits.
+
+**Decision**: this is v1's final picture on the test-like set and the baseline row for v2: mean score 2D over all ten 22.0, mean recall @ 5 m over the eight with pseudo-GT 49.6 %. The open baseline's leaderboard averages (27.7 / 23.4 / 12.8) are of this order. Everything that matters now is the hard sequences (2_11, 3_17, 3_18, 4_10).
+
 ## 036: 8x8 extraction grid at the second offset, adoption as ov_ref005 (2026-10-02, pc, commit 3f3f3fc)
 
 **Result** (ATE m sim3, per-sequence mean of offsets 0 and 100):

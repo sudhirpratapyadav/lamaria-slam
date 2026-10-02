@@ -6,7 +6,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
-| v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | see v1 037 | causal, ~1.4x realtime on one core |
+| v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A01 defaults, R_01 only | R_01: 0.237 live / **0.043 final BA** | | non-causal final BA; slow under load |
 | B Basalt | B04 (noise x20, 4 levels, 10 kfs), 4 seqs | R_01 0.15, R_04 0.78, R_08 1.01, R_11 2.60 | R_11 score 73.5 | ~2x realtime on <2 cores; B05 on 13 x 2 offsets running |
 | C ORB-SLAM3 | C01 defaults, R_01 fisheye | R_01: **0.031** | | loop closing; timing-dependent crash, retries added |
