@@ -254,9 +254,22 @@ The warm-up is not the answer: at offset 0 the first divergence is at frame 393 
 
 **Change**: `BASALT_OUTLIER_PX=3` with `BASALT_EPI_GATE=0.005`, `basalt_ref1` otherwise, robust driver, offset 0.
 
-**Command**: `results/v3-F09-filter-epi/batch.sh` (six event sequences; queued behind F08).
+**Command**: `results/v3-F09-filter-epi/batch.sh` (six event sequences).
 
-**Result**: pending.
+**Result** (ATE m; score 2D / recall @ 5 m; filter alone and gate alone from F01 / F03):
+
+| Seq | reference | filter 3 px | epi 0.005 | filter + epi |
+|---|---|---|---|---|
+| R_08 | **1.006** | 1.072 | 1.142 | 1.102 |
+| R_11 | 2.605, 73.3 / 96.5 | 2.051, 78.7 / 97.7 | 2.422, 74.3 / 96.9 | 2.069, 78.7 / 97.6 |
+| R_12 | **12.86, 12.0** / 18.1 | 14.17, 10.4 / 17.9 | 15.09, 8.6 / 13.6 | **12.95, 11.0** / 17.9 |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | 22.75, 21.2 / 44.7 | 21.06, 30.3 / 49.5 | **20.12**, 24.9 / 53.2 |
+| sequence_3_18 | 81.04, 2.4 / 4.2 | 54.41, 1.3 / 2.6 | 57.42, **4.7 / 9.9** | 54.46, 1.8 / 2.7 |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | 3.79, 37.9 / 99.1 | 11.96, 11.1 / 25.2 | **3.51, 33.2 / 99.9** |
+
+The combination is the best or tied-best ATE on five of six (R_12 back to the reference level, 2_11 the best ATE of any setting, 4_11 3.5 m with recall 99.9 %), and never worse than the filter alone by more than the run-to-run noise (X07: 0.5 %), except for the 3_18 score where the gate alone had its one good number. **Decision**: filter 3 px + epipolar gate 0.005 becomes the candidate reference pair; it goes to the full sets together with the keep-host rule (F08c) once that one is read.
+
+**Applicability**: both parts general (reprojection outlier rejection after the solve; IMU-predicted epipolar check before a landmark exists); the gate depends on a usable IMU prediction, so it fails right after initialisation or with bad biases, and both thresholds are in image units (pixels, normalised bearings) that scale with the camera.
 
 ## F10: learned keypoints seeding the tracker (2026-10-03, pc)
 
