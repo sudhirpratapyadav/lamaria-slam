@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..62f8a61 100644
+index d16e708..4e83869 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -58,7 +58,7 @@ index d16e708..62f8a61 100644
  #include <thread>
  
  #include <sophus/se2.hpp>
-@@ -108,7 +112,56 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -108,7 +112,57 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
    }
  
@@ -100,7 +100,8 @@ index d16e708..62f8a61 100644
 +    return x >= 0 && y >= 0 && x < mask0.cols && y < mask0.rows && mask0.at<uint8_t>(y, x) > 0;
 +  }
 +  void dropMaskedTracks(OpticalFlowResult::Ptr& res) {
-+    if (mask0.empty() || res->observations.empty()) return;
++    static const bool no_drop = std::getenv("BASALT_MASK_NO_DROP") != nullptr;  // debug: only block detection
++    if (no_drop || mask0.empty() || res->observations.empty()) return;
 +    std::vector<KeypointId> drop;
 +    for (const auto& kv : res->observations.at(0))
 +      if (masked(kv.second.translation())) drop.push_back(kv.first);
@@ -115,7 +116,7 @@ index d16e708..62f8a61 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -167,6 +220,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -167,6 +221,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
        transforms = new_transforms;
        transforms->input_images = new_img_vec;
  
@@ -123,7 +124,7 @@ index d16e708..62f8a61 100644
        addPoints();
        filterPoints();
      }
-@@ -324,6 +378,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -324,6 +379,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
          new_poses1;
  
      for (size_t i = 0; i < kd.corners.size(); i++) {
@@ -145,7 +146,7 @@ index ff9df90..c7b8902 100644
  
      if (!result_path.empty()) {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..ceb57d0 100644
+index 55984fc..9e49c75 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -331,7 +332,17 @@ index 55984fc..ceb57d0 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -1014,6 +1136,29 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -459,6 +581,9 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+         for (const auto& kv_obs : kp_obs) {
+           lmdb.addObservation(kv_obs.first, kv_obs.second);
+         }
++        if (kp_obs.size() < 2)
++          std::cerr << "landmark " << lm_id << " created with " << kp_obs.size() << " observation(s) at "
++                    << opt_flow_meas->t_ns << std::endl;
+       }
+     }
+ 
+@@ -1014,6 +1139,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -342,26 +353,41 @@ index 55984fc..ceb57d0 100644
 +    // the landmark block only counts observations in frames of the current problem (frame_poses
 +    // and frame_states) and asserts that the host frame is one of them; mirror that here
 +    auto frame_active = [&](int64_t t) { return frame_poses.count(t) > 0 || frame_states.count(t) > 0; };
-+    std::vector<KeypointId> empty_lms;
++    std::vector<KeypointId> empty_lms, single_lms;
++    static long single_total = 0;
 +    for (const auto& kv_lm : lmdb.getLandmarks()) {
 +      int n_active = 0;
 +      for (const auto& kv_obs : kv_lm.second.obs)
 +        if (frame_active(kv_obs.first.frame_id)) n_active++;
 +      if (n_active == 0 || !frame_active(kv_lm.second.host_kf_id.frame_id)) empty_lms.push_back(kv_lm.first);
++      // a landmark with a single observation (X05: gdb showed obs = {host} only, inv_dist 5e-7)
++      // gives a 5-row block whose third Householder step runs on zero rows and segfaults
++      else if (kv_lm.second.obs.size() < 2) {
++        single_lms.push_back(kv_lm.first);
++        if (single_total < 20)
++          std::cerr << "landmark " << kv_lm.first << " has " << kv_lm.second.obs.size() << " observation(s): host "
++                    << kv_lm.second.host_kf_id.frame_id << " cam " << kv_lm.second.host_kf_id.cam_id
++                    << " inv_dist " << kv_lm.second.inv_dist << " current " << last_state_t_ns
++                    << (kv_lm.second.host_kf_id.frame_id == last_state_t_ns ? " (created this frame)" : "") << std::endl;
++        single_total++;
++      }
 +    }
 +    static long empty_total = 0;
 +    for (KeypointId id : empty_lms) lmdb.removeLandmark(id);
++    for (KeypointId id : single_lms) lmdb.removeLandmark(id);
 +    if (!empty_lms.empty()) {
 +      empty_total += empty_lms.size();
 +      if (empty_total <= 10 || empty_total % 100 == 0)
 +        std::cerr << "removed " << empty_lms.size() << " landmark(s) without observations (total " << empty_total << ")" << std::endl;
 +    }
++    if (!single_lms.empty() && (single_total <= 20 || single_total % 100 == 0))
++      std::cerr << "removed " << single_lms.size() << " single-observation landmark(s) (total " << single_total << ")" << std::endl;
 +  }
 +
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1576,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1594,31 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
@@ -377,7 +403,19 @@ index 55984fc..ceb57d0 100644
 +    const char* e = std::getenv("BASALT_OUTLIER_MIN_OBS");
 +    return (e && *e) ? std::atoi(e) : 2;
 +  }();
-+  if (outlier_px > 0) this->filterOutliers(outlier_px, outlier_min_obs);
++  // lamaria-slam (v3 F08): BASALT_OUTLIER_WARMUP frames after initialisation without filtering;
++  // right after (re)initialisation the solve has not converged and a tight reprojection filter
++  // removes good observations and starves it (F07: every extra restart on R_04 was within 240
++  // frames of a start). One initialisation per process (the robust driver restarts the process).
++  static const long outlier_warmup = [] {
++    const char* e = std::getenv("BASALT_OUTLIER_WARMUP");
++    const long v = (e && *e) ? std::atol(e) : 0;
++    std::cerr << "BASALT_OUTLIER_WARMUP: " << v << std::endl;
++    return v;
++  }();
++  static long frames_since_init = 0;
++  frames_since_init++;
++  if (outlier_px > 0 && frames_since_init > outlier_warmup) this->filterOutliers(outlier_px, outlier_min_obs);
    marginalize(num_points_connected, lost_landmaks);
  }
  

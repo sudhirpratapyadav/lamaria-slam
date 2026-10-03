@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-03 18:41 IST. Edit in place.
+Last updated: 2026-10-03 22:05 IST. Edit in place.
 
 ## What v3 is
 
@@ -21,17 +21,21 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 ## Where things stand
 
 - Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own post-solve outlier filter.
-- **F01 complete**: enabling that filter at 3 px is the first clear, general win of v3: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %** (the level of v2's scene-specific near-feature cap), R_11 score 73 to 79, 2_11 and 3_18 ATE down by a quarter to a third, R_08 a near tie, R_12 slightly worse. The IMU-consistency gate alone is weaker and hurts R_08; combined with the filter it adds nothing. F06 (filter at 2 / 4 / 5 px, stricter minimum observations) running; F07 (3 px on all 13 x 2 offsets + the 10 additional) queued.
-- F02 (person masks, YOLO11n-seg): small consistent gains where people walk through the view (2_11 30.9 to 24.3 m, score 20.7 to 26.0; R_11, R_12 slightly better), a loss indoors (R_08), split on 3_18. Kept as an option; F05 combines it with the gate.
-- F03 (epipolar gate on new landmarks) and F04 (untrustworthy-image rule) running / queued.
-- X05: a Basalt segfault (null pointer in the landmark-block QR) hits some runs deterministically (4_11 with masks at frame 8000; also behind v2's failed segments). First guard did not fix it; a debug-symbol build is in progress for a line-level backtrace. Crashed runs are re-run automatically once fixed.
+- **F01 complete**: enabling that filter at 3 px is the first clear, general win on the event set: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %**, R_11 score 73 to 79, 2_11 and 3_18 ATE down by a quarter to a third, R_08 a near tie, R_12 slightly worse.
+- **F06** (threshold 2 / 4 / 5 px, min 3 obs): flat between 2 and 4 px on the walks; the indoor cost grows with tightness (R_08 1.04 at 4 px, 1.28 at 2). 3 px stays, 4 px is the fallback.
+- **F07** (3 px on the full sets, one run left): controlled two-offset mean **2.50 against 2.43**: wins easy, hard, R_11 and the additional set (1_19 74 against 64, 1_20 44 against 40), loses every medium sequence by 10 to 15 % and R_12 / R_13 (the same two that punished Huber 0.5 in v2). R_04's extra restarts all sit within 240 frames of an initialisation: the filter removes good observations before the solve has converged. **F08** (warm-up of 100 / 300 frames before filtering) is queued to test that.
+- **F03** (epipolar gate on new landmarks, 0.005): the surprise of the day: best 2_11 score of any single change (30.3, ATE 21 m), best 3_18 score (4.7), 4_11 down by a third; 14 % cost on R_08. Four runs still re-running. Combination with the filter (F09) is next.
+- **F02 / F05** (person masks, gate + masks): small gains where people walk through the view; gate 5 + masks gets 4_11 to 3.3 m and 2_11 to score 31.5 but taxes R_08 / R_12 by 15 to 30 %. Options, not defaults.
+- **F04** (untrustworthy-image rule): catastrophic (R_08 142 m), discarded.
+- **X05 root-caused** (gdb, line-level): the segfault is a landmark with a **single observation** (its host only, inverse distance 5e-7) reaching the QR; a 5-row block's third Householder step runs on zero rows. Fix: the pre-solve guard now also drops landmarks with fewer than two observations and prints where they came from (instrumented; the creation path adds at least two, so a removal path must be leaving one). Rebuild and the crash check (4_11, gate 10) are running; all runs with "failed" segments (F01 gate10 4_11, F02 masks 4_11, F03 4_11 and 2_11) get re-run after it.
+- Infrastructure: the memory-pressure guard of the session killed 27 runs and the debug build; every batch now runs as a systemd user unit (`lamaria-*`). The Basalt build tree had lost its vcpkg packages to an aborted reinstall (CMake 4.4 in the venv changed the ABI hash); restored from vcpkg's binary cache and configured with `VCPKG_MANIFEST_INSTALL=OFF`, so `ninja basalt_vio` works again without touching vcpkg.
 - Diagnostics: 4_11 is the "too few usable features" failure (X02, X04), R_12 the "wrong features" failure (gate fires exactly on the shoe episode, image centre, so no static mask).
 
 ## Next
 
-1. Finish F03 to F07; fix the segfault (X05).
-2. If F07 holds on the full sets, the outlier filter becomes part of the v3 reference config; then combinations (filter + masks, filter + gate on new landmarks) and the learned-keypoint candidate (XFeat seeding) for the dark stretches.
-3. The external-observation interface in Basalt stays on the list for the learned trackers.
+1. X05 check, then re-run every crashed run; F07 last run; F08 (filter warm-up); F09 (filter + epipolar gate 0.005).
+2. Pick the v3 reference config from F07 / F08 / F09 on the full sets (two offsets).
+3. Then the learned-keypoint candidate (XFeat seeding) for the dark stretches, and the external-observation interface for learned trackers.
 
 ## Blockers
 
