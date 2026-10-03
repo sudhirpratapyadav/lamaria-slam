@@ -1,0 +1,71 @@
+diff --git a/external/DBoW2 b/external/DBoW2
+--- a/external/DBoW2
++++ b/external/DBoW2
+@@ -1 +1 @@
+-Subproject commit 3924753db6145f12618e7de09b7e6b258db93c6e
++Subproject commit 3924753db6145f12618e7de09b7e6b258db93c6e-dirty
+diff --git a/external/opengv b/external/opengv
+--- a/external/opengv
++++ b/external/opengv
+@@ -1 +1 @@
+-Subproject commit 91f4b19c73450833a40e463ad3648aae80b3a7f3
++Subproject commit 91f4b19c73450833a40e463ad3648aae80b3a7f3-dirty
+diff --git a/okvis_multisensor_processing/src/DatasetReader.cpp b/okvis_multisensor_processing/src/DatasetReader.cpp
+index c77e071..60b8048 100644
+--- a/okvis_multisensor_processing/src/DatasetReader.cpp
++++ b/okvis_multisensor_processing/src/DatasetReader.cpp
+@@ -36,6 +36,9 @@
+  * @author Stefan Leutenegger
+  */
+  
++#include <opencv2/imgproc.hpp>
++#include <cstdlib>
++#include <iostream>
+ #include <limits>
+ 
+ #include <boost/filesystem.hpp>
+@@ -46,6 +49,20 @@
+ #include <okvis/ViInterface.hpp>
+ #include <okvis/DatasetReader.hpp>
+ 
++// lamaria-slam: optional CLAHE on grayscale input, OKVIS_CLAHE=<clip limit> (8x8 tiles)
++static void lamariaClahe(cv::Mat& img) {
++  static const char* env = std::getenv("OKVIS_CLAHE");
++  static bool announced = false;
++  if (!announced) {
++    announced = true;
++    std::cerr << "OKVIS_CLAHE: " << (env ? env : "off") << std::endl;
++  }
++  if (env && img.type() == CV_8UC1) {
++    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(std::atof(env), cv::Size(8, 8));
++    clahe->apply(img, img);
++  }
++}
++
+ namespace okvis {
+ 
+ DatasetReader::DatasetReader(
+@@ -343,6 +360,7 @@ void  DatasetReader::processing() {
+         std::string directory = p.parent_path().parent_path().filename().string();
+         if(directory.size() > 3 && directory.substr(0,3).compare("cam") == 0) {
+           filtered = cv::imread(filename, cv::IMREAD_GRAYSCALE); // force gray already here
++          lamariaClahe(filtered);
+         } else {
+           filtered = cv::imread(filename); // colour
+         }
+@@ -359,6 +377,7 @@ void  DatasetReader::processing() {
+       std::string directory = p.parent_path().parent_path().filename().string();
+       if(directory.size() > 3 && directory.substr(0,3).compare("cam") == 0) {
+         filtered = cv::imread(filename, cv::IMREAD_GRAYSCALE); // force gray already here
++        lamariaClahe(filtered);
+       } else {
+         filtered = cv::imread(filename); // colour
+       }
+@@ -396,6 +415,7 @@ void  DatasetReader::processing() {
+         cv::Mat filtered;
+         if(filename.substr(filename.size()-3,filename.size()).compare("png") == 0) {
+           filtered = cv::imread(filename, cv::IMREAD_GRAYSCALE); // force gray already here
++          lamariaClahe(filtered);
+         } else {
+           filtered = cv::imread(filename); // colour
+         }

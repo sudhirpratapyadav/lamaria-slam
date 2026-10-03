@@ -11,6 +11,38 @@ index b827394..f6cc0e3 100644
  
  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
    set(BASALT_CXX_FLAGS "${BASALT_CXX_FLAGS} -Wno-exceptions -fcolor-diagnostics -Wno-error=deprecated-declarations")
+diff --git a/include/basalt/io/dataset_io_euroc.h b/include/basalt/io/dataset_io_euroc.h
+index 862011c..c847c3a 100644
+--- a/include/basalt/io/dataset_io_euroc.h
++++ b/include/basalt/io/dataset_io_euroc.h
+@@ -39,6 +39,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <basalt/utils/filesystem.h>
+ 
+ #include <opencv2/imgcodecs.hpp>
++#include <opencv2/imgproc.hpp>
++#include <cstdlib>
+ 
+ namespace basalt {
+ 
+@@ -100,6 +102,18 @@ class EurocVioDataset : public VioDataset {
+       if (fs::exists(full_image_path)) {
+         cv::Mat img = cv::imread(full_image_path, cv::IMREAD_UNCHANGED);
+ 
++        // lamaria-slam: optional CLAHE on 8-bit input, BASALT_CLAHE=<clip limit> (8x8 tiles)
++        static const char* clahe_env = std::getenv("BASALT_CLAHE");
++        static bool clahe_announced = false;
++        if (!clahe_announced) {
++          clahe_announced = true;
++          std::cerr << "BASALT_CLAHE: " << (clahe_env ? clahe_env : "off") << std::endl;
++        }
++        if (clahe_env && img.type() == CV_8UC1) {
++          cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(std::atof(clahe_env), cv::Size(8, 8));
++          clahe->apply(img, img);
++        }
++
+         if (img.type() == CV_8UC1) {
+           res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
+ 
 diff --git a/src/mapper.cpp b/src/mapper.cpp
 index ff9df90..c7b8902 100644
 --- a/src/mapper.cpp

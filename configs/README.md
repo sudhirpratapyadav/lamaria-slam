@@ -8,3 +8,4 @@ values). The camera and IMU yaml files are generated per sequence by
 - `ov_baseline`: experiment 001 first attempt, datasheet noise, online time offset. Diverges on R_04_medium.
 - `ov_ref001`: reference after experiment 001 (time offset fixed at 0, noise densities x10).
 - `explore-001/`: the bring-up variants tried in experiment 001, kept for reproducibility.
+- `basalt_r17_{huber05,outlier2,obsstd1,epi0025}`: basalt_ref1 with one outlier-handling knob each (B17): `vio_obs_huber_thresh` 0.5, `vio_outlier_threshold` 2.0, `vio_obs_std_dev` 1.0, `optical_flow_epipolar_error` 0.0025.
