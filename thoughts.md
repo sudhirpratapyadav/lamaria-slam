@@ -40,7 +40,7 @@
   - Descriptor matching (ORB, BRISK): summarise each corner as a bit string and find the closest one anywhere in the image or the map. Re-finds lost points, handles big jumps, coarser position, falls apart in blur and dark.
   - Map points in ORB-SLAM3 and OKVIS2 keep all their observations and descriptors; only the matching is collapsed to one representative. Learned trackers keep the whole track as memory.
   - Basalt wins despite no IMU-guided search because measurement quality (0.1 px) and graceful degradation matter more than how features are found at 20 Hz.
-  - Back-end-to-front-end feedback exists as IMU-guided search (ORB-SLAM3, OKVIS2) and outlier gating (all). Nobody uses the IMU to decide which features are lying; a feature on the wearer's shoe or a passer-by moves inconsistently with the gyro.
+  - Back-end-to-front-end feedback exists as IMU-guided search (ORB-SLAM3, OKVIS2) and outlier gating (all). None of our four systems uses the IMU to decide which features are lying (msckf_vio, Kimera-VIO, Dynamic-VINS and DynaVINS do, per the v3 survey); a feature on the wearer's shoe or a passer-by moves inconsistently with the gyro.
 - Target front end
   - Precision from patch tracking, re-finding from descriptors, plus a third piece for bad images: a learned front end that sees in the dark and knows people and body parts, or a rule that says the image is untrustworthy now, lean on the IMU, invent no features.
   - Learned options: detectors and descriptors (SuperPoint, ALIKED), matchers (LightGlue), trackers (CoTracker, RAFT, DPVO). Cautions: DPVO/DPV-SLAM scored badly in the benchmark paper; GPU needed (fine on the Orin, not on the old Nano).

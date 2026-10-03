@@ -8,3 +8,17 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 |---|---|---|---|---|---|---|
 | Basalt ref1 (v2) | reference | 30.9 / 81.0 / 14.9 / 12.9 / 1.01 / 2.61 m | 2.43 | 16.9 | general | |
 
+## F01: IMU-consistency gate and the dormant outlier filter in Basalt (2026-10-03, pc)
+
+**Finding first**: Basalt's VIO never calls its own `filterOutliers` (a `TODO` in `sqrt_keypoint_vio.cpp`), so in all v2 runs no observation was ever rejected after the solve; only the Huber loss damped them. That is why the Huber threshold was the one knob that moved things in v2.
+
+**Hypothesis**: features on moving objects (people, the wearer's arm and shoe, reflections) disagree with the IMU-predicted ego-motion. Checking each observation of an existing landmark against its reprojection from the IMU-predicted pose, before the solve, removes them where they appear; the post-solve reprojection filter removes what slips through.
+
+**Change** (`sqrt_keypoint_vio.cpp`, env-gated, in `docs/patches/basalt-0f3b2b5.patch`): `BASALT_IMU_GATE_PX` drops an observation whose reprojection residual from the IMU-predicted state exceeds the threshold (announced once, counts every 500 frames); `BASALT_OUTLIER_PX` calls `filterOutliers` after each optimisation with that reprojection threshold (`BASALT_OUTLIER_MIN_OBS`, default 2). `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F01-imu-gate/batch.sh`: gate 5 px, gate 10 px, filter 3 px, gate 5 + filter 3, each on R_08, R_11, R_12, sequence_2_11, 3_18, 4_11. First log line on R_08 with gate 5: 128 of 24656 observations dropped in the first 500 frames (0.5 %).
+
+**Result**: pending.
+
+**Applicability**: general (any VIO with an IMU prediction); can fail when the IMU prediction itself is poor (bad biases right after initialisation, wrong noise parameters) by rejecting good features; thresholds are in pixels, so they depend on resolution and lens.
+
