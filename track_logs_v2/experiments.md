@@ -12,6 +12,27 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
+## A07: OKVIS2 (x10, 10 keyframes, final BA) on the 13 controlled sequences (2026-10-03, pc)
+
+**Change**: `configs/okvis2_a04_n10_kf10`, offset 0, `DROP_PRE_INIT=1`, two runs at a time (`results/v2-A07-okvis2-all/batch.sh`). Live = causal estimate, final = after OKVIS2's full bundle adjustment (non-causal). Basalt = B07 (robust driver, offset 0), the current best.
+
+| Seq | OKVIS2 live | OKVIS2 final | scale (final) | Basalt B07 | wall s (2 cores) |
+|---|---|---|---|---|---|
+| R_01 | 0.138 | **0.022** | | 0.151 | 612 |
+| R_02 | 0.645 | 0.823 | 0.908 | **0.173** | 333 |
+| R_03 | 0.131 | **0.029** | 1.013 | 0.434 | 515 |
+| R_04 | (lost) | **0.681** | | 0.781 | |
+| R_05 | 2.90 | 2.36 | 0.936 | **1.14** | 687 |
+| R_06 | 2.68 | 2.55 | 0.950 | **1.12** | 1501 |
+| R_07 | 3.12 | 2.74 | 0.960 | **1.24** | 1453 |
+| R_08 | (lost) | 2.09 | | **1.01** | |
+| R_09 | 3.21 | 2.98 | 0.946 | **2.76** | 3308 |
+| R_10 | 3.77 | **3.57** | 0.907 | 4.41 | 3807 |
+| R_11 | 37.6 (diverged) | **1.94** (score 56.7) | 0.807 | 2.60 (score 73.3) | |
+| R_12, R_13 | pending | | | | |
+
+So far OKVIS2's final BA beats Basalt on the easy sequences and R_10/R_11 but loses on every medium sequence by a factor of 2 (R_05 to R_07) and on R_08; its fitted scale sits at 0.91 to 0.96 (Basalt 0.99), so a scale drift is part of its error. At 5 to 10 times Basalt's CPU and up to 2.4 GB RSS, this is not the candidate to carry; its value is the non-causal BA on sequences with revisits (none in the training set).
+
 ## B18: Basalt Huber threshold 0.5 validated on the full sets (2026-10-03, pc)
 
 **Change**: `basalt_r17_huber05` (B17's winner) on the 13 controlled sequences at offsets 0 and 100 and on the 10 additional sequences; `basalt_r17_huber03` (0.3) on R_08 / R_11 / 3_18 for the direction.
