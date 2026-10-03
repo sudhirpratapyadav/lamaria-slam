@@ -12,6 +12,14 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | C01-C03 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 1.38 after the example's IMU-loop crash was fixed (C03) | | ~1.2x realtime on 2 cores; poses missing before inertial init |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
+## C04: ORB-SLAM3 on the pinhole input (2026-10-03, pc)
+
+**Change**: `orbslam3_c02_n10` with `Camera.type: PinHole` on `data/training/*` (ORB-SLAM3 rectifies pinhole stereo itself from `Stereo.T_c1_c2`), to cover the 13 controlled sequences without raw fisheye data.
+
+**Result**: fails. R_01 / R_04 / R_11 produce one pose each: the tracker never gets 15 matches on the rectified pair and resets the map on every frame (932 resets on R_01); R_08 died twice in a pthread priority assertion inside ORB-SLAM3 and was stopped. The undistorted LaMAria pair (758x572 left, 757x569 right, cameras not coplanar) does not go through ORB-SLAM3's rectification path as is; the KannalaBrandt8 path on the raw fisheye (C02, C03) is the one that works.
+
+**Decision**: parked. ORB-SLAM3 stays a fisheye-only candidate; scoring it on all 13 needs the raw `.vrs` of the other nine sequences (disk: 11 GB free, the four we had were deleted after extraction), the owner's call.
+
 ## C03: the ORB-SLAM3 R_08 crash (2026-10-03, pc)
 
 **Finding**: under gdb the segfault is in the example's `main()`, at the last image. The EuRoC example walks its IMU vector with `while (t_imu[i] <= t_cam)` and no bounds check; R_08's last image is 2.9 ms after the last IMU sample, so the loop reads past the vector and the run dies after processing the whole sequence (and before writing `f_run.txt`). Deterministic, input-dependent, nothing to do with tracking.

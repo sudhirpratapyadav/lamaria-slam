@@ -62,3 +62,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 09:10** C03: ORB-SLAM3 R_08 now completes: 1.38 m (Basalt 1.01, OpenVINS 1.48, OKVIS2 final 2.09), 648 frames without a pose before inertial init. ORB-SLAM3 unparked.
 - **2026-10-03 09:35** B18: Huber 0.5 better on 20/26 controlled runs but worse on R_12/R_13 (long CP walks), 13-seq mean 2.61 vs 2.43; additional set 4 up 4 down. Not kept; B19 (0.7) queued.
 - **2026-10-03 09:45** B18 complete: Huber 0.5 lifts the dark walk 4_11 from score 9.9 to 37.1 (recall 18.9 to 92.4 %); additional-set mean 19.7 vs 16.9; controlled mean still worse (R_12). Waiting for 0.7.
+- **2026-10-03 10:23** C04 (ORB-SLAM3 on pinhole input) fails: one pose per sequence, map reset every frame; stopped. ORB-SLAM3 stays fisheye-only.
