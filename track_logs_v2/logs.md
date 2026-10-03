@@ -45,3 +45,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 05:22** Basalt source build: libusb/realsense failed (needs autoconf-archive); dropped realsense2 from vcpkg.json (optional in CMake) and resumed at -j2 with VCPKG_MAX_CONCURRENCY=2.
 - **2026-10-03 05:29** Basalt built from source (realsense dropped, -Werror off, mapper saves its trajectory headless). B12 = VIO + offline mapper (global BA) pipeline: scripts/run_basalt_mapper.sh + basalt_propagate_keyframes.py (optimised keyframes propagated to all frames via VIO relative motion). First run on R_01 and R_04.
 - **2026-10-03 05:34** B12 Basalt mapper: worse on R_01 (0.24 vs 0.15) and diverges on R_04 (49 m): wrong place-recognition matches with no real loops. One strict-matching round (B14), then park.
+- **2026-10-03 05:36** B14 strict mapper still worse than the VIO (R_01 5.8, R_04 1.13); Basalt mapper parked.

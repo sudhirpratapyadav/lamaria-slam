@@ -114,6 +114,10 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## B14: Basalt mapper with strict matching (2026-10-03, pc)
+
+`mapper_min_matches 40, second_best_test_ratio 1.5, ransac 2e-5, frames_to_match_threshold 0.08`: R_01 5.79 m (VIO 0.151), R_04 1.13 m (VIO 0.787). Still worse than the VIO alone on both. **Decision**: Basalt's mapper is parked; on loop-free walks its place recognition only injects wrong constraints, and the global BA does not reduce drift by itself.
+
 ## B12: Basalt VIO + offline mapper (global BA) (2026-10-03, pc, source build)
 
 **Change**: `scripts/run_basalt_mapper.sh`: `basalt_vio --marg-data`, then `basalt_mapper` headless (patched to save its keyframe trajectory; EuRoC csv converted to TUM), optimised keyframe poses propagated to every frame via the VIO's relative motion (`basalt_propagate_keyframes.py`). `basalt_ref1`, offset 0.
