@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..b83e6ea 100644
+index d16e708..d216fa6 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -212,7 +212,22 @@ index d16e708..b83e6ea 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -308,6 +420,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,7 +335,13 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+                             transform_1_recovered.translation())
+                                .squaredNorm();
+ 
+-            if (dist2 < config.optical_flow_max_recovered_dist2) {
++            // BASALT_STEREO_RECOVERED_DIST2: a looser forward-backward bound for the stereo pass
++            // (the patch appearance changes across a wide baseline); default = the config value
++            static const Scalar stereo_dist2 = [this] {
++              const char* e = std::getenv("BASALT_STEREO_RECOVERED_DIST2");
++              return Scalar((e && *e) ? std::atof(e) : config.optical_flow_max_recovered_dist2);
++            }();
++            if (dist2 < (has_init ? stereo_dist2 : Scalar(config.optical_flow_max_recovered_dist2))) {
+               result[id] = transform_2;
+             }
+           }
+@@ -308,6 +426,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -271,7 +286,7 @@ index d16e708..b83e6ea 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +481,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +487,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -312,7 +327,7 @@ index d16e708..b83e6ea 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +524,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +530,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {
