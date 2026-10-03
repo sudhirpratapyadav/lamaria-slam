@@ -90,20 +90,18 @@ Small, consistent gains where people walk through the view (2_11 by a fifth in A
 
 **Command**: `results/v3-F03-epi-gate/batch.sh` (0.005 and 0.002 on the six event sequences). The first batch lost 7 of 12 runs to the memory reaper (SIGTERM, see logs 21:xx); they were re-run under a systemd unit, four of them are still running.
 
-**Result** (ATE m; score 2D / recall @ 5 m; reference basalt_ref1 first; "failed" = X05 crash segments restarted by the driver):
+**Result** (ATE m; score 2D / recall @ 5 m; reference basalt_ref1 first; "failed" = X05 crash segments restarted by the driver, those runs are being re-run with the fix):
 
 | Seq | reference | epi 0.005 | epi 0.002 |
 |---|---|---|---|
 | R_08 | **1.006** | 1.142 | 1.204 |
-| R_11 | 2.605, 73.3 / 96.5 | re-running | **2.493, 75.8 / 96.7** |
-| R_12 | **12.86, 12.0 / 18.1** | re-running | 15.24, 10.6 / 17.2 |
-| sequence_2_11 | 30.92, 20.7 / 45.9 | **21.06, 30.3 / 49.5** (1 failed segment) | re-running |
-| sequence_3_18 | 81.04, 2.4 / 4.2 | **57.42, 4.7 / 9.9** | re-running |
+| R_11 | 2.605, 73.3 / 96.5 | **2.422, 74.3 / 96.9** | 2.493, 75.8 / 96.7 |
+| R_12 | **12.86, 12.0 / 18.1** | 15.09, 8.6 / 13.6 (1 restart) | 15.24, 10.6 / 17.2 |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | 21.06, **30.3** / 49.5 (1 failed) | **20.64**, 28.9 / **61.9** |
+| sequence_3_18 | 81.04, 2.4 / 4.2 | 57.42, **4.7 / 9.9** | **55.24**, 3.2 / 9.5 |
 | sequence_4_11 | 14.89, 9.9 / 18.9 | **10.46, 10.3 / 22.5** (2 failed) | 21.79, 8.7 / 15.4 (5 failed) |
 
-At 0.005 (Basalt's own stereo epipolar tolerance) the gate helps every long walk it has run on: 2_11 to 21 m with the best control-point score of any single change so far (30.3), 3_18 to the best score on that walk (4.7, twice the reference), 4_11 by a third, at a 14 % cost on R_08 (indoor, like every rejection so far). The tighter 0.002 is worse everywhere. The crashes (X05) hit the 4_11 runs hard, so those numbers are not final. **Decision**: keep 0.005 as a candidate; combine with the outlier filter (F09) once the crash is fixed.
-
-**Applicability**: general; depends on the IMU prediction quality like F01; threshold is in normalised bearing units, so lens-independent.
+Both thresholds help every long walk with people (2_11 to 21 m with the best control-point scores of any single change, 29 to 30, and recall up to 62 %; 3_18 to 55 to 57 m with the best score on that walk), 0.005 also helps 4_11 by a third, and both cost 14 to 20 % on R_08 and R_12, the two sequences where there is little to reject (the same signature as the IMU gate, F01/F05). The 4_11 runs crashed (X05) and are being re-run. **Decision**: 0.005 is a candidate for the walks; combined with the outlier filter in F09.
 
 ## X04: where and when the IMU gate fires (2026-10-03, pc, analysis)
 
@@ -174,14 +172,14 @@ The combination at 5 px is better than either part on the three walks with peopl
 
 | Seq | reference | 2 px | 3 px | 3 px, min 3 obs | 4 px | 5 px |
 |---|---|---|---|---|---|---|
-| R_08 | **1.006** | 1.275 | 1.072 | 1.084 | 1.039 | re-running |
-| R_11 | 2.605, 73.3 / 96.5 | 2.166, 76.7 / 97.5 | **2.051, 78.7 / 97.7** | 2.087, 77.6 / 97.6 | re-running | re-running |
-| R_12 | **12.86, 12.0 / 18.1** | 13.21, 10.4 / 18.1 | 14.17, 10.4 / 17.9 | 14.08, 10.0 / 17.9 | 14.07, 10.1 / 17.8 | re-running |
-| sequence_2_11 | 30.92, 20.7 / 45.9 | **22.60, 32.8 / 52.4** | 22.75, 21.2 / 44.7 | 22.32, 23.6 / 51.3 | 23.46, 31.5 / 56.0 | re-running |
-| sequence_3_18 | 81.04, **2.4** / 4.2 | **52.95**, 1.8 / 4.2 | 54.41, 1.3 / 2.6 | 54.66, 1.1 / 3.5 | 53.65, 1.5 / 4.5 | re-running |
-| sequence_4_11 | 14.89, 9.9 / 18.9 | **3.51, 41.7 / 98.6** | 3.79, 37.9 / 99.1 | 3.48, 40.5 / 92.0 | 3.63, 34.3 / 78.0 | re-running |
+| R_08 | **1.006** | 1.275 | 1.072 | 1.084 | 1.039 | 1.078 |
+| R_11 | 2.605, 73.3 / 96.5 | 2.166, 76.7 / 97.5 | **2.051, 78.7 / 97.7** | 2.087, 77.6 / 97.6 | 2.021, 77.2 / 97.7 | 1.378, 76.8 / 98.5 (2 failed segments, re-run pending) |
+| R_12 | **12.86, 12.0 / 18.1** | 13.21, 10.4 / 18.1 | 14.17, 10.4 / 17.9 | 14.08, 10.0 / 17.9 | 14.07, 10.1 / 17.8 | 16.53, 7.6 / 10.3 (1 restart) |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | **22.60, 32.8 / 52.4** | 22.75, 21.2 / 44.7 | 22.32, 23.6 / 51.3 | 23.46, 31.5 / 56.0 | 23.86, 19.4 / 40.0 |
+| sequence_3_18 | 81.04, **2.4** / 4.2 | **52.95**, 1.8 / 4.2 | 54.41, 1.3 / 2.6 | 54.66, 1.1 / 3.5 | 53.65, 1.5 / 4.5 | 54.40, 1.1 / 3.4 |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | **3.51, 41.7 / 98.6** | 3.79, 37.9 / 99.1 | 3.48, 40.5 / 92.0 | 3.63, 34.3 / 78.0 | 3.40, 35.9 / 89.4 (1 restart) |
 
-The curve is flat between 2 and 4 px on the walks (2_11 22.3 to 23.5 m, 3_18 53 to 55 m, 4_11 3.5 to 3.8 m) and the indoor cost grows with tightness (R_08 1.04 at 4 px, 1.07 at 3, 1.28 at 2). The minimum-observation rule changes nothing. The control-point score on 2_11 swings between 21 and 33 for runs whose ATE differs by a metre, so on that walk the score is not a reliable discriminator between close settings (noted for the metric). **Decision**: 3 px stays the setting of record pending F07; 4 px is the fallback if the full set shows the indoor tax matters more than the walks.
+The curve is flat between 2 and 5 px on the walks (2_11 22.3 to 23.9 m, 3_18 53 to 55 m, 4_11 3.4 to 3.8 m); the indoor cost grows with tightness (R_08 1.04 at 4 px, 1.07 at 3 and 5, 1.28 at 2) and R_12 degrades towards 5 px. The minimum-observation rule changes nothing. The control-point score on 2_11 swings between 19 and 33 for runs whose ATE differs by a metre, so on that walk the score is not a reliable discriminator between close settings (noted for the metric). **Decision**: 3 px stays the setting of record pending F08; 4 px is the fallback if the indoor tax matters more than the walks.
 
 **Applicability**: as F01 (general reprojection outlier rejection); the threshold scales with resolution and the image noise level; the 2 px setting is already into the honest noise of these 640x480 fisheye images on the indoor sequences.
 
