@@ -97,11 +97,11 @@ Small, consistent gains where people walk through the view (2_11 by a fifth in A
 | R_08 | **1.006** | 1.142 | 1.204 |
 | R_11 | 2.605, 73.3 / 96.5 | **2.422, 74.3 / 96.9** | 2.493, 75.8 / 96.7 |
 | R_12 | **12.86, 12.0 / 18.1** | 15.09, 8.6 / 13.6 (1 restart) | 15.24, 10.6 / 17.2 |
-| sequence_2_11 | 30.92, 20.7 / 45.9 | 21.06, **30.3** / 49.5 (1 failed) | **20.64**, 28.9 / **61.9** |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | 21.56, 27.3 / 49.0 | **20.64**, 28.9 / **61.9** |
 | sequence_3_18 | 81.04, 2.4 / 4.2 | 57.42, **4.7 / 9.9** | **55.24**, 3.2 / 9.5 |
-| sequence_4_11 | 14.89, 9.9 / 18.9 | **10.46, 10.3 / 22.5** (2 failed) | 21.79, 8.7 / 15.4 (5 failed) |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | **11.96, 11.1 / 25.2** | 13.62, 17.5 / 36.9 |
 
-Both thresholds help every long walk with people (2_11 to 21 m with the best control-point scores of any single change, 29 to 30, and recall up to 62 %; 3_18 to 55 to 57 m with the best score on that walk), 0.005 also helps 4_11 by a third, and both cost 14 to 20 % on R_08 and R_12, the two sequences where there is little to reject (the same signature as the IMU gate, F01/F05). The 4_11 runs crashed (X05) and are being re-run. **Decision**: 0.005 is a candidate for the walks; combined with the outlier filter in F09.
+Both thresholds help every long walk with people (2_11 to 21 m with the best control-point scores of any single change, 27 to 29, and recall up to 62 %; 3_18 to 55 to 57 m with the best score on that walk), both help 4_11 (by a fifth and a tenth, with 0.002 the better score there), and both cost 14 to 20 % on R_08 and R_12, the two sequences where there is little to reject (the same signature as the IMU gate, F01/F05). Table updated with the clean re-runs after the X05 fix. **Decision**: 0.005 is a candidate for the walks; combined with the outlier filter in F09.
 
 ## X04: where and when the IMU gate fires (2026-10-03, pc, analysis)
 
