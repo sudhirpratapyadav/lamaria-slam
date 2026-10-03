@@ -30,6 +30,29 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Decision**: ORB-SLAM3 is unparked; next, run it on the pinhole input to cover the 13 controlled sequences (C04).
 
+## M03: three-system oracle on the controlled set (2026-10-03, pc, analysis only)
+
+Offset 0, ATE sim3 m: OpenVINS ov_ref005 (v1 032), Basalt B07, OKVIS2 final BA (A07).
+
+| | OpenVINS | Basalt | OKVIS2 final | best |
+|---|---|---|---|---|
+| R_01 | 0.289 | 0.151 | **0.022** | OKVIS2 |
+| R_02 | 0.584 | **0.173** | 0.823 | Basalt |
+| R_03 | 0.216 | 0.434 | **0.029** | OKVIS2 |
+| R_04 | 1.480 | 0.781 | **0.681** | OKVIS2 |
+| R_05 | 1.307 | **1.139** | 2.359 | Basalt |
+| R_06 | 2.081 | **1.124** | 2.550 | Basalt |
+| R_07 | 3.203 | **1.236** | 2.740 | Basalt |
+| R_08 | 1.484 | **1.006** | 2.089 | Basalt |
+| R_09 | 3.843 | **2.762** | 2.981 | Basalt |
+| R_10 | 6.102 | 4.412 | **3.575** | OKVIS2 |
+| R_11 | **0.684** | 2.605 | 1.935 | OpenVINS |
+| R_12 | 9.211 | 12.857 | **4.496** | OKVIS2 |
+| R_13 | 5.188 | **3.349** | 3.690 | Basalt |
+| mean | 2.74 | 2.46 | 2.15 | oracle **1.56** (Basalt + OKVIS2 alone: 1.66) |
+
+Basalt wins 7, OKVIS2 5, OpenVINS 1 (R_11). A per-sequence oracle would cut the controlled-set mean by a third relative to the best single system; most of that comes from Basalt + OKVIS2 (the OpenVINS term is worth 0.1 m). The selector signals of M02 (agreement, restarts, duration) have to be re-tested with OKVIS2 in the set; OKVIS2's live-vs-final disagreement is a new candidate signal. Single offset, single runs.
+
 ## A07: OKVIS2 (x10, 10 keyframes, final BA) on the 13 controlled sequences (2026-10-03, pc)
 
 **Change**: `configs/okvis2_a04_n10_kf10`, offset 0, `DROP_PRE_INIT=1`, two runs at a time (`results/v2-A07-okvis2-all/batch.sh`). Live = causal estimate, final = after OKVIS2's full bundle adjustment (non-causal). Basalt = B07 (robust driver, offset 0), the current best.
@@ -54,6 +77,14 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's 2.46), carried by R_12 (4.5 against 12.9: the long control-point walk where Basalt's heading goes wrong, see B18) and the easy sequences; Basalt wins every medium sequence and R_08 by about 2x. The two are complementary: the per-sequence oracle of the pair is **1.66 m**. OKVIS2's live (causal) path diverges on R_11 and is 1.2 to 1.6x worse than its final BA elsewhere; its fitted scale sits at 0.81 to 0.96 (Basalt 0.97 to 0.99), so a scale drift is part of its error. Cost: R_13 took 2.7 h on two cores and 4.4 GB; 5 to 10x Basalt.
 
 **Decision**: OKVIS2 stays in the mix as the non-causal, high-accuracy member for a selector (M03), not as the base to optimise. Next: A08 (CLAHE) on R_08/R_11, and a 13-sequence three-way oracle with OpenVINS.
+
+## B19: Basalt Huber 0.7 (2026-10-03, pc)
+
+**Result** (ATE m; score 2D / recall @ 5 m where control points exist; reference basalt_ref1 and Huber 0.5 in brackets): R_08 0.890 (1.006 / 0.818); R_09 2.869 (2.762 / 3.880); R_11 2.376, 75.0 (2.605, 73.3 / 2.110, 76.7); R_12 offset 0 16.10, 7.2 (12.86, 12.0 / 16.22, 7.1) and offset 100 14.39, 12.6 (12.94, 14.0 / 16.07, 6.9); R_13 3.567, 43.1 (3.349, 45.2 / 3.589, 42.0); sequence_1_20 39.1 (39.6 / 38.3); 2_11 22.3 (20.7 / 24.1); 3_18 77.8, 2.5 (81.0, 2.4 / 71.5, 2.9); **4_11 3.60, 34.4 / 92.0 %** (14.9, 9.9 / 18.9 % / 3.11, 37.1 / 92.4 %), with three restarts (0.5: one; reference: none).
+
+**Reading**: 0.7 sits between the two as expected: it recovers R_09 and half of R_12's second offset, keeps most of the dark-walk gain, and still loses R_12 at offset 0 and R_13. No Huber value fixes R_12, because the damage there comes from features on the wearer's own body (see B18), and a tighter loss only shifts the balance between "trust the near cluster" and "trust the IMU". Part of the 4_11 gain may come from the restarts that the tighter loss provokes (the driver cuts the bad stretch), not from the loss itself; worth separating later.
+
+**Decision**: parked at a trade-off. `basalt_ref1` (Huber 1.0) stays the controlled-set reference (2.43 m two-offset); Huber 0.5 is the Basalt setting of record for the additional set (mean score 19.7 against 16.9). The next Basalt round goes after the cause (B20: reject near features) instead of the weighting.
 
 ## B18: Basalt Huber threshold 0.5 validated on the full sets (2026-10-03, pc)
 
