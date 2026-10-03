@@ -30,7 +30,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Command**: `results/v2-B16-basalt-clahe/batch.sh` (robust driver, `basalt_ref1`, offset 0, 2 runs at a time): R_04 control, then CLAHE on R_01 / R_04 / R_08 / R_11 / sequence_2_11 / 3_18 / 4_11.
 
-**Result** (ATE sim3 m, offset 0; reference = B07 release binary): R_04 control with the source build 0.779 (B07 0.781: the source build reproduces the release); CLAHE 10: R_04 0.785, R_08 1.000 (1.005), R_11 2.589, score 73.2 (2.605, 73.3). Ties within 1 %: Basalt's patch-based optical flow with its adaptive FAST threshold is insensitive to contrast, unlike OpenVINS's KLT front end. Long walks pending.
+**Result** (ATE sim3 m, offset 0; reference = B07 release binary): R_04 control with the source build 0.779 (B07 0.781: the source build reproduces the release); CLAHE 10: R_04 0.785, R_08 1.000 (1.005), R_11 2.589, score 73.2 (2.605, 73.3). R_01 0.151 (0.151). Long walks (score 2D / recall @ 5 m; B08 in brackets): sequence_2_11 ATE 30.4, 21.2 / 46.6 % (30.9, 20.7 / 45.9); 3_18 81.1, 0.0 / 0.2 % (81.0, 2.4 / 4.2); 4_11 15.6 with one restart, 15.3 / 36.3 % (14.9, 9.9 / 18.9). The drift decomposition is unchanged to the second decimal (3_18 worst window 28.0 deg both ways). Ties everywhere: Basalt's patch-based optical flow with its adaptive FAST threshold is insensitive to contrast, unlike OpenVINS's KLT front end.
+
+**Decision**: discard; the patch stays (off by default). Next for Basalt: B17 (outlier handling) on the same stretches.
 
 **Note**: the first pass of this experiment was void. The source-built `basalt_vio` had been loading the release `libbasalt.so` from `~/.local/lib` (the driver put that folder first in `LD_LIBRARY_PATH`), so the patched loader never ran; the one-time `BASALT_CLAHE:` announcement in the log exposed it. Fixed in `basalt_segments.py` and `run_basalt_mapper.sh` (binary folder first). The B12/B14 mapper results are unaffected (the mapper patch is in the executable).
 
