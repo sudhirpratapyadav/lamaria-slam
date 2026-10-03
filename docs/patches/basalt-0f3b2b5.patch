@@ -344,18 +344,44 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..ebed785 100644
+index 2960dad..e509196 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
-@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+@@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
  
  #include <basalt/vi_estimator/ba_base.h>
 +#include <algorithm>
++#include <limits>
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -273,42 +274,143 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -266,6 +268,24 @@ void BundleAdjustmentBase<Scalar_>::get_current_points(
+   }
+ }
+ 
++// lamaria-slam (v3 F08f): BASALT_OUTLIER_MIN_AGE=N keeps the observations of the N newest frames
++// out of the filter: their poses have had the fewest iterations, so a large residual there says
++// more about the pose than about the point; the observation is judged again when the frame is older
++template <class Scalar_>
++static int64_t outlierAgeCutoff(const BundleAdjustmentBase<Scalar_>& ba) {
++  static const int min_age = [] {
++    const char* e = std::getenv("BASALT_OUTLIER_MIN_AGE");
++    return (e && *e) ? std::atoi(e) : 0;
++  }();
++  if (min_age <= 0) return std::numeric_limits<int64_t>::max();
++  std::vector<int64_t> ts;
++  for (const auto& kv : ba.frame_states) ts.push_back(kv.first);
++  for (const auto& kv : ba.frame_poses) ts.push_back(kv.first);
++  std::sort(ts.begin(), ts.end());
++  if (int(ts.size()) <= min_age) return std::numeric_limits<int64_t>::min();
++  return ts[ts.size() - min_age];  // observations in frames with t >= this are kept
++}
++
+ template <class Scalar_>
+ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+                                                    int min_num_obs) {
+@@ -273,42 +293,147 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
    computeError(error, &outliers, outlier_threshold);
  
@@ -372,6 +398,7 @@ index 2960dad..ebed785 100644
 +    return e && *e && *e != '0';
 +  }();
  
++  const int64_t age_cut = outlierAgeCutoff(*this);
    for (const auto& kv : outliers) {
      int num_obs = lmdb.numObservations(kv.first);
 -    int num_outliers = kv.second.size();
@@ -379,8 +406,9 @@ index 2960dad..ebed785 100644
 +    std::set<TimeCamId> bad;
 +    for (const auto& kv2 : kv.second) {
 +      if (kv2.second == -2) num_host++;
-+      else bad.emplace(kv2.first);
++      else if (kv2.first.frame_id < age_cut) bad.emplace(kv2.first);
 +    }
++    if (bad.empty() && (num_host == 0 || keep_host)) continue;
 +    bool remove = (num_host > 0 && !keep_host) || (num_obs - int(bad.size()) < min_num_obs);
  
 -    bool remove = false;
@@ -446,6 +474,7 @@ index 2960dad..ebed785 100644
 +        if (kv2.second == -2) { host_bad.insert(kv.first); break; }
 +  }
  
++  const int64_t age_cut = outlierAgeCutoff(*this);
 +  for (const auto& kv : all) {
 +    if (host_bad.count(kv.first)) {
 +      lmdb.removeLandmark(kv.first);
@@ -459,8 +488,9 @@ index 2960dad..ebed785 100644
 -      if (kv2.second == -2) remove = true;
 -
 -      //      std::cout << kv2.second << ", ";
-+      if (kv2.second == -1) { bad.emplace(kv2.first); invalid = true; }
-+      else if (kv2.second >= 0) { es.push_back(kv2.second); if (kv2.second > thr) bad.emplace(kv2.first); }
++      const bool young = kv2.first.frame_id >= age_cut;
++      if (kv2.second == -1) { if (!young) { bad.emplace(kv2.first); invalid = true; } }
++      else if (kv2.second >= 0) { es.push_back(kv2.second); if (kv2.second > thr && !young) bad.emplace(kv2.first); }
      }
 -
 -    //    std::cout << "] " << std::endl;
