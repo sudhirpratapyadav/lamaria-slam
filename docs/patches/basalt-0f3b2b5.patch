@@ -145,7 +145,7 @@ index ff9df90..c7b8902 100644
  
      if (!result_path.empty()) {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..8902f7e 100644
+index 55984fc..10d97e4 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -331,7 +331,30 @@ index 55984fc..8902f7e 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -1431,6 +1553,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1014,6 +1136,22 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+     std::cout << "=================================" << std::endl;
+   }
+ 
++  // lamaria-slam (v3 X05): a landmark left without observations (after masking, gating,
++  // filterOutliers or marginalisation) gives an empty landmark block whose QR dereferences null
++  // (segfault in makeHouseholder, seen on sequence_4_11 and 5_12). Drop such landmarks first.
++  {
++    std::vector<KeypointId> empty_lms;
++    for (const auto& kv_lm : lmdb.getLandmarks())
++      if (lmdb.numObservations(kv_lm.first) == 0) empty_lms.push_back(kv_lm.first);
++    static long empty_total = 0;
++    for (KeypointId id : empty_lms) lmdb.removeLandmark(id);
++    if (!empty_lms.empty()) {
++      empty_total += empty_lms.size();
++      if (empty_total <= 10 || empty_total % 100 == 0)
++        std::cerr << "removed " << empty_lms.size() << " landmark(s) without observations (total " << empty_total << ")" << std::endl;
++    }
++  }
++
+   if (opt_started || frame_states.size() > 4) {
+     opt_started = true;
+ 
+@@ -1431,6 +1569,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
