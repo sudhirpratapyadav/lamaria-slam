@@ -114,7 +114,7 @@ R_04: live 0.852 / final 0.639 (A04 with 10 keyframes: 0.681). R_08: live 2.943 
 
 **A03** (`okvis2_a03_n20_nolc`): diverged on both R_04 (26.7 m, scale 0.77) and R_08 (41.4 m), no final trajectory. Discard: OKVIS2 needs its loop-closure / pose-graph path even without loops, and x20 is too much.
 
-**A04** (`okvis2_a04_n10_kf10`, num_keyframes 10, num_imu_frames 5): final-BA ATE R_04 0.681 (A02: 0.693), R_08 **2.089** (A02: 5.152). The live trajectories were lost to a shared-output collision with A03 (fixed next by per-run output folders). A longer keyframe window is OKVIS2's lever on the hard sequence; A06 pushes it further (15 keyframes, 7 IMU frames). Cost: 1207 / 3235 s wall under load, 0.8 / 1.9 GB.
+**A04** (`okvis2_a04_n10_kf10`, num_keyframes 10, num_imu_frames 5): final-BA ATE R_04 0.681 (A02: 0.693), R_08 **2.089** (A02: 5.152). The live trajectories were lost to a shared-output collision with A03 (fixed next by per-run output folders). A longer keyframe window is OKVIS2's lever on the hard sequence; A06 pushes it further (15 keyframes, 7 IMU frames). Cost: 1207 / 3235 s wall under load, 0.8 / 1.9 GB. R_01 with this configuration: live 0.138 / final **0.022** (612 s at light load, 1.9 cores); R_11 pending.
 
 ## C02: ORB-SLAM3 noise x10, no keyframe insertion when lost (2026-10-03, pc)
 
