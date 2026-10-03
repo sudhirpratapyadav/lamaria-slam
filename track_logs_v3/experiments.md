@@ -246,9 +246,16 @@ Reading: the filter wins the easy and hard sequences, R_11 and the additional se
 
 **Change**: `scripts/make_learned_keypoints.py` (XFeat on CPU, top 500 per cam0 frame, about 20 frames/s with six workers, stored as float32 x / y / score per frame under `data/training/<seq>/kp_xfeat/cam0/`). Basalt `frame_to_frame_optical_flow.h`: `BASALT_KP_DIR` loads the frame's points, the best one per empty 50 px cell (score at least `BASALT_KP_MIN_SCORE`) becomes a new track; `BASALT_KP_MODE=union` (FAST fills the cells still empty) or `replace` (external points only). With the outlier filter 3 px, `basalt_ref1` otherwise.
 
-**Command**: `results/v3-F10-learned-seed/keypoints.sh` then `batch.sh` (union and replace at min score 0.1 on the six event sequences, each run as its keypoints finish).
+**Command**: `results/v3-F10-learned-seed/keypoints.sh` then `batch.sh` (union and replace at min score 0.1), `batch_fill.sh` (fill mode: FAST first, XFeat only in the cells FAST leaves empty), `batch_fill20.sh` (F10c: FAST stops at threshold 20 instead of 5, alone and with XFeat filling the cells it leaves).
 
-**Result**: pending.
+**Result** (first runs, ATE m; score / recall; filter 3 px alone from F01/F07 in brackets):
+
+| Seq | union 0.1 (XFeat first, FAST fills) | replace (XFeat only) | fill (FAST first, XFeat fills) |
+|---|---|---|---|
+| sequence_4_11 | 14.46, 2.2 / 99.1, scale **0.82**, 1 restart (3.79, 37.9 / 99.1) | running | running |
+| R_08 | | | 1.0725 (1.072): XFeat adds 2 % of the points, FAST fills every cell |
+
+First lesson: XFeat points as the *main* seeds are bad for KLT. With XFeat first, the dark walk goes from 3.8 m back to 14.5 m with a scale of 0.82 (reference scales are 0.97 to 0.99): the points a learned detector likes (blobs, edges, texture) are not the points a patch tracker can follow and stereo-match, so the stereo depths and the scale go wrong. FAST corners are chosen for exactly that. Second lesson: in fill mode the learned points almost never get a chance, because Basalt's adaptive FAST (threshold down to 5) always finds *something* in a cell, noise corners included. F10c makes FAST stop at 20 so the weak cells stay empty, as an ablation on its own (fewer noise corners may help or hurt) and with XFeat filling them.
 
 **Applicability**: general in principle (any detector that beats FAST in the dark); costs a network pass per frame (XFeat is small: about 50 ms per frame on one CPU core here, far less on a GPU); fails where the detector itself finds nothing (X02's worst window) and adds nothing where FAST already finds good points.
 
