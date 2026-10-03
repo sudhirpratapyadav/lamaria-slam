@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..06c5fd6 100644
+index d16e708..911f418 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -224,7 +224,7 @@ index d16e708..06c5fd6 100644
 +    for (const auto& p : pts0) { const int c = cell(p[0], p[1]); if (c >= 0) occupied[c] = 1; }
 +    for (size_t i = 0; i < n; i++) {
 +      const float x = v[3 * i], y = v[3 * i + 1], sc = v[3 * i + 2];
-+      if (sc < min_score || !img.InBounds(x, y, 8)) continue;
++      if (sc < min_score || !img.InBounds(x, y, 19)) continue;  // same edge margin as FAST (EDGE_THRESHOLD)
 +      const int c = cell(x, y);
 +      if (c < 0 || occupied[c]) continue;
 +      if (best[c] < 0 || v[3 * best[c] + 2] < sc) best[c] = int(i);
@@ -240,7 +240,7 @@ index d16e708..06c5fd6 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +470,29 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +470,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -250,19 +250,28 @@ index d16e708..06c5fd6 100644
 +      const char* e = std::getenv("BASALT_KP_MODE");
 +      return std::string((e && *e) ? e : "union");
 +    }();
++    // modes: union (external first, FAST fills the rest), replace (external only),
++    // fill (FAST first as upstream, external points only where FAST found nothing)
++    static const bool have_ext = std::getenv("BASALT_KP_DIR") && *std::getenv("BASALT_KP_DIR");
 +    Eigen::aligned_vector<Eigen::Vector2d> ext;
-+    externalPoints(transforms->t_ns, pts0, ext);
-+    for (const auto& p : ext) { kd.corners.emplace_back(p); pts0.emplace_back(p); }
-+    const size_t n_ext = kd.corners.size();
-+
-+    if (!(std::getenv("BASALT_KP_DIR") && *std::getenv("BASALT_KP_DIR")) || kp_mode != "replace") {
-+      KeypointsData kd_fast;
-+      detectKeypoints(pyramid->at(0).lvl(0), kd_fast,
-+                      config.optical_flow_detection_grid_size, 1, pts0);
-+      kd.corners.insert(kd.corners.end(), kd_fast.corners.begin(), kd_fast.corners.end());
-+      kp_fast_added += kd_fast.corners.size();
++    if (kp_mode == "fill" || !have_ext) {
++      detectKeypoints(pyramid->at(0).lvl(0), kd, config.optical_flow_detection_grid_size, 1, pts0);
++      kp_fast_added += kd.corners.size();
++      for (const auto& p : kd.corners) pts0.emplace_back(p);
++      if (have_ext) {
++        externalPoints(transforms->t_ns, pts0, ext);
++        kd.corners.insert(kd.corners.end(), ext.begin(), ext.end());
++      }
++    } else {
++      externalPoints(transforms->t_ns, pts0, ext);
++      for (const auto& p : ext) { kd.corners.emplace_back(p); pts0.emplace_back(p); }
++      if (kp_mode != "replace") {
++        KeypointsData kd_fast;
++        detectKeypoints(pyramid->at(0).lvl(0), kd_fast, config.optical_flow_detection_grid_size, 1, pts0);
++        kd.corners.insert(kd.corners.end(), kd_fast.corners.begin(), kd_fast.corners.end());
++        kp_fast_added += kd_fast.corners.size();
++      }
 +    }
-+    (void)n_ext;
  
      Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
          new_poses1;
@@ -272,6 +281,20 @@ index d16e708..06c5fd6 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
+diff --git a/include/basalt/vi_estimator/ba_base.h b/include/basalt/vi_estimator/ba_base.h
+index 61707a7..b9bd1ea 100644
+--- a/include/basalt/vi_estimator/ba_base.h
++++ b/include/basalt/vi_estimator/ba_base.h
+@@ -60,6 +60,9 @@ class BundleAdjustmentBase {
+                     Scalar outlier_threshold = 0) const;
+ 
+   void filterOutliers(Scalar outlier_threshold, int min_num_obs);
++  // lamaria-slam (v3 F08b): threshold relative to the current residual spread,
++  // max(floor_px, median + k * 1.4826 * MAD); returns the threshold used
++  Scalar filterOutliersAdaptive(Scalar floor_px, Scalar k, int min_num_obs, size_t* removed_obs = nullptr);
+ 
+   void optimize_single_frame_pose(
+       PoseStateWithLin<Scalar>& state_t,
 diff --git a/src/mapper.cpp b/src/mapper.cpp
 index ff9df90..c7b8902 100644
 --- a/src/mapper.cpp
@@ -285,8 +308,103 @@ index ff9df90..c7b8902 100644
      auto time_end = std::chrono::high_resolution_clock::now();
  
      if (!result_path.empty()) {
+diff --git a/src/utils/keypoints.cpp b/src/utils/keypoints.cpp
+index d7c11cb..a5d241c 100644
+--- a/src/utils/keypoints.cpp
++++ b/src/utils/keypoints.cpp
+@@ -36,6 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <unordered_set>
+ 
+ #include <basalt/utils/keypoints.h>
++#include <cstdlib>
+ 
+ #include <opencv2/features2d/features2d.hpp>
+ #include <opencv2/imgproc/imgproc.hpp>
+@@ -208,7 +209,14 @@ void detectKeypoints(
+       int points_added = 0;
+       int threshold = 40;
+ 
+-      while (points_added < num_points_cell && threshold >= 5) {
++      // lamaria-slam (v3 F10c): BASALT_FAST_MIN_THRESHOLD (default 5, upstream) stops the adaptive
++      // threshold earlier, so dark or flat cells stay empty instead of getting noise corners
++      // (a learned detector can then fill them, BASALT_KP_MODE=fill)
++      static const int min_threshold = [] {
++        const char* e = std::getenv("BASALT_FAST_MIN_THRESHOLD");
++        return (e && *e) ? std::atoi(e) : 5;
++      }();
++      while (points_added < num_points_cell && threshold >= min_threshold) {
+         std::vector<cv::KeyPoint> points;
+         cv::FAST(subImg, points, threshold);
+ 
+diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
+index 2960dad..aff6405 100644
+--- a/src/vi_estimator/ba_base.cpp
++++ b/src/vi_estimator/ba_base.cpp
+@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
+ #include <basalt/vi_estimator/ba_base.h>
++#include <algorithm>
+ 
+ #include <tbb/blocked_range.h>
+ #include <tbb/parallel_for.h>
+@@ -311,6 +312,54 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+   // std::endl;
+ }
+ 
++template <class Scalar_>
++Scalar_ BundleAdjustmentBase<Scalar_>::filterOutliersAdaptive(Scalar floor_px, Scalar k, int min_num_obs,
++                                                              size_t* removed_obs) {
++  // every valid residual (threshold 0 collects them all; -2 marks a failed projection)
++  Scalar error;
++  std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> all;
++  computeError(error, &all, Scalar(0));
++
++  std::vector<Scalar> es;
++  for (const auto& kv : all)
++    for (const auto& kv2 : kv.second)
++      if (kv2.second >= 0) es.push_back(kv2.second);
++  Scalar thr = floor_px;
++  if (es.size() >= 50) {
++    const size_t m = es.size() / 2;
++    std::nth_element(es.begin(), es.begin() + m, es.end());
++    const Scalar med = es[m];
++    for (Scalar& e : es) e = std::abs(e - med);
++    std::nth_element(es.begin(), es.begin() + m, es.end());
++    const Scalar sigma = Scalar(1.4826) * es[m];
++    thr = std::max(floor_px, med + k * sigma);
++  }
++
++  size_t n_removed = 0;
++  for (const auto& kv : all) {
++    std::vector<std::pair<TimeCamId, Scalar>> bad;
++    bool remove = false;
++    for (const auto& kv2 : kv.second) {
++      if (kv2.second == -2) remove = true;
++      if (kv2.second == -2 || kv2.second > thr) bad.push_back(kv2);
++    }
++    if (bad.empty()) continue;
++    const int num_obs = lmdb.numObservations(kv.first);
++    if (num_obs - int(bad.size()) < min_num_obs) remove = true;
++    if (remove) {
++      n_removed += num_obs;
++      lmdb.removeLandmark(kv.first);
++    } else {
++      std::set<TimeCamId> obs;
++      for (const auto& kv2 : bad) obs.emplace(kv2.first);
++      n_removed += obs.size();
++      lmdb.removeObservations(kv.first, obs);
++    }
++  }
++  if (removed_obs) *removed_obs = n_removed;
++  return thr;
++}
++
+ template <class Scalar_>
+ void BundleAdjustmentBase<Scalar_>::computeDelta(const AbsOrderMap& marg_order,
+                                                  VecX& delta) const {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..49fd62f 100644
+index 55984fc..ee17790 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -553,7 +671,7 @@ index 55984fc..49fd62f 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1605,31 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1605,53 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
@@ -581,7 +699,29 @@ index 55984fc..49fd62f 100644
 +  }();
 +  static long frames_since_init = 0;
 +  frames_since_init++;
-+  if (outlier_px > 0 && frames_since_init > outlier_warmup) this->filterOutliers(outlier_px, outlier_min_obs);
++  // BASALT_OUTLIER_ADAPT=k: threshold max(BASALT_OUTLIER_PX, median + k * 1.4826 * MAD) of the current
++  // residuals, so a poorly converged solve (large spread) does not lose its good observations
++  static const Scalar outlier_adapt = [] {
++    const char* e = std::getenv("BASALT_OUTLIER_ADAPT");
++    const double v = (e && *e) ? std::atof(e) : 0.0;
++    std::cerr << "BASALT_OUTLIER_ADAPT: " << v << std::endl;
++    return Scalar(v);
++  }();
++  static size_t adapt_removed_total = 0;
++  static Scalar adapt_thr_sum = 0;
++  if (outlier_px > 0 && frames_since_init > outlier_warmup) {
++    if (outlier_adapt > 0) {
++      size_t removed = 0;
++      const Scalar thr = this->filterOutliersAdaptive(outlier_px, outlier_adapt, outlier_min_obs, &removed);
++      adapt_removed_total += removed;
++      adapt_thr_sum += thr;
++      if (frames_since_init % 500 == 0)
++        std::cerr << "adaptive filter: mean threshold " << adapt_thr_sum / 500 << " px, " << adapt_removed_total
++                  << " observations removed so far" << std::endl, adapt_thr_sum = 0;
++    } else {
++      this->filterOutliers(outlier_px, outlier_min_obs);
++    }
++  }
    marginalize(num_points_connected, lost_landmaks);
  }
  

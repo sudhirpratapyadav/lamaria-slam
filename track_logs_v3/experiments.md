@@ -224,9 +224,16 @@ Reading: the filter wins the easy and hard sequences, R_11 and the additional se
 
 **Change**: `BASALT_OUTLIER_WARMUP` (frames after initialisation during which `filterOutliers` is not called; one initialisation per process, the robust driver restarts the process). 100 and 300 frames (5 and 15 s) with 3 px, `basalt_ref1` otherwise.
 
-**Command**: `results/v3-F08-filter-warmup/batch.sh` (R_04 at both offsets, R_12 at both, R_13, R_09, R_08, 4_11 at offset 0; queued behind the X05 re-runs).
+**Command**: `results/v3-F08-filter-warmup/batch.sh` (R_04 at both offsets, R_12 at both, R_13, R_09, R_08, 4_11 at offset 0), then `batch_adapt.sh` (F08b, see below).
 
-**Result**: pending.
+**Result, R_04 first** (ATE m, restarts; divergence indices from `segments.json`):
+
+| R_04 | reference | filter 3 px | warm-up 100 |
+|---|---|---|---|
+| offset 0 | **0.781**, 0 restarts | 1.220, 2 (diverges at 393, 49) | 10.71, 8 (diverges at 393, then 64 / 35 / 26 / 39 / 107 / 28 / 130) |
+| offset 100 | 0.935, 1 (diverges at 38) | 2.952, 3 (86, 231, 147) | **0.995**, 2 (38, 280) |
+
+The warm-up is not the answer: at offset 0 the first divergence is at frame 393 with or without it, so it is not the first 100 frames that break; the filter, active from frame 100, breaks the run at 393, and once the driver restarts inside that stretch every segment diverges within 30 to 130 frames (the reference also diverges there once, at offset 100, so frames 100 to 400 of R_04 are a hard stretch: with a fixed 3 px threshold the filter strips the structure there). **F08b**: the threshold adapts to the current residual spread, max(3 px, median + k x 1.4826 x MAD), k = 3 and 5 (`BASALT_OUTLIER_ADAPT`), so when the solve is poor and all residuals are large the filter removes only the true outliers. Remaining warm-up runs (R_12, R_13, R_09, R_08, 4_11; 300 frames) still running for the record.
 
 **Applicability**: general (any post-solve rejection needs a trustworthy solve first); the warm-up length is a time, so it depends on how fast the estimator converges (IMU noise, motion), not on the scene.
 
