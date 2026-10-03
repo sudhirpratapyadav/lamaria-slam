@@ -372,3 +372,15 @@ The per-landmark rule is the general one (never worse than the flat filter excep
 What is left to separate them is *where in time* the large residuals sit. The suspect for R_04 is the newest frames: their poses have had the fewest iterations, a large residual there says more about the pose than about the point, and removing those observations leaves the newest state to the IMU alone. **F08f** (`BASALT_OUTLIER_MIN_AGE`): the filter leaves the observations of the newest 2 or 5 frames alone; a bad observation is judged again a few frames later when its frame has converged. General, mechanism-based, and cheap.
 
 **Applicability**: diagnostic.
+
+## F13: hybrid front end, KLT tracks with descriptor re-association (2026-10-04, pc)
+
+**Hypothesis** (owner's "robustness of description matching with the precision of patch tracking"; F10/F11 lessons): keep patch tracking for every live track and use descriptors only where patch tracking has nothing, i.e. to recover a track that was lost (occlusion, blur, a dark stretch) under its old id, so the back end keeps the landmark instead of creating a new one.
+
+**Change**: `scripts/make_hybrid_tracks.py`, writing Basalt external tracks (F11 interface): pyramidal KLT with a forward-backward check (1 px) continues every track; new tracks start on FAST corners with Basalt's adaptive per-cell threshold (40 to 5) in empty 50 px cells; every 5th frame XFeat runs on cam0 and its descriptors are matched (mutual nearest neighbour, cosine 0.85, within 60 px of where the track was lost, within the last 60 frames) against the stored descriptors of lost tracks, reviving the old id; stereo by KLT cam0 to cam1 with the backward check (cam1 frames padded to cam0's size). Ablation: `--no-revive` (the same KLT + FAST without any descriptor) separates the re-association effect from the tracker difference. Back end: filter 3 px + per-landmark rule, replace mode.
+
+**Command**: `results/v3-F13-hybrid-tracks/tracks.sh` (4_11 and R_08, hybrid and plain, 2 threads each) then `batch.sh`.
+
+**Result**: pending.
+
+**Applicability**: the mechanism is general and cheap (one descriptor pass every 5 frames); it can only help where tracks are lost and found again (occlusions, people, momentary darkness); it does nothing for a stretch where nothing is trackable; the matcher's thresholds are descriptor-specific.
