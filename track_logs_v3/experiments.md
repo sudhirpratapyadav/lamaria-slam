@@ -48,7 +48,18 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 
 **First pass (confidence 0.25), void**: R_12 came out at 18.7 m, score 5.5 (reference 12.9 / 12.0) with the heading swing at 450 to 510 s grown to -25 / +35 degrees. Cause: in 22 % of the frames the mask covered more than 10 % of the image and in 3 % more than 90 %. Looking down at the pavement, the detector returns a confident mask on the feet (0.54) plus a low-confidence "person" box (0.29) spanning the whole image; the union starved the tracker exactly in the stretch that matters. Fixes: masks regenerated at confidence 0.4, and Basalt now ignores any mask covering more than `BASALT_MASK_MAX_FRAC` (0.4) of the image.
 
-**Result** (second pass): pending.
+**Result** (second pass, confidence 0.4, oversized masks ignored; ATE m, score 2D / recall @ 5 m; reference basalt_ref1 in brackets):
+
+| Seq | masks | reference | tracked points dropped |
+|---|---|---|---|
+| R_08 | 1.157 | **1.006** | 1019 |
+| R_11 | **2.422, 75.1 / 96.8** | 2.605, 73.3 / 96.5 | 2402 |
+| R_12 | **12.61, 13.3 / 18.2** | 12.86, 12.0 / 18.1 | 4630 |
+| sequence_2_11 | **24.29, 26.0 / 48.2** | 30.92, 20.7 / 45.9 | 13182 |
+| sequence_3_18 | 73.77, 0.4 / 0.2 | 81.04, **2.4 / 4.2** | 8202 |
+| sequence_4_11 | re-running (first run crashed, X05) | 14.89, 9.9 / 18.9 | |
+
+Small, consistent gains where people walk through the view (2_11 by a fifth in ATE and five score points, R_11, R_12), a loss on R_08 (indoor, few people: the masks only remove good points) and a split on 3_18. The shoe episode on R_12 improves only slightly: the mask covers the feet in the looking-down frames, but the heading swing there is already partly caused by the near pavement filling the view. **Decision**: keep as an option; combine with the IMU gate (F05) and test the combination on the full sets.
 
 **Applicability**: general wherever people or the robot's own body enter the view (homes, streets); costs a segmentation per frame (about 25 ms on an Orin for the detection-only model, more for masks); fails on reflections and on body parts the detector does not recognise; no help in dark or low-texture stretches.
 
