@@ -49,3 +49,15 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 **Result**: pending.
 
 **Applicability**: general wherever people or the robot's own body enter the view (homes, streets); costs a segmentation per frame (about 25 ms on an Orin for the detection-only model, more for masks); fails on reflections and on body parts the detector does not recognise; no help in dark or low-texture stretches.
+
+## F03: temporal epipolar gate on new landmarks (2026-10-03, pc)
+
+**Hypothesis**: F01's gate only checks observations of landmarks that already exist. A new track is triangulated from two frames whose relative pose comes from the IMU prediction; if its two observations violate the epipolar constraint of that pose, the point moved on its own and should never become a landmark.
+
+**Change**: `sqrt_keypoint_vio.cpp`, in the triangulation of new landmarks: `BASALT_EPI_GATE` (same units as Basalt's stereo `optical_flow_epipolar_error`, default there 0.005; 0 = off) rejects candidate pairs with `|p0^T E p1|` above it, counts reported every 500 frames. `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F03-epi-gate/batch.sh` (0.005 and 0.002 on the six event sequences; queued behind F01).
+
+**Result**: pending.
+
+**Applicability**: general; depends on the IMU prediction quality like F01; threshold is in normalised bearing units, so lens-independent.
