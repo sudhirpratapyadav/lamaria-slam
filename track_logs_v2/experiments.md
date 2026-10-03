@@ -7,7 +7,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A04 x10 + 10 keyframes, final BA | R_01 **0.022**, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live) | 13-sequence batch running detached (2 at a time) | ~10x the CPU of Basalt |
+| A OKVIS2 | A07 x10 + 10 keyframes, final BA (non-causal) | 13-sequence mean **2.15** at offset 0 (Basalt 2.46); wins 7/13 incl. R_01 0.022, R_03 0.029, R_12 4.5; loses the medium set 2x; pair oracle with Basalt 1.66 | | 5-10x the CPU of Basalt, up to 4.4 GB; live path diverges on R_11 |
 | B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; X01: the walks are lost to heading events in low-feature stretches; B16 (CLAHE) running |
 | C ORB-SLAM3 | C01-C03 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 1.38 after the example's IMU-loop crash was fixed (C03) | | ~1.2x realtime on 2 cores; poses missing before inertial init |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
@@ -47,9 +47,13 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | R_09 | 3.21 | 2.98 | 0.946 | **2.76** | 3308 |
 | R_10 | 3.77 | **3.57** | 0.907 | 4.41 | 3807 |
 | R_11 | 37.6 (diverged) | **1.94** (score 56.7) | 0.807 | 2.60 (score 73.3) | |
-| R_12, R_13 | pending | | | | |
+| R_12 | 4.51 (score 27.8) | **4.50** (score 26.8) | 0.890 | 12.86 (score 12.0) | 4695 |
+| R_13 | 5.74 (score 34.8) | 3.69 (score 41.6) | 0.886 | **3.35** (score 45.2) | 9768 |
+| **13-sequence mean (offset 0)** | | **2.15** | | 2.46 | |
 
-So far OKVIS2's final BA beats Basalt on the easy sequences and R_10/R_11 but loses on every medium sequence by a factor of 2 (R_05 to R_07) and on R_08; its fitted scale sits at 0.91 to 0.96 (Basalt 0.99), so a scale drift is part of its error. At 5 to 10 times Basalt's CPU and up to 2.4 GB RSS, this is not the candidate to carry; its value is the non-causal BA on sequences with revisits (none in the training set).
+OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's 2.46), carried by R_12 (4.5 against 12.9: the long control-point walk where Basalt's heading goes wrong, see B18) and the easy sequences; Basalt wins every medium sequence and R_08 by about 2x. The two are complementary: the per-sequence oracle of the pair is **1.66 m**. OKVIS2's live (causal) path diverges on R_11 and is 1.2 to 1.6x worse than its final BA elsewhere; its fitted scale sits at 0.81 to 0.96 (Basalt 0.97 to 0.99), so a scale drift is part of its error. Cost: R_13 took 2.7 h on two cores and 4.4 GB; 5 to 10x Basalt.
+
+**Decision**: OKVIS2 stays in the mix as the non-causal, high-accuracy member for a selector (M03), not as the base to optimise. Next: A08 (CLAHE) on R_08/R_11, and a 13-sequence three-way oracle with OpenVINS.
 
 ## B18: Basalt Huber threshold 0.5 validated on the full sets (2026-10-03, pc)
 
@@ -79,6 +83,8 @@ So far OKVIS2's final BA beats Basalt on the easy sequences and R_10/R_11 but lo
 Better on 20 of 26 runs, by 10 to 30 % on the easy and medium sequences, but worse on both offsets of the two long control-point walks (R_12 by 3.3 m and 5 to 7 score points, R_13 by 0.2 m and 3 points) and on one R_09 offset, which flips the 13-sequence mean the wrong way. Additional set (score 2D, B08 in brackets): 1_19 69.0 (64.1), 1_20 38.3 (39.6), 2_11 24.1 (20.7), 2_12 6.4 (5.3), 3_17 1.3 (4.3), 3_18 2.9 (2.4), 4_10 8.0 (8.4), **4_11 37.1 / recall 92.4 % (9.9 / 18.9 %; ATE 3.1 against 14.9)**, 5_11 6.7 (6.9), 5_12 3.6 (7.6): mean score **19.7** (B08 16.9; OpenVINS 22.0). Five up, five down, but the dark walk 4_11 is transformed (one restart instead of none, and the heading events of X01 are gone from it), which carries the mean. Huber 0.3 (direction check): R_08 0.862, R_11 1.638 / 78.9, 3_18 68.3 / 1.1: the ATE keeps falling with a tighter threshold, the control-point scores do not follow.
 
 **Reading**: a tighter Huber threshold helps wherever features are plentiful (easy/medium) and on the dark walk, and hurts on the longest control-point walks (R_12, R_13, 3_17, 5_12), where it leaves too few effective observations and the drift grows. It is the same trade-off as D04 and B17's obs-std: more IMU weight, less vision. **Decision**: not kept as is; B19 tries 0.7 on the sequences that moved most (R_12, R_13, R_09, R_08, R_11, 2_11, 1_20, 3_18, 4_11).
+
+**Why R_12 loses** (drift decomposition, `results/v2-X01-drift-analysis/R_12_*`): with Huber 0.5 or 0.7 the run picks up a heading excursion of -21 then +25 degrees in the 450 to 510 s windows (reference: 0.2 / 1.8) inside a continuous segment; the restart in those runs is a separate, harmless event at 2.2 s (one frame over 6 m/s during initialisation). The frames there show the wearer looking down with their own shoe filling a quarter of the image (`frames/R_12_470s.png`), after a parked van and a tree at 440 s; the reference's local scale also jumps to 1.24 in the same window. Same family as X01: features on the wearer's body and on near, moving objects pull the estimate, and a tighter robust loss makes it worse by trusting that consistent-looking cluster over the far features with larger residuals. A body/near-object rejection in the front end would address R_12, 3_18 and 2_11 together.
 
 
 

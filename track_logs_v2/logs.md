@@ -63,3 +63,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 09:35** B18: Huber 0.5 better on 20/26 controlled runs but worse on R_12/R_13 (long CP walks), 13-seq mean 2.61 vs 2.43; additional set 4 up 4 down. Not kept; B19 (0.7) queued.
 - **2026-10-03 09:45** B18 complete: Huber 0.5 lifts the dark walk 4_11 from score 9.9 to 37.1 (recall 18.9 to 92.4 %); additional-set mean 19.7 vs 16.9; controlled mean still worse (R_12). Waiting for 0.7.
 - **2026-10-03 10:23** C04 (ORB-SLAM3 on pinhole input) fails: one pose per sequence, map reset every frame; stopped. ORB-SLAM3 stays fisheye-only.
+- **2026-10-03 10:37** A07 complete: OKVIS2 final BA 13-seq mean 2.15 (offset 0) vs Basalt 2.46; wins 7/13 (R_12 4.5 vs 12.9), loses medium 2x; pair oracle 1.66. Costs 5-10x. R_12 Huber loss explained: wearer's shoe in view at 450-510 s pulls the heading.
