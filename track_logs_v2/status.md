@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 05:36 IST. Edit in place.
+Last updated: 2026-10-03 06:02 IST. Edit in place.
 
 ## What v2 is
 
@@ -31,14 +31,14 @@ Controlled set, two-offset mean ATE: 2.83 m. Additional set (ov_ref004, offset 0
 ## Where the candidates stand (all numbers single runs unless stated; details in experiments.md)
 
 - Basalt (robust driver): controlled two-offset mean **2.43 m** (OpenVINS 2.83); additional-set mean score 16.9 (OpenVINS 22.0): wins short/medium and dark walks, loses the 2 km walks (structural drift, knobs do not help). Fisheye input helps 3 of 4 standard sequences. Cheap (~2x realtime, <2 cores).
-- OKVIS2: R_01 final-BA 0.022 to 0.033 m (best anywhere), R_04 0.68, R_08 2.09 with 10 keyframes; needs noise x10; slowest (0.1x realtime under load, up to 6 GB on long sequences); 15-keyframe round running.
+- OKVIS2 (x10, 10 keyframes, final BA): R_01 0.022, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live, recovered by the final BA); 15 keyframes worse on R_08; fisheye helps only R_01; ~10x Basalt's CPU. 13-sequence batch running detached.
 - ORB-SLAM3: R_01 0.031 m, but loses a quarter of R_04's frames and crashes deterministically on R_08; parked pending a code-level fix.
 - OpenVINS line: window variants parked; ov_ref005 stands (2.83 m / score 22.0).
 - Mix-and-match (M01): a per-sequence choice between Basalt and OpenVINS would give 1.97 m and mean score 25.9 (oracle); a duration rule 24.2. Selector design is a v3 candidate.
 
 ## Next
 
-1. OKVIS2: finish the keyframe-window rounds (A06), the standard four with the best setting, then decide whether its cost allows a 13-sequence run.
+1. OKVIS2: 13-sequence batch (k=0, final BA) running detached two at a time; judge on the controlled set and cost.
 2. Basalt: mapper parked (negative). Remaining Basalt ideas: the restart thresholds of the robust driver, and the fisheye input on more sequences (needs `.vrs` per sequence).
 3. Ensemble: a selector between Basalt and OpenVINS runs (restart counts, consistency, agreement).
 4. ORB-SLAM3: one debugging round on the R_08 crash if time allows.

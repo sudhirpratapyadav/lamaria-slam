@@ -7,7 +7,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A04 x10 + 10 keyframes (pinhole) | R_01 **0.033** (A02 final; fisheye 0.022); R_04 0.68; R_08 2.09 (final); 15 keyframes worse on R_08 | | slowest candidate (~10x the CPU of Basalt); A04 on R_01/R_11 running |
+| A OKVIS2 | A04 x10 + 10 keyframes, final BA | R_01 **0.022**, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live) | 13-sequence batch running detached (2 at a time) | ~10x the CPU of Basalt |
 | B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; B09 on the long walks |
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
@@ -114,7 +114,7 @@ R_04: live 0.852 / final 0.639 (A04 with 10 keyframes: 0.681). R_08: live 2.943 
 
 **A03** (`okvis2_a03_n20_nolc`): diverged on both R_04 (26.7 m, scale 0.77) and R_08 (41.4 m), no final trajectory. Discard: OKVIS2 needs its loop-closure / pose-graph path even without loops, and x20 is too much.
 
-**A04** (`okvis2_a04_n10_kf10`, num_keyframes 10, num_imu_frames 5): final-BA ATE R_04 0.681 (A02: 0.693), R_08 **2.089** (A02: 5.152). The live trajectories were lost to a shared-output collision with A03 (fixed next by per-run output folders). A longer keyframe window is OKVIS2's lever on the hard sequence; A06 pushes it further (15 keyframes, 7 IMU frames). Cost: 1207 / 3235 s wall under load, 0.8 / 1.9 GB. R_01 with this configuration: live 0.138 / final **0.022** (612 s at light load, 1.9 cores); R_11 pending.
+**A04** (`okvis2_a04_n10_kf10`, num_keyframes 10, num_imu_frames 5): final-BA ATE R_04 0.681 (A02: 0.693), R_08 **2.089** (A02: 5.152). The live trajectories were lost to a shared-output collision with A03 (fixed next by per-run output folders). A longer keyframe window is OKVIS2's lever on the hard sequence; A06 pushes it further (15 keyframes, 7 IMU frames). Cost: 1207 / 3235 s wall under load, 0.8 / 1.9 GB. R_01 with this configuration: live 0.138 / final **0.022** (612 s at light load, 1.9 cores). R_11: the live estimate diverges (37.6 m) and the final BA recovers it to 1.935 m, score 56.7 (A02: 1.43 / 1.64, score 67). OKVIS2 four-sequence picture with x10 + 10 keyframes (final BA): R_01 0.022, R_04 0.681, R_08 2.089, R_11 1.935; live: 0.138, (lost), (lost), diverged.
 
 ## C02: ORB-SLAM3 noise x10, no keyframe insertion when lost (2026-10-03, pc)
 
