@@ -344,7 +344,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..93bd5d3 100644
+index 2960dad..5a95b6a 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -355,7 +355,7 @@ index 2960dad..93bd5d3 100644
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -273,42 +274,106 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -273,42 +274,127 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
    computeError(error, &outliers, outlier_threshold);
  
@@ -375,35 +375,26 @@ index 2960dad..93bd5d3 100644
    for (const auto& kv : outliers) {
      int num_obs = lmdb.numObservations(kv.first);
 -    int num_outliers = kv.second.size();
--
--    bool remove = false;
--
--    if (num_obs - num_outliers < min_num_obs) remove = true;
--
--    //    std::cout << "\tlm_id: " << kv.first << " num_obs: " << num_obs
--    //              << " outliers: " << num_outliers << " [";
--
 +    int num_host = 0;
 +    std::set<TimeCamId> bad;
-     for (const auto& kv2 : kv.second) {
--      if (kv2.second == -2) remove = true;
++    for (const auto& kv2 : kv.second) {
 +      if (kv2.second == -2) num_host++;
 +      else bad.emplace(kv2.first);
 +    }
 +    bool remove = (num_host > 0 && !keep_host) || (num_obs - int(bad.size()) < min_num_obs);
  
--      //      std::cout << kv2.second << ", ";
+-    bool remove = false;
 +    if (remove) {
 +      lmdb.removeLandmark(kv.first);
 +      filter_removed_landmarks++;
 +    } else if (!bad.empty()) {
 +      lmdb.removeObservations(kv.first, bad);
 +      filter_removed_obs += bad.size();
-     }
++    }
 +  }
 +}
  
--    //    std::cout << "] " << std::endl;
+-    if (num_obs - num_outliers < min_num_obs) remove = true;
 +template <class Scalar_>
 +bool BundleAdjustmentBase<Scalar_>::filterOutliersV2(Scalar thr, int min_num_obs, Scalar max_frac,
 +                                                     bool lm_rule) {
@@ -421,15 +412,44 @@ index 2960dad..93bd5d3 100644
 +    return false;
 +  }
  
--    if (remove) {
+-    //    std::cout << "\tlm_id: " << kv.first << " num_obs: " << num_obs
+-    //              << " outliers: " << num_outliers << " [";
++  // upstream's host rule (a landmark whose host observation exceeds the threshold is deleted),
++  // unless BASALT_OUTLIER_KEEP_HOST=1; needs a pass at the threshold because the host entry at
++  // threshold 0 carries no residual
++  static const bool keep_host_v2 = [] {
++    const char* e = std::getenv("BASALT_OUTLIER_KEEP_HOST");
++    return e && *e && *e != '0';
++  }();
++  std::set<int> host_bad;
++  if (!keep_host_v2) {
++    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> at_thr;
++    computeError(error, &at_thr, thr);
++    for (const auto& kv : at_thr)
++      for (const auto& kv2 : kv.second)
++        if (kv2.second == -2) { host_bad.insert(kv.first); break; }
++  }
+ 
 +  for (const auto& kv : all) {
++    if (host_bad.count(kv.first)) {
++      lmdb.removeLandmark(kv.first);
++      filter_removed_landmarks++;
++      continue;
++    }
 +    std::set<TimeCamId> bad;
 +    std::vector<Scalar> es;
 +    bool invalid = false;
-+    for (const auto& kv2 : kv.second) {
+     for (const auto& kv2 : kv.second) {
+-      if (kv2.second == -2) remove = true;
+-
+-      //      std::cout << kv2.second << ", ";
 +      if (kv2.second == -1) { bad.emplace(kv2.first); invalid = true; }
 +      else if (kv2.second >= 0) { es.push_back(kv2.second); if (kv2.second > thr) bad.emplace(kv2.first); }
-+    }
+     }
+-
+-    //    std::cout << "] " << std::endl;
+-
+-    if (remove) {
 +    if (bad.empty()) continue;
 +    if (lm_rule && !invalid && !es.empty()) {
 +      const size_t m = es.size() / 2;

@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-03 22:05 IST. Edit in place.
+Last updated: 2026-10-04 02:45 IST. Edit in place.
 
 ## What v3 is
 
@@ -21,21 +21,18 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 ## Where things stand
 
 - Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own post-solve outlier filter.
-- **F01 complete**: enabling that filter at 3 px is the first clear, general win on the event set: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %**, R_11 score 73 to 79, 2_11 and 3_18 ATE down by a quarter to a third, R_08 a near tie, R_12 slightly worse.
-- **F06** (threshold 2 / 4 / 5 px, min 3 obs): flat between 2 and 4 px on the walks; the indoor cost grows with tightness (R_08 1.04 at 4 px, 1.28 at 2). 3 px stays, 4 px is the fallback.
-- **F07** (3 px on the full sets, one run left): controlled two-offset mean **2.50 against 2.43**: wins easy, hard, R_11 and the additional set (1_19 74 against 64, 1_20 44 against 40), loses every medium sequence by 10 to 15 % and R_12 / R_13 (the same two that punished Huber 0.5 in v2). R_04's extra restarts all sit within 240 frames of an initialisation: the filter removes good observations before the solve has converged. **F08** (warm-up of 100 / 300 frames before filtering) is queued to test that.
-- **F03** (epipolar gate on new landmarks, 0.005): the surprise of the day: best 2_11 score of any single change (30.3, ATE 21 m), best 3_18 score (4.7), 4_11 down by a third; 14 % cost on R_08. Four runs still re-running. Combination with the filter (F09) is next.
-- **F02 / F05** (person masks, gate + masks): small gains where people walk through the view; gate 5 + masks gets 4_11 to 3.3 m and 2_11 to score 31.5 but taxes R_08 / R_12 by 15 to 30 %. Options, not defaults.
-- **F04** (untrustworthy-image rule): catastrophic (R_08 142 m), discarded.
-- **X05 root-caused** (gdb, line-level): the segfault is a landmark with a **single observation** (its host only, inverse distance 5e-7) reaching the QR; a 5-row block's third Householder step runs on zero rows. Fix: the pre-solve guard now also drops landmarks with fewer than two observations and prints where they came from (instrumented; the creation path adds at least two, so a removal path must be leaving one). Rebuild and the crash check (4_11, gate 10) are running; all runs with "failed" segments (F01 gate10 4_11, F02 masks 4_11, F03 4_11 and 2_11) get re-run after it.
-- Infrastructure: the memory-pressure guard of the session killed 27 runs and the debug build; every batch now runs as a systemd user unit (`lamaria-*`). The Basalt build tree had lost its vcpkg packages to an aborted reinstall (CMake 4.4 in the venv changed the ABI hash); restored from vcpkg's binary cache and configured with `VCPKG_MANIFEST_INSTALL=OFF`, so `ninja basalt_vio` works again without touching vcpkg.
-- Diagnostics: 4_11 is the "too few usable features" failure (X02, X04), R_12 the "wrong features" failure (gate fires exactly on the shoe episode, image centre, so no static mask).
+- **The filter (F01/F06/F07)**: 3 px post-solve reprojection filter, the first clear general win: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %**; additional set mean score **21.2** (reference 16.9, 8 of 10 up); controlled two-offset mean 2.50 against 2.43 (loses the medium set and the long control-point walks). Threshold curve flat 2 to 5 px on the walks, indoor tax grows with tightness.
+- **Filter + epipolar gate (F03/F09)**: the gate on new landmarks (0.005) combined with the filter is best or tied-best on five of six event sequences (R_12 back to the reference, 2_11 20.1 m, 4_11 3.5 m / recall 99.9 %). **Candidate reference pair.**
+- **Why the medium set loses (X06/X07/F08)**: residuals are tiny everywhere (median 0.22 px); R_04 diverges at one frame in a burst where the pose, not the points, is wrong, and the filter removes the constraints that would fix it. Warm-up: not kept (costs the dark walk). MAD-adaptive threshold: just a tighter fixed threshold, closed. Keep-host (do not delete a landmark on its host residual): R_04 **0.56 / 0.53** at the two offsets, better than the reference, but 4_11 7.1 m, so the host rule is what cleans the dark walk. **F08d** (burst skip: no filtering in a frame where more than 2 % of observations exceed the threshold; per-landmark rule) running, with the host rule on. Runs repeat to 0.5 % (X07).
+- **Learned candidates**: XFeat keypoints seeding KLT (F10, three modes plus a FAST-threshold ablation): negative whenever they supply a large share of the points, neutral when a few percent; parked, with the finding that the weak FAST corners carry the dark walk and a learned detector's points are less trackable by KLT. XFeat descriptor-matching front end through the new external-tracks interface (F11): first run 15.3 m on 4_11 (filter alone 3.8); the matcher needs sub-pixel refinement and a longer temporal window before it is a fair test. Person masks (F02/F05): small gains where people walk through the view, a tax indoors; option.
+- **Crash (X05) solved**: self-pair triangulation in float after a divergence; fixed in the patch. Crashed runs re-run.
+- Infrastructure: batches as systemd units; a second build tree (`build/dev`) and an atomic install dir (`third_party/basalt/install`) so rebuilds never race a starting run; vcpkg packages restored from the binary cache.
 
 ## Next
 
-1. X05 check, then re-run every crashed run; F07 last run; F08 (filter warm-up); F09 (filter + epipolar gate 0.005).
-2. Pick the v3 reference config from F07 / F08 / F09 on the full sets (two offsets).
-3. Then the learned-keypoint candidate (XFeat seeding) for the dark stretches, and the external-observation interface for learned trackers.
+1. F08d result; then the full-set validation (13 x 2 offsets + 10 additional) of filter 3 px + epipolar gate 0.005 (+ burst rule if it holds) as the v3 reference candidate.
+2. F11 iteration: KLT refinement step from the matched position, two-frame temporal consistency; R_08 runs.
+3. Then the remaining list: learned trackers via the interface (A100 territory), mixed re-association of lost tracks by descriptor.
 
 ## Blockers
 
