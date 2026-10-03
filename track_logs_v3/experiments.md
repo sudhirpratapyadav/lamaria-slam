@@ -233,7 +233,18 @@ Reading: the filter wins the easy and hard sequences, R_11 and the additional se
 | offset 0 | **0.781**, 0 restarts | 1.220, 2 (diverges at 393, 49) | 10.71, 8 (diverges at 393, then 64 / 35 / 26 / 39 / 107 / 28 / 130) |
 | offset 100 | 0.935, 1 (diverges at 38) | 2.952, 3 (86, 231, 147) | **0.995**, 2 (38, 280) |
 
-The warm-up is not the answer: at offset 0 the first divergence is at frame 393 with or without it, so it is not the first 100 frames that break; the filter, active from frame 100, breaks the run at 393, and once the driver restarts inside that stretch every segment diverges within 30 to 130 frames (the reference also diverges there once, at offset 100, so frames 100 to 400 of R_04 are a hard stretch: with a fixed 3 px threshold the filter strips the structure there). **F08b**: the threshold adapts to the current residual spread, max(3 px, median + k x 1.4826 x MAD), k = 3 and 5 (`BASALT_OUTLIER_ADAPT`), so when the solve is poor and all residuals are large the filter removes only the true outliers. Remaining warm-up runs (R_12, R_13, R_09, R_08, 4_11; 300 frames) still running for the record.
+The warm-up is not the answer: at offset 0 the first divergence is at frame 393 with or without it, so it is not the first 100 frames that break; the filter, active from frame 100, breaks the run at 393, and once the driver restarts inside that stretch every segment diverges within 30 to 130 frames (the reference also diverges there once, at offset 100, so frames 100 to 400 of R_04 are a hard stretch: with a fixed 3 px threshold the filter strips the structure there). **F08b**: the threshold adapts to the current residual spread, max(3 px, median + k x 1.4826 x MAD), k = 3 and 5 (`BASALT_OUTLIER_ADAPT`), so when the solve is poor and all residuals are large the filter removes only the true outliers. Rest of the warm-up runs (ATE m; score; flat filter 3 px / reference in brackets):
+
+| Seq | warm-up 100 | warm-up 300 |
+|---|---|---|
+| R_12 offset 0 | 13.70, 10.2 (13.96, 10.3 / 12.86, 12.0) | 13.90, 10.4 |
+| R_12 offset 100 | 14.20, 10.3 (15.66, 7.7 / 12.94, 14.0) | 14.14, 10.4 |
+| R_13 | 3.47, 40.0 (3.58, 39.1 / 3.35, 45.2) | 3.58, 39.2 |
+| R_09 | 1.84 (1.96 / 2.76) | 1.88 |
+| R_08 | 1.08 (1.07 / 1.01) | 1.07 |
+| sequence_4_11 | 4.92, 27.4 (3.79, 37.9 / 14.9, 9.9) | **6.44, 19.6** |
+
+**Decision**: the warm-up is not kept. It recovers R_04 at one offset and not the other, nudges R_12 / R_13 / R_09 by a few percent, and costs the dark walk a third to two thirds of its gain (the filter matters from the start there). F08b (adaptive threshold) is the remaining candidate for the medium-set loss; failing that, 3 px flat stays with its known trade.
 
 **Applicability**: general (any post-solve rejection needs a trustworthy solve first); the warm-up length is a time, so it depends on how fast the estimator converges (IMU noise, motion), not on the scene.
 
