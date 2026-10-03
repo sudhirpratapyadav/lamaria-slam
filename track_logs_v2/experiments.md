@@ -30,6 +30,12 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Decision**: ORB-SLAM3 is unparked; next, run it on the pinhole input to cover the 13 controlled sequences (C04).
 
+## A08: OKVIS2 with CLAHE input (2026-10-03, pc)
+
+**Change**: `DatasetReader.cpp` applies CLAHE (clip 10, 8x8) at image load when env `OKVIS_CLAHE` is set (`docs/patches/okvis2-a2ea006.patch`); `okvis2_a04_n10_kf10` (x10, 10 keyframes, final BA) on R_08 and R_11, offset 0.
+
+**Result**: R_11: live **0.911**, final **0.911** (scale 0.886), score **75.6** (A04 without CLAHE: live diverged at 37.6, final 1.935, score 56.7; OpenVINS 72, Basalt 73.3, ORB-SLAM3 65.6). The live path no longer diverges, and the final BA does not need to rescue it. 5220 s wall at 1.6 cores, 5.2 GB RSS. R_08: pending.
+
 ## M03: three-system oracle on the controlled set (2026-10-03, pc, analysis only)
 
 Offset 0, ATE sim3 m: OpenVINS ov_ref005 (v1 032), Basalt B07, OKVIS2 final BA (A07).
@@ -77,6 +83,30 @@ Basalt wins 7, OKVIS2 5, OpenVINS 1 (R_11). A per-sequence oracle would cut the 
 OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's 2.46), carried by R_12 (4.5 against 12.9: the long control-point walk where Basalt's heading goes wrong, see B18) and the easy sequences; Basalt wins every medium sequence and R_08 by about 2x. The two are complementary: the per-sequence oracle of the pair is **1.66 m**. OKVIS2's live (causal) path diverges on R_11 and is 1.2 to 1.6x worse than its final BA elsewhere; its fitted scale sits at 0.81 to 0.96 (Basalt 0.97 to 0.99), so a scale drift is part of its error. Cost: R_13 took 2.7 h on two cores and 4.4 GB; 5 to 10x Basalt.
 
 **Decision**: OKVIS2 stays in the mix as the non-causal, high-accuracy member for a selector (M03), not as the base to optimise. Next: A08 (CLAHE) on R_08/R_11, and a 13-sequence three-way oracle with OpenVINS.
+
+## B22: Basalt with the 1.5 m near-landmark cap on the additional set (2026-10-03, pc)
+
+**Change**: `BASALT_MAX_INV_DIST=0.67` (reject landmarks triangulated closer than 1.5 m, B20) with `basalt_ref1`, robust driver, offset 0, on the ten additional sequences (2_11, 3_18, 4_11 taken from B20) and R_01 as an indoor control.
+
+**Result** (score 2D; recall @ 5 m where it changed):
+
+| Seq | cap 1.5 m | basalt_ref1 (B08) | Huber 0.5 (B18) | OpenVINS ov_ref005 |
+|---|---|---|---|---|
+| 1_19 | **71.7** | 64.1 | 69.0 | 40.0 |
+| 1_20 | 34.3 (recall 82.8) | 39.6 | 38.3 | **46.3** |
+| 2_11 | 22.0 | 20.7 | **24.1** | 11.6 |
+| 2_12 | 10.0 | 5.3 | 6.4 | **29.0** |
+| 3_17 | 6.7 | 4.3 | 1.3 | **9.9** |
+| 3_18 | 1.9 | **2.4** | 2.9 | 13.1 |
+| 4_10 | **14.6** | 8.4 | 8.0 | 0.9 |
+| 4_11 | **42.1** (recall 99.6) | 9.9 | 37.1 | 30.2 |
+| 5_11 (platform) | **12.6** | 6.9 | 6.7 | 28.4 |
+| 5_12 (platform) | **0** (two restarts, then the estimator stopped at 273 s; control-point alignment failed) | 7.6 | 3.6 | 8.5 |
+| mean | 21.6 | 16.9 | 19.7 | 21.8 |
+
+R_01 (indoor control): 0.165 (reference 0.151). The cap is the best Basalt setting on six of the ten and ties OpenVINS's mean, but it kills the moving-platform sequence 5_12 (the vehicle interior is near structure) and loses 1_20, so as a single setting it is a wash on the mean. A per-sequence oracle over the three Basalt settings is 23.2; adding OpenVINS, 28.8 (leaders: 60 to 75).
+
+**Decision**: parked as a setting of record for the outdoor walks. Together with B20/B21 the conclusion is that near-feature rejection is a strong lever that needs a scene-aware trigger rather than a constant; that is a v3 design item, not a config round.
 
 ## B21: Basalt, near-landmark cap relative to the scene (2026-10-03, pc)
 
