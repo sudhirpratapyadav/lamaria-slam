@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..eb72d53 100644
+index d16e708..62f8a61 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -58,7 +58,7 @@ index d16e708..eb72d53 100644
  #include <thread>
  
  #include <sophus/se2.hpp>
-@@ -108,7 +112,43 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -108,7 +112,56 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
    }
  
@@ -66,7 +66,7 @@ index d16e708..eb72d53 100644
 +  // masked). New corners are not detected inside it and tracks entering it are dropped. A frame
 +  // without a mask file keeps the previous mask.
 +  cv::Mat mask0;
-+  long mask_frames = 0, mask_missing = 0, mask_dropped = 0;
++  long mask_frames = 0, mask_missing = 0, mask_dropped = 0, mask_oversized = 0;
 +  void loadMask(int64_t curr_t_ns) {
 +    static const char* dir = std::getenv("BASALT_MASK_DIR");
 +    static bool announced = false;
@@ -76,10 +76,23 @@ index d16e708..eb72d53 100644
 +    }
 +    if (!(dir && *dir)) return;
 +    cv::Mat m = cv::imread(std::string(dir) + "/" + std::to_string(curr_t_ns) + ".png", cv::IMREAD_GRAYSCALE);
-+    if (m.empty()) mask_missing++; else mask0 = m;
++    // a mask covering more than BASALT_MASK_MAX_FRAC of the image is a detector failure (or the
++    // body filling the view): ignore it for this frame rather than starve the tracker
++    static const double max_frac = [] {
++      const char* e = std::getenv("BASALT_MASK_MAX_FRAC");
++      return (e && *e) ? std::atof(e) : 0.4;
++    }();
++    if (m.empty()) {
++      mask_missing++;
++    } else if (double(cv::countNonZero(m)) / double(m.total()) > max_frac) {
++      mask_oversized++;
++      mask0 = cv::Mat();
++    } else {
++      mask0 = m;
++    }
 +    if (++mask_frames % 1000 == 0)
 +      std::cerr << "mask: " << mask_frames << " frames, " << mask_missing << " without a mask file, "
-+                << mask_dropped << " tracked points dropped" << std::endl;
++                << mask_oversized << " oversized masks ignored, " << mask_dropped << " tracked points dropped" << std::endl;
 +  }
 +  bool masked(const Eigen::Vector2f& p) const {
 +    if (mask0.empty()) return false;
@@ -102,7 +115,7 @@ index d16e708..eb72d53 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -167,6 +207,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -167,6 +220,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
        transforms = new_transforms;
        transforms->input_images = new_img_vec;
  
@@ -110,7 +123,7 @@ index d16e708..eb72d53 100644
        addPoints();
        filterPoints();
      }
-@@ -324,6 +365,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -324,6 +378,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
          new_poses1;
  
      for (size_t i = 0; i < kd.corners.size(); i++) {

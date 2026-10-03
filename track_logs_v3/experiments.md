@@ -46,7 +46,9 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 
 **Command**: `results/v3-F02-person-masks/masks.sh` (masks for R_12, 4_11, 2_11, 3_18, R_08, R_11), then `batch.sh` (one run per sequence as soon as its masks exist).
 
-**Result**: pending.
+**First pass (confidence 0.25), void**: R_12 came out at 18.7 m, score 5.5 (reference 12.9 / 12.0) with the heading swing at 450 to 510 s grown to -25 / +35 degrees. Cause: in 22 % of the frames the mask covered more than 10 % of the image and in 3 % more than 90 %. Looking down at the pavement, the detector returns a confident mask on the feet (0.54) plus a low-confidence "person" box (0.29) spanning the whole image; the union starved the tracker exactly in the stretch that matters. Fixes: masks regenerated at confidence 0.4, and Basalt now ignores any mask covering more than `BASALT_MASK_MAX_FRAC` (0.4) of the image.
+
+**Result** (second pass): pending.
 
 **Applicability**: general wherever people or the robot's own body enter the view (homes, streets); costs a segmentation per frame (about 25 ms on an Orin for the detection-only model, more for masks); fails on reflections and on body parts the detector does not recognise; no help in dark or low-texture stretches.
 
