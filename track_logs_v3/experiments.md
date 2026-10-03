@@ -335,3 +335,11 @@ First lesson: XFeat points as the *main* seeds are bad for KLT (R_08 with XFeat 
 **Result**: 0.920 / 0.915 / 0.914 m, the same two restarts at the same frames. So a run repeats to about half a percent (TBB reduction order is the only noise), which is well below every effect read in v3 so far. The F07 run of the same setting on the 18:34 build gave 1.22 m with the same two restarts: that build predates the X05 guard, which changes what happens *after* a divergence (degenerate landmarks are now dropped), and the restart dynamics after frame 393 differ. Cross-build comparisons on sequences with restarts carry that extra noise; comparisons within one build do not.
 
 **Applicability**: method note; it means single runs are enough for settings on one binary, and that the reference numbers should be re-taken on the current binary when restarts are involved.
+
+## X06b: the residual distribution on the dark walk (2026-10-04, pc, analysis)
+
+**Method**: as X06, sequence_4_11 at offset 0, single process, no filter and the 3 px filter.
+
+**Result**: without a filter the solve on 4_11 is globally off: 60 to 150 observations per frame on 13 to 31 landmarks (R_04: 400 to 550 on 60 to 100), median residual **1.4 to 4.8 px**, p90 4 to 19 px, 10 to 40 % of the observations above 3 px, in 14762 of 22541 frames more than 2 % above 3 px. With the filter the same walk sits at a median of 0.22 px, p99 1.2 to 2 px, 0.2 % above 3 px, with the *same* landmark counts: the filter does not thin the map, it removes the observations that keep the solve from converging. That is why every rule that pauses the filter in "bursts" (F08 warm-up, F08d burst skip) loses the dark walk: on 4_11 the burst is the normal state. R_04's burst is the opposite: a few huge residuals among a solve whose median stays at 0.22 px. The separating signal is the median residual, so F08e skips a burst only when the median is below 1 px (`BASALT_OUTLIER_SKIP_MED`); X06c dumps 2_11 to see which of the two it is.
+
+**Applicability**: diagnostic; the numbers say the dark walk runs on a handful of landmarks with very noisy observations, which is the regime where a learned tracker with real robustness would matter (F11 and successors), not a detector swap (F10).

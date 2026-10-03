@@ -344,7 +344,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..5a95b6a 100644
+index 2960dad..ebed785 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -355,7 +355,7 @@ index 2960dad..5a95b6a 100644
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -273,42 +274,127 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -273,42 +274,143 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
    computeError(error, &outliers, outlier_threshold);
  
@@ -403,13 +403,29 @@ index 2960dad..5a95b6a 100644
 +  computeError(error, &all, Scalar(0));
 +
 +  size_t n_total = 0, n_above = 0;
++  std::vector<Scalar> all_es;
 +  for (const auto& kv : all)
 +    for (const auto& kv2 : kv.second)
-+      if (kv2.second >= 0) { n_total++; if (kv2.second > thr) n_above++; }
++      if (kv2.second >= 0) { n_total++; all_es.push_back(kv2.second); if (kv2.second > thr) n_above++; }
 +  if (n_total == 0) return true;
 +  if (max_frac > 0 && Scalar(n_above) > max_frac * Scalar(n_total)) {
-+    filter_skipped_frames++;
-+    return false;
++    // BASALT_OUTLIER_SKIP_MED (px, 0 = off): a burst is skipped only when the solve is otherwise good
++    // (median residual below this); a high median means the solve itself is off (X06b: the dark walk
++    // without a filter sits at 1.4 to 4.8 px) and the filter is what brings it back
++    static const Scalar skip_med = [] {
++      const char* e = std::getenv("BASALT_OUTLIER_SKIP_MED");
++      return Scalar((e && *e) ? std::atof(e) : 0.0);
++    }();
++    bool skip = true;
++    if (skip_med > 0) {
++      const size_t m = all_es.size() / 2;
++      std::nth_element(all_es.begin(), all_es.begin() + m, all_es.end());
++      skip = all_es[m] < skip_med;
++    }
++    if (skip) {
++      filter_skipped_frames++;
++      return false;
++    }
 +  }
  
 -    //    std::cout << "\tlm_id: " << kv.first << " num_obs: " << num_obs
