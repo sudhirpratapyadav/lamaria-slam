@@ -59,3 +59,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 08:01** D04 variant 25/4 worse on 4 of 5; adaptive pixel noise not kept (mechanism stays off by default); gentler 20/2 variant running as a last check.
 - **2026-10-03 08:43** D04 closed: discard (all three adaptive-noise variants lose on R_08/R_11/4_11, ties elsewhere).
 - **2026-10-03 08:57** C03: ORB-SLAM3 R_08 crash found with gdb: the EuRoC example reads past its IMU vector at the last image (2.9 ms after the last IMU sample). Bounds check added, R_08 rerunning.
+- **2026-10-03 09:10** C03: ORB-SLAM3 R_08 now completes: 1.38 m (Basalt 1.01, OpenVINS 1.48, OKVIS2 final 2.09), 648 frames without a pose before inertial init. ORB-SLAM3 unparked.

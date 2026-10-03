@@ -9,7 +9,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A04 x10 + 10 keyframes, final BA | R_01 **0.022**, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live) | 13-sequence batch running detached (2 at a time) | ~10x the CPU of Basalt |
 | B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; X01: the walks are lost to heading events in low-feature stretches; B16 (CLAHE) running |
-| C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
+| C ORB-SLAM3 | C01-C03 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 1.38 after the example's IMU-loop crash was fixed (C03) | | ~1.2x realtime on 2 cores; poses missing before inertial init |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
 ## C03: the ORB-SLAM3 R_08 crash (2026-10-03, pc)
@@ -18,7 +18,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Change**: bounds check on both IMU loops in `stereo_inertial_euroc.cc` (in `docs/patches/ORB_SLAM3-4452a3c.patch`). Rerun: `orbslam3_c02_n10` on fisheye R_08 (`results/v2-C03-orbslam3-crash/`).
 
-**Result**: pending.
+**Result**: R_08 completes on the first attempt: ATE sim3 **1.379 m** (scale 0.952), 11680 of 12328 poses (the first 648 images, 32 s, precede the inertial initialisation and have no pose); 730 s wall at 1.95 cores, 1.9 GB RSS. On R_08 that places ORB-SLAM3 between Basalt (1.01) and OpenVINS (1.48), ahead of OKVIS2's final BA (2.09). Its weak point is now the missing poses before initialisation (R_04: 1330 images, 66 s), which count as misses for the recall metrics.
+
+**Decision**: ORB-SLAM3 is unparked; next, run it on the pinhole input to cover the 13 controlled sequences (C04).
 
 ## A07: OKVIS2 (x10, 10 keyframes, final BA) on the 13 controlled sequences (2026-10-03, pc)
 
