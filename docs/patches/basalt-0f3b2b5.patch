@@ -57,19 +57,47 @@ index ff9df90..c7b8902 100644
  
      if (!result_path.empty()) {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..fd49a1d 100644
+index 55984fc..34dc6b0 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
-@@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+@@ -34,6 +34,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
  
  #include <basalt/vi_estimator/marg_helper.h>
 +#include <cstdlib>
 +#include <iostream>
++#include <algorithm>
++#include <limits>
++#include <vector>
  #include <basalt/vi_estimator/sqrt_keypoint_vio.h>
  
  #include <basalt/optimization/accumulator.h>
-@@ -441,8 +443,16 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,6 +412,24 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+         }
+       }
+ 
++      // lamaria-slam (B21): relative near-landmark cap, BASALT_NEAR_FRAC=f rejects new landmarks
++      // closer than f times the current median landmark distance (0 = off)
++      static const Scalar near_frac = [] {
++        const char* e = std::getenv("BASALT_NEAR_FRAC");
++        const double v = (e && *e) ? std::atof(e) : 0.0;
++        std::cerr << "BASALT_NEAR_FRAC: " << v << std::endl;
++        return Scalar(v);
++      }();
++      Scalar rel_max_inv_dist = std::numeric_limits<Scalar>::max();
++      if (near_frac > 0 && lmdb.numLandmarks() >= 20) {
++        std::vector<Scalar> invs;
++        invs.reserve(lmdb.numLandmarks());
++        for (const auto& kv_lm : lmdb.getLandmarks()) invs.push_back(kv_lm.second.inv_dist);
++        std::nth_element(invs.begin(), invs.begin() + invs.size() / 2, invs.end());
++        const Scalar median_inv = invs[invs.size() / 2];
++        if (median_inv > 0) rel_max_inv_dist = median_inv / near_frac;
++      }
++
+       // triangulate
+       bool valid_kp = false;
+       const Scalar min_triang_distance2 =
+@@ -441,8 +464,17 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          Vec4 p0_triangulated = triangulate(p0_3d.template head<3>(),
                                             p1_3d.template head<3>(), T_0_1);
  
@@ -83,7 +111,8 @@ index 55984fc..fd49a1d 100644
 +        }();
          if (p0_triangulated.array().isFinite().all() &&
 -            p0_triangulated[3] > 0 && p0_triangulated[3] < 3.0) {
-+            p0_triangulated[3] > 0 && p0_triangulated[3] < max_inv_dist) {
++            p0_triangulated[3] > 0 && p0_triangulated[3] < max_inv_dist &&
++            p0_triangulated[3] < rel_max_inv_dist) {
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =

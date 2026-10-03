@@ -78,6 +78,14 @@ OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's
 
 **Decision**: OKVIS2 stays in the mix as the non-causal, high-accuracy member for a selector (M03), not as the base to optimise. Next: A08 (CLAHE) on R_08/R_11, and a 13-sequence three-way oracle with OpenVINS.
 
+## B21: Basalt, near-landmark cap relative to the scene (2026-10-03, pc)
+
+**Hypothesis** (B20): the body/near-object features should be rejected relative to the scene depth, so that indoor sequences keep their near structure and street walks lose the wearer's body and passers-by.
+
+**Change**: `sqrt_keypoint_vio.cpp`: before triangulating a new landmark, the median inverse distance of the current landmark database is computed (once at least 20 landmarks exist); env `BASALT_NEAR_FRAC=f` rejects new landmarks closer than f times that median distance (0 = off; in `docs/patches/basalt-0f3b2b5.patch`). `basalt_ref1` otherwise, robust driver, offset 0, f = 0.25 and 0.4 on R_08, R_11, R_12, sequence_4_11, 2_11, 3_18.
+
+**Command**: `results/v2-B21-basalt-nearfrac/batch.sh`. **Result**: pending.
+
 ## B20: Basalt, reject near landmarks (2026-10-03, pc)
 
 **Hypothesis** (B18's R_12 analysis, X01): the heading excursions coincide with the wearer's own body (shoe, arm) and near moving objects in view. Basalt accepts any landmark triangulated farther than 0.33 m (a hard-coded inverse-distance cap of 3.0); refusing landmarks closer than 0.8 m or 1.5 m removes the body features at the cost of some close indoor structure.
