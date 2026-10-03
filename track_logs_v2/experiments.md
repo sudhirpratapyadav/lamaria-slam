@@ -7,7 +7,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A04 x10 + 10 keyframes (pinhole) | R_01 **0.033** (A02 final; fisheye 0.022); R_04 0.68; R_08 2.09 (final) | | slowest candidate; A06 (15 keyframes) running, A04 on R_01/R_11 queued |
+| A OKVIS2 | A04 x10 + 10 keyframes (pinhole) | R_01 **0.033** (A02 final; fisheye 0.022); R_04 0.68; R_08 2.09 (final); 15 keyframes worse on R_08 | | slowest candidate (~10x the CPU of Basalt); A04 on R_01/R_11 running |
 | B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; B09 on the long walks |
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
@@ -95,6 +95,12 @@ Cost: 2011 / 2579 s wall under heavy load (0.07 to 0.1x realtime, CPU share 70 %
 R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no divergence any more, but far behind OpenVINS 1.5 to 2.0 and Basalt 1.0 to 1.4). R_11_5cp: live 1.429 / final 1.640 (scale 0.79), score 67.2 / 62.8, recall @ 1 m 44.9 / 43.1 (OpenVINS 0.68 / 72, Basalt robust 2.6 / 73.3). The final BA does not help on the hard sequences (there are no loops; its loop-closure heuristic may even hurt).
 
 **Decision**: continue; x10 fixes the divergence but OKVIS2 is now the slowest and, on hard sequences, the least accurate of the optimisation-based candidates. A03 = x20 with loop closures off, A04 = x10 with 10 keyframes / 5 IMU frames, both on R_04 and R_08.
+
+## A06: OKVIS2 noise x10, 15 keyframes / 7 IMU frames (2026-10-03, pc)
+
+R_04: live 0.852 / final 0.639 (A04 with 10 keyframes: 0.681). R_08: live 2.943 / final 2.880 (A04: 2.089). Wall 1248 / 2440 s.
+
+**Decision**: 10 keyframes (A04, `configs/okvis2_a04_n10_kf10`) is OKVIS2's working point; 15 trades R_08 for a small R_04 gain. A04 is being completed on R_01 and R_11 for the four-sequence picture.
 
 ## A05: OKVIS2 noise x10 on the native fisheye input (2026-10-03, pc)
 
