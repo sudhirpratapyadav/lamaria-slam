@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..911f418 100644
+index d16e708..b83e6ea 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -131,7 +131,7 @@ index d16e708..911f418 100644
      if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
        output_queue->push(transforms);
      }
-@@ -178,6 +236,49 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -178,12 +236,59 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      frame_counter++;
    }
  
@@ -178,10 +178,41 @@ index d16e708..911f418 100644
 +                << ext_records << " records" << std::endl;
 +  }
 +
++  // lamaria-slam (v3 F14): optional per-point initial guess in the second image (init_map). Without
++  // it the search starts at the same pixel, which never converges across a wide stereo baseline
++  // (X06d: zero cam1 observations on the Aria pair, whose cameras are 75 degrees apart).
    void trackPoints(const basalt::ManagedImagePyr<uint16_t>& pyr_1,
                     const basalt::ManagedImagePyr<uint16_t>& pyr_2,
                     const Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>&
-@@ -308,6 +409,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+                        transform_map_1,
+                    Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>&
+-                       transform_map_2) const {
++                       transform_map_2,
++                   const Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>* init_map = nullptr) const {
+     size_t num_points = transform_map_1.size();
+ 
+     std::vector<KeypointId> ids;
+@@ -210,11 +315,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+ 
+         const Eigen::AffineCompact2f& transform_1 = init_vec[r];
+         Eigen::AffineCompact2f transform_2 = transform_1;
++        bool has_init = false;
++        if (init_map) {
++          auto it = init_map->find(id);
++          if (it != init_map->end()) { transform_2 = it->second; has_init = true; }
++        }
+ 
+         bool valid = trackPoint(pyr_1, pyr_2, transform_1, transform_2);
+ 
+         if (valid) {
+-          Eigen::AffineCompact2f transform_1_recovered = transform_2;
++          // the backward check starts where the point came from when a guess was used (the
++          // guess's own pixel is far from the original across a wide baseline)
++          Eigen::AffineCompact2f transform_1_recovered = has_init ? transform_1 : transform_2;
+ 
+           valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
+ 
+@@ -308,6 +420,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -240,7 +271,7 @@ index d16e708..911f418 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +470,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +481,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -281,6 +312,53 @@ index d16e708..911f418 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
+@@ -335,13 +524,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+     }
+ 
+     if (calib.intrinsics.size() > 1) {
+-      trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1);
++      // BASALT_STEREO_INIT=1: start the cam1 search at the projection of the cam0 bearing rotated
++      // into cam1 (a point at infinity); the pyramid then absorbs the parallax
++      static const bool stereo_init = [] {
++        const char* e = std::getenv("BASALT_STEREO_INIT");
++        const bool v = e && *e && *e != '0';
++        std::cerr << "BASALT_STEREO_INIT: " << v << std::endl;
++        return v;
++      }();
++      Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> init1;
++      if (stereo_init) {
++        const Eigen::Matrix<Scalar, 4, 4> T_c1_c0 = (calib.T_i_c[1].inverse() * calib.T_i_c[0]).matrix();
++        const auto& img1 = pyramid->at(1).lvl(0);
++        for (const auto& kv : new_poses0) {
++          Eigen::Matrix<Scalar, 4, 1> d0;
++          if (!calib.intrinsics[0].unproject(kv.second.translation(), d0)) continue;
++          d0[3] = 0;  // at infinity: rotation only
++          Eigen::Matrix<Scalar, 4, 1> d1 = T_c1_c0 * d0;
++          Eigen::Matrix<Scalar, 2, 1> p1;
++          if (!calib.intrinsics[1].project(d1, p1)) continue;
++          if (!img1.InBounds(p1[0], p1[1], 19)) continue;
++          Eigen::AffineCompact2f t = kv.second;
++          t.translation() = p1;
++          init1[kv.first] = t;
++        }
++        stereo_init_pred += init1.size();
++      }
++      trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1, stereo_init ? &init1 : nullptr);
++      stereo_new += new_poses1.size();
++      stereo_new0 += new_poses0.size();
++      if (stereo_init && ++stereo_frames % 1000 == 0)
++        std::cerr << "stereo init: " << stereo_frames << " frames, " << stereo_new0 << " new cam0 points, "
++                  << stereo_init_pred << " predicted in cam1, " << stereo_new << " stereo-matched" << std::endl;
+ 
+       for (const auto& kv : new_poses1) {
+         transforms->observations.at(1).emplace(kv);
+       }
+     }
+   }
++  long stereo_frames = 0, stereo_new0 = 0, stereo_init_pred = 0, stereo_new = 0;
+ 
+   void filterPoints() {
+     if (calib.intrinsics.size() < 2) return;
 diff --git a/include/basalt/vi_estimator/ba_base.h b/include/basalt/vi_estimator/ba_base.h
 index 61707a7..17cbfb2 100644
 --- a/include/basalt/vi_estimator/ba_base.h
@@ -552,7 +630,7 @@ index 2960dad..e509196 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..4fad6f2 100644
+index 55984fc..c819758 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -865,13 +943,13 @@ index 55984fc..4fad6f2 100644
 +    Scalar err;
 +    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> all;
 +    this->computeError(err, &all, Scalar(0));
-+    std::vector<Scalar> es; size_t failed = 0;
-+    for (const auto& kv : all) for (const auto& kv2 : kv.second) { if (kv2.second >= 0) es.push_back(kv2.second); else failed++; }
++    std::vector<Scalar> es; size_t failed = 0, cam1 = 0;
++    for (const auto& kv : all) for (const auto& kv2 : kv.second) { if (kv2.second >= 0) es.push_back(kv2.second); else failed++; if (kv2.first.cam_id == 1) cam1++; }
 +    std::sort(es.begin(), es.end());
 +    auto q = [&](double f) { return es.empty() ? Scalar(0) : es[std::min(es.size() - 1, size_t(f * es.size()))]; };
 +    const size_t above3 = es.end() - std::lower_bound(es.begin(), es.end(), Scalar(3));
 +    resid_dump << frames_since_init << ' ' << es.size() << ' ' << q(0.5) << ' ' << q(0.9) << ' ' << q(0.99) << ' '
-+               << above3 << ' ' << failed << ' ' << lmdb.numLandmarks() << '\n';
++               << above3 << ' ' << failed << ' ' << lmdb.numLandmarks() << ' ' << cam1 << '\n';
 +  }
 +  static size_t adapt_removed_total = 0;
 +  static Scalar adapt_thr_sum = 0;

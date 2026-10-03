@@ -388,3 +388,13 @@ What is left to separate them is *where in time* the large residuals sit. The su
 **Result**: pending (tracks regenerating with the stereo initialisation).
 
 **Applicability**: the mechanism is general and cheap (one descriptor pass every 5 frames); it can only help where tracks are lost and found again (occlusions, people, momentary darkness); it does nothing for a stretch where nothing is trackable; the matcher's thresholds are descriptor-specific.
+
+## X06d: Basalt has no stereo observations on this sensor (2026-10-04, pc, analysis)
+
+**Method**: the residual dump extended with the count of cam1 observations in the landmark database, R_04 and sequence_4_11, 3 px filter, first 5000 to 7000 frames.
+
+**Result**: **zero cam1 observations** on both sequences (R_04: 457 observations per frame on 93 landmarks, all cam0; 4_11: 82 on 23, all cam0). Basalt's stereo step tracks each new cam0 point into cam1 starting at the *same pixel*; the Aria SLAM cameras are 75 degrees apart (calibration), so the corresponding pixel is hundreds of pixels away or outside cam1, the search never converges, and the epipolar filter removes what little it returns. Every Basalt number in v2 and v3 is therefore monocular plus IMU: scale from the accelerometer alone (which is why the fitted sim3 scales sit at 0.97 to 0.99 and never at 1.00), depth of new landmarks from temporal parallax only, and nothing from the second camera in the dark stretches where temporal tracking is poorest.
+
+**Fix (F14)**: `BASALT_STEREO_INIT=1`: the cam1 search starts at the projection of the cam0 bearing rotated into cam1 (point at infinity; generic through the camera models, no pinhole assumption), the pyramid absorbs the parallax, and the backward check starts from the original cam0 pixel. In Python the same initialisation converged for 90 of 102 predicted-visible corners on a lit frame of 4_11 (F13 note). Six event sequences queued with the F12 candidate settings.
+
+**Applicability**: general for any wide-baseline or canted stereo rig (this hardware's HJY1A pair at 60 mm with parallel axes would not need it, but it costs nothing there); it is also the kind of silent failure to check first on a new sensor: count the stereo observations.
