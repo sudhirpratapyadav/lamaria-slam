@@ -43,6 +43,81 @@ index 862011c..564f2ec 100644
          if (img.type() == CV_8UC1) {
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
+diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
+index d16e708..eb72d53 100644
+--- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
++++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
+@@ -35,6 +35,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+ #pragma once
+ 
++#include <opencv2/imgcodecs.hpp>
++#include <opencv2/core.hpp>
++#include <cstdlib>
++#include <iostream>
+ #include <thread>
+ 
+ #include <sophus/se2.hpp>
+@@ -108,7 +112,43 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+     }
+   }
+ 
++  // lamaria-slam (v3 F02): optional per-frame mask for cam0 (BASALT_MASK_DIR/<t_ns>.png, 255 =
++  // masked). New corners are not detected inside it and tracks entering it are dropped. A frame
++  // without a mask file keeps the previous mask.
++  cv::Mat mask0;
++  long mask_frames = 0, mask_missing = 0, mask_dropped = 0;
++  void loadMask(int64_t curr_t_ns) {
++    static const char* dir = std::getenv("BASALT_MASK_DIR");
++    static bool announced = false;
++    if (!announced) {
++      announced = true;
++      std::cerr << "BASALT_MASK_DIR: " << ((dir && *dir) ? dir : "off") << std::endl;
++    }
++    if (!(dir && *dir)) return;
++    cv::Mat m = cv::imread(std::string(dir) + "/" + std::to_string(curr_t_ns) + ".png", cv::IMREAD_GRAYSCALE);
++    if (m.empty()) mask_missing++; else mask0 = m;
++    if (++mask_frames % 1000 == 0)
++      std::cerr << "mask: " << mask_frames << " frames, " << mask_missing << " without a mask file, "
++                << mask_dropped << " tracked points dropped" << std::endl;
++  }
++  bool masked(const Eigen::Vector2f& p) const {
++    if (mask0.empty()) return false;
++    const int x = int(p.x() + 0.5f), y = int(p.y() + 0.5f);
++    return x >= 0 && y >= 0 && x < mask0.cols && y < mask0.rows && mask0.at<uint8_t>(y, x) > 0;
++  }
++  void dropMaskedTracks(OpticalFlowResult::Ptr& res) {
++    if (mask0.empty() || res->observations.empty()) return;
++    std::vector<KeypointId> drop;
++    for (const auto& kv : res->observations.at(0))
++      if (masked(kv.second.translation())) drop.push_back(kv.first);
++    for (KeypointId id : drop) {
++      for (auto& obs : res->observations) obs.erase(id);
++      mask_dropped++;
++    }
++  }
++
+   void processFrame(int64_t curr_t_ns, OpticalFlowInput::Ptr& new_img_vec) {
++    loadMask(curr_t_ns);
+     for (const auto& v : new_img_vec->img_data) {
+       if (!v.img.get()) return;
+     }
+@@ -167,6 +207,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+       transforms = new_transforms;
+       transforms->input_images = new_img_vec;
+ 
++      dropMaskedTracks(transforms);
+       addPoints();
+       filterPoints();
+     }
+@@ -324,6 +365,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+         new_poses1;
+ 
+     for (size_t i = 0; i < kd.corners.size(); i++) {
++      if (masked(kd.corners[i].cast<float>())) continue;
+       Eigen::AffineCompact2f transform;
+       transform.setIdentity();
+       transform.translation() = kd.corners[i].cast<Scalar>();
 diff --git a/src/mapper.cpp b/src/mapper.cpp
 index ff9df90..c7b8902 100644
 --- a/src/mapper.cpp
