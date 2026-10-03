@@ -11,7 +11,7 @@ diff --git a/external/opengv b/external/opengv
 -Subproject commit 91f4b19c73450833a40e463ad3648aae80b3a7f3
 +Subproject commit 91f4b19c73450833a40e463ad3648aae80b3a7f3-dirty
 diff --git a/okvis_multisensor_processing/src/DatasetReader.cpp b/okvis_multisensor_processing/src/DatasetReader.cpp
-index c77e071..60b8048 100644
+index c77e071..d70f0e0 100644
 --- a/okvis_multisensor_processing/src/DatasetReader.cpp
 +++ b/okvis_multisensor_processing/src/DatasetReader.cpp
 @@ -36,6 +36,9 @@
@@ -34,9 +34,9 @@ index c77e071..60b8048 100644
 +  static bool announced = false;
 +  if (!announced) {
 +    announced = true;
-+    std::cerr << "OKVIS_CLAHE: " << (env ? env : "off") << std::endl;
++    std::cerr << "OKVIS_CLAHE: " << ((env && *env) ? env : "off") << std::endl;
 +  }
-+  if (env && img.type() == CV_8UC1) {
++  if (env && *env && img.type() == CV_8UC1) {
 +    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(std::atof(env), cv::Size(8, 8));
 +    clahe->apply(img, img);
 +  }

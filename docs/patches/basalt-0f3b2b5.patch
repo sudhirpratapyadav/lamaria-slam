@@ -12,7 +12,7 @@ index b827394..f6cc0e3 100644
  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
    set(BASALT_CXX_FLAGS "${BASALT_CXX_FLAGS} -Wno-exceptions -fcolor-diagnostics -Wno-error=deprecated-declarations")
 diff --git a/include/basalt/io/dataset_io_euroc.h b/include/basalt/io/dataset_io_euroc.h
-index 862011c..c847c3a 100644
+index 862011c..564f2ec 100644
 --- a/include/basalt/io/dataset_io_euroc.h
 +++ b/include/basalt/io/dataset_io_euroc.h
 @@ -39,6 +39,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -33,9 +33,9 @@ index 862011c..c847c3a 100644
 +        static bool clahe_announced = false;
 +        if (!clahe_announced) {
 +          clahe_announced = true;
-+          std::cerr << "BASALT_CLAHE: " << (clahe_env ? clahe_env : "off") << std::endl;
++          std::cerr << "BASALT_CLAHE: " << ((clahe_env && *clahe_env) ? clahe_env : "off") << std::endl;
 +        }
-+        if (clahe_env && img.type() == CV_8UC1) {
++        if (clahe_env && *clahe_env && img.type() == CV_8UC1) {
 +          cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(std::atof(clahe_env), cv::Size(8, 8));
 +          clahe->apply(img, img);
 +        }

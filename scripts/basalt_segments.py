@@ -39,9 +39,11 @@ def run_basalt(seq_dir, out, skip, calib, config, threads):
         os.symlink("../" + okin.name, link)
     seg = out / f"segment_skip{skip}"
     seg.mkdir(exist_ok=True)
-    env = dict(os.environ, LD_LIBRARY_PATH=str(Path.home() / ".local/lib") + ":" + os.environ.get("LD_LIBRARY_PATH", ""))
+    binary = os.environ.get("BASALT_VIO", str(Path.home() / ".local/bin/basalt_vio"))
+    # the binary's own folder first: a source build must not pick up the release libbasalt.so from ~/.local/lib
+    env = dict(os.environ, LD_LIBRARY_PATH=":".join([str(Path(binary).resolve().parent), str(Path.home() / ".local/lib"), os.environ.get("LD_LIBRARY_PATH", "")]))
     with open(seg / "basalt.log", "w") as log:
-        r = subprocess.run([os.environ.get("BASALT_VIO", str(Path.home() / ".local/bin/basalt_vio")), "--dataset-path", str(bin_dir), "--dataset-type", "euroc",
+        r = subprocess.run([binary, "--dataset-path", str(bin_dir), "--dataset-type", "euroc",
                             "--cam-calib", str(calib), "--config-path", str(config), "--save-trajectory", "tum", "--show-gui", "false",
                             "--num-threads", str(threads), "--use-imu", "true"], cwd=seg, env=env, stdout=log, stderr=subprocess.STDOUT)
     traj = seg / "trajectory.txt"
