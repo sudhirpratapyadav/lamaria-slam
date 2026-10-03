@@ -56,3 +56,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 06:55** B16 complete: CLAHE is a tie for Basalt on all seven sequences (long walks identical to the second decimal). Discarded; patch stays off by default.
 - **2026-10-03 06:57** B15 closed: discard (tighter thresholds restart on normal head motion; 2_12 run lost to the job limit, not rerun).
 - **2026-10-03 07:34** B17: Huber 0.5 improves Basalt on R_08 (0.82 vs 1.00), R_11 (2.14 vs 2.60, score 76.6) and 3_18 (71.7 vs 81.0); obs-std 1.0 px cuts ATE but costs scores; outlier gate and epipolar no-ops. B18 launched: Huber 0.5 on all 13 x 2 offsets + additional 10, Huber 0.3 direction check. D04 adapt30x3 mixed (R_08/3_18 gain, R_11/4_11 lose; fires on 10-40 % of frames).
+- **2026-10-03 08:01** D04 variant 25/4 worse on 4 of 5; adaptive pixel noise not kept (mechanism stays off by default); gentler 20/2 variant running as a last check.
