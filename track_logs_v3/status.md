@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-03 15:24 IST. Edit in place.
+Last updated: 2026-10-03 16:45 IST. Edit in place.
 
 ## What v3 is
 
@@ -20,8 +20,11 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 
 ## Where things stand
 
-- Research survey of the four areas running (agent); results go into `docs/v3_frontend_survey.md`.
-- Nothing built yet.
+- Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own outlier filter.
+- F01 (IMU-consistency gate on existing landmarks + post-solve filter): gate 5 px on the six event sequences: 4_11 14.9 to 8.0 m (score 9.9 to 16.0), R_11 2.61 to 2.15 (score 73 to 78.5), 2_11 30.9 to 25.1 (score 20.7 to 26.7), R_08 worse (1.01 to 1.33), R_12 about the same; other variants running.
+- F02 (person masks from YOLO11n-seg in the optical flow): first pass void (low-confidence whole-image boxes starved the tracker); masks regenerating at confidence 0.4 with an oversized-mask guard.
+- F03 (temporal epipolar gate on new landmarks): queued behind F01.
+- X02/X04 diagnostics: the dark walk 4_11 is the "too few usable features" failure (XFeat finds no more there either; the gate fires uniformly), R_12 is the "wrong features" failure (gate fires exactly on the shoe episode, in the image centre, so no static mask is possible).
 
 ## Next
 
