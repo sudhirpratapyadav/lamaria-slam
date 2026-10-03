@@ -67,6 +67,9 @@ public:
    */
   void update(std::shared_ptr<State> state, std::vector<std::shared_ptr<ov_core::Feature>> &feature_vec);
 
+  /// lamaria-slam: change the measurement noise at runtime (adaptive pixel noise)
+  void set_sigma_pix(double s) { _options.sigma_pix = s; _options.sigma_pix_sq = s * s; }
+
 protected:
   /// Options used during update
   UpdaterOptions _options;

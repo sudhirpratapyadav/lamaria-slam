@@ -717,3 +717,8 @@ void VioManager::do_feature_propagate_update(const ov_core::CameraData &message)
                state->_calib_imu_tg->value()(7), state->_calib_imu_tg->value()(8));
   }
 }
+
+void VioManager::set_pixel_noise_scale(double k) {
+  updaterMSCKF->set_sigma_pix(params.msckf_options.sigma_pix * k);
+  updaterSLAM->set_sigma_pix(params.slam_options.sigma_pix * k);
+}

@@ -128,6 +128,9 @@ public:
   /// LaMAria: access the feature tracker (e.g. to set a blur-adaptive KLT window per frame)
   std::shared_ptr<ov_core::TrackBase> get_track_feats() { return trackFEATS; }
 
+  /// lamaria-slam: scale the MSCKF and SLAM pixel noise relative to the configured values
+  void set_pixel_noise_scale(double k);
+
   /// Return the image used when projecting the active tracks
   void get_active_image(double &timestamp, cv::Mat &image) {
     timestamp = active_tracks_time;

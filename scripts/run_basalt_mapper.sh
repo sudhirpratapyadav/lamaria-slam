@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="$(cd "$1" && pwd)"; SEQ_DIR="$(cd "$2" && pwd)"; OUT_DIR="$3"
 BIN="$ROOT/third_party/basalt/build/release"
-export LD_LIBRARY_PATH="$HOME/.local/lib:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$BIN:$HOME/.local/lib:${LD_LIBRARY_PATH:-}"  # source build libs first
 PY="${PY:-$ROOT/.venv/bin/python}"
 SEQ="$(basename "$SEQ_DIR")"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"

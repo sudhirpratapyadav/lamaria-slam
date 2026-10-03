@@ -52,6 +52,12 @@ int main(int argc, char **argv) {
     int klt_win_blur = 0; double klt_blur_threshold = 0;
     parser->parse_config("klt_win_blur", klt_win_blur, false);
     parser->parse_config("klt_blur_threshold", klt_blur_threshold, false);
+    // v2 D04: when fewer than adapt_noise_min_feats features (MSCKF + SLAM) were used in the last
+    // update, scale the pixel noise by adapt_noise_factor for the next frame (0 = off).
+    int adapt_noise_min_feats = 0; double adapt_noise_factor = 3.0;
+    parser->parse_config("adapt_noise_min_feats", adapt_noise_min_feats, false);
+    parser->parse_config("adapt_noise_factor", adapt_noise_factor, false);
+    long degraded_frames = 0;
     const int klt_win_base = opts.klt_win_size > 0 ? opts.klt_win_size : 15;
     const int klt_pyr_base = opts.klt_pyr_levels > 0 ? opts.klt_pyr_levels : 5;
     auto make_system = [&]() { return std::make_shared<ov_msckf::VioManager>(opts); };
@@ -147,8 +153,13 @@ int main(int argc, char **argv) {
       const auto before = std::chrono::steady_clock::now();
       sys->feed_measurement_camera(cam);
       const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
-      timings << timestamp << ',' << seconds << ',' << sys->initialized() << ','
-              << sys->get_good_features_MSCKF().size() << ',' << sys->get_features_SLAM().size() << '\n';
+      const size_t n_msckf = sys->get_good_features_MSCKF().size(), n_slam = sys->get_features_SLAM().size();
+      timings << timestamp << ',' << seconds << ',' << sys->initialized() << ',' << n_msckf << ',' << n_slam << '\n';
+      if (adapt_noise_min_feats > 0 && sys->initialized()) {
+        const bool degraded = (long)(n_msckf + n_slam) < adapt_noise_min_feats;
+        sys->set_pixel_noise_scale(degraded ? adapt_noise_factor : 1.0);
+        if (degraded) degraded_frames++;
+      }
       frames++;
       const auto state = sys->get_state();
       if (sys->initialized() && state->_timestamp > last_state) {
@@ -202,7 +213,7 @@ int main(int argc, char **argv) {
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     std::ofstream stats(out / "run_stats.json");
     stats << "{\"frames\":" << frames << ",\"poses\":" << poses << ",\"imu_samples\":" << idx
-          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"skipped_start_frames\":" << skipped_start << ",\"reinits\":" << reinits << ",\"wall_seconds\":" << wall << "}\n";
+          << ",\"skipped_no_imu_coverage\":" << skipped << ",\"skipped_start_frames\":" << skipped_start << ",\"reinits\":" << reinits << ",\"degraded_frames\":" << degraded_frames << ",\"wall_seconds\":" << wall << "}\n";
     std::cout << "Finished: " << frames << " stereo pairs, " << poses << " poses, " << wall << " seconds" << std::endl;
     if (!poses) throw std::runtime_error("Estimator never initialized");
   } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }

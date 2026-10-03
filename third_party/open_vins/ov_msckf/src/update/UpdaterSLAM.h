@@ -86,6 +86,9 @@ public:
    */
   void change_anchors(std::shared_ptr<State> state);
 
+  /// lamaria-slam: change the SLAM measurement noise at runtime (adaptive pixel noise)
+  void set_sigma_pix(double s) { _options_slam.sigma_pix = s; _options_slam.sigma_pix_sq = s * s; }
+
 protected:
   /**
    * @brief Shifts landmark anchor to new clone

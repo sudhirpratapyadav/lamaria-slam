@@ -12,6 +12,16 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
+## D04: adaptive pixel noise when features collapse (2026-10-03, pc)
+
+**Hypothesis** (from X01): the heading events happen while few features are tracked; the few that remain (reflections, pedestrians, the wearer's arm) pull the orientation. If the vision noise is inflated while the feature count is low, the IMU holds the heading through the stretch at the cost of some position drift.
+
+**Change**: OpenVINS `VioManager::set_pixel_noise_scale(k)` (new, scales the MSCKF and SLAM `sigma_pix` at runtime); the runner reads `adapt_noise_min_feats` and `adapt_noise_factor` from `estimator.yaml` and, after each update, scales the noise by the factor for the next frame when MSCKF + SLAM features used were below the minimum; `run_stats.json` reports `degraded_frames`. Configs `configs/explore-v2D04/adapt30x3` (minimum 30, factor 3) and `adapt25x4` on ov_ref005.
+
+**Command**: `results/v2-D04-adaptive-noise/batch.sh` (offset 0, R_01 sanity run, then sequence_2_11 / 3_18 / 4_11, R_08, R_11 per variant).
+
+**Result**: pending.
+
 ## B16: Basalt with CLAHE input (2026-10-03, pc)
 
 **Hypothesis** (from X01): Basalt's heading errors sit in low-feature stretches (dark, low texture, overexposed). v1 found CLAHE worth 0.36 m mean and 1.2 to 2.0 m on the hard sequences for OpenVINS (v1 026); Basalt gets raw images, so the same preprocessing should recover texture for its optical flow.
@@ -20,7 +30,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Command**: `results/v2-B16-basalt-clahe/batch.sh` (robust driver, `basalt_ref1`, offset 0, 2 runs at a time): R_04 control, then CLAHE on R_01 / R_04 / R_08 / R_11 / sequence_2_11 / 3_18 / 4_11.
 
-**Result**: pending.
+**Result** (ATE sim3 m, offset 0; reference = B07 release binary): R_04 control with the source build 0.779 (B07 0.781: the source build reproduces the release); CLAHE 10: R_04 0.785, R_08 1.000 (1.005), R_11 2.589, score 73.2 (2.605, 73.3). Ties within 1 %: Basalt's patch-based optical flow with its adaptive FAST threshold is insensitive to contrast, unlike OpenVINS's KLT front end. Long walks pending.
+
+**Note**: the first pass of this experiment was void. The source-built `basalt_vio` had been loading the release `libbasalt.so` from `~/.local/lib` (the driver put that folder first in `LD_LIBRARY_PATH`), so the patched loader never ran; the one-time `BASALT_CLAHE:` announcement in the log exposed it. Fixed in `basalt_segments.py` and `run_basalt_mapper.sh` (binary folder first). The B12/B14 mapper results are unaffected (the mapper patch is in the executable).
 
 ## B15: tighter restart thresholds for the robust Basalt driver (2026-10-03, pc)
 
