@@ -337,7 +337,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..aff6405 100644
+index 2960dad..a8c8537 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -348,14 +348,15 @@ index 2960dad..aff6405 100644
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -311,6 +312,54 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -311,6 +312,37 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    // std::endl;
  }
  
 +template <class Scalar_>
 +Scalar_ BundleAdjustmentBase<Scalar_>::filterOutliersAdaptive(Scalar floor_px, Scalar k, int min_num_obs,
 +                                                              size_t* removed_obs) {
-+  // every valid residual (threshold 0 collects them all; -2 marks a failed projection)
++  // statistics pass: every non-host residual (threshold 0 collects them all; computeError reports
++  // the host observation as -2 and a failed projection as -1 at any threshold, both skipped here)
 +  Scalar error;
 +  std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> all;
 +  computeError(error, &all, Scalar(0));
@@ -375,28 +376,10 @@ index 2960dad..aff6405 100644
 +    thr = std::max(floor_px, med + k * sigma);
 +  }
 +
-+  size_t n_removed = 0;
-+  for (const auto& kv : all) {
-+    std::vector<std::pair<TimeCamId, Scalar>> bad;
-+    bool remove = false;
-+    for (const auto& kv2 : kv.second) {
-+      if (kv2.second == -2) remove = true;
-+      if (kv2.second == -2 || kv2.second > thr) bad.push_back(kv2);
-+    }
-+    if (bad.empty()) continue;
-+    const int num_obs = lmdb.numObservations(kv.first);
-+    if (num_obs - int(bad.size()) < min_num_obs) remove = true;
-+    if (remove) {
-+      n_removed += num_obs;
-+      lmdb.removeLandmark(kv.first);
-+    } else {
-+      std::set<TimeCamId> obs;
-+      for (const auto& kv2 : bad) obs.emplace(kv2.first);
-+      n_removed += obs.size();
-+      lmdb.removeObservations(kv.first, obs);
-+    }
-+  }
-+  if (removed_obs) *removed_obs = n_removed;
++  // removal pass with upstream's own rules (host observation above the threshold removes the landmark)
++  const int before = lmdb.numObservations();
++  filterOutliers(thr, min_num_obs);
++  if (removed_obs) *removed_obs = size_t(std::max(0, before - lmdb.numObservations()));
 +  return thr;
 +}
 +
@@ -404,7 +387,7 @@ index 2960dad..aff6405 100644
  void BundleAdjustmentBase<Scalar_>::computeDelta(const AbsOrderMap& marg_order,
                                                   VecX& delta) const {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..ee17790 100644
+index 55984fc..8438a58 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -671,7 +654,7 @@ index 55984fc..ee17790 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1605,53 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1605,71 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
@@ -707,6 +690,24 @@ index 55984fc..ee17790 100644
 +    std::cerr << "BASALT_OUTLIER_ADAPT: " << v << std::endl;
 +    return Scalar(v);
 +  }();
++  // X06 diagnostic: BASALT_RESID_DUMP=file writes per frame the residual distribution after the solve
++  // (count, median, p90, p99, count above 3 px, failed projections) before any filtering
++  static std::ofstream resid_dump = [] {
++    const char* e = std::getenv("BASALT_RESID_DUMP");
++    return (e && *e) ? std::ofstream(e) : std::ofstream();
++  }();
++  if (resid_dump.is_open()) {
++    Scalar err;
++    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> all;
++    this->computeError(err, &all, Scalar(0));
++    std::vector<Scalar> es; size_t failed = 0;
++    for (const auto& kv : all) for (const auto& kv2 : kv.second) { if (kv2.second >= 0) es.push_back(kv2.second); else failed++; }
++    std::sort(es.begin(), es.end());
++    auto q = [&](double f) { return es.empty() ? Scalar(0) : es[std::min(es.size() - 1, size_t(f * es.size()))]; };
++    const size_t above3 = es.end() - std::lower_bound(es.begin(), es.end(), Scalar(3));
++    resid_dump << frames_since_init << ' ' << es.size() << ' ' << q(0.5) << ' ' << q(0.9) << ' ' << q(0.99) << ' '
++               << above3 << ' ' << failed << ' ' << lmdb.numLandmarks() << '\n';
++  }
 +  static size_t adapt_removed_total = 0;
 +  static Scalar adapt_thr_sum = 0;
 +  if (outlier_px > 0 && frames_since_init > outlier_warmup) {
