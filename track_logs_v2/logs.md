@@ -58,3 +58,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 07:34** B17: Huber 0.5 improves Basalt on R_08 (0.82 vs 1.00), R_11 (2.14 vs 2.60, score 76.6) and 3_18 (71.7 vs 81.0); obs-std 1.0 px cuts ATE but costs scores; outlier gate and epipolar no-ops. B18 launched: Huber 0.5 on all 13 x 2 offsets + additional 10, Huber 0.3 direction check. D04 adapt30x3 mixed (R_08/3_18 gain, R_11/4_11 lose; fires on 10-40 % of frames).
 - **2026-10-03 08:01** D04 variant 25/4 worse on 4 of 5; adaptive pixel noise not kept (mechanism stays off by default); gentler 20/2 variant running as a last check.
 - **2026-10-03 08:43** D04 closed: discard (all three adaptive-noise variants lose on R_08/R_11/4_11, ties elsewhere).
+- **2026-10-03 08:57** C03: ORB-SLAM3 R_08 crash found with gdb: the EuRoC example reads past its IMU vector at the last image (2.9 ms after the last IMU sample). Bounds check added, R_08 rerunning.

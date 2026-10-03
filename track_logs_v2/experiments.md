@@ -12,6 +12,14 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
+## C03: the ORB-SLAM3 R_08 crash (2026-10-03, pc)
+
+**Finding**: under gdb the segfault is in the example's `main()`, at the last image. The EuRoC example walks its IMU vector with `while (t_imu[i] <= t_cam)` and no bounds check; R_08's last image is 2.9 ms after the last IMU sample, so the loop reads past the vector and the run dies after processing the whole sequence (and before writing `f_run.txt`). Deterministic, input-dependent, nothing to do with tracking.
+
+**Change**: bounds check on both IMU loops in `stereo_inertial_euroc.cc` (in `docs/patches/ORB_SLAM3-4452a3c.patch`). Rerun: `orbslam3_c02_n10` on fisheye R_08 (`results/v2-C03-orbslam3-crash/`).
+
+**Result**: pending.
+
 ## A07: OKVIS2 (x10, 10 keyframes, final BA) on the 13 controlled sequences (2026-10-03, pc)
 
 **Change**: `configs/okvis2_a04_n10_kf10`, offset 0, `DROP_PRE_INIT=1`, two runs at a time (`results/v2-A07-okvis2-all/batch.sh`). Live = causal estimate, final = after OKVIS2's full bundle adjustment (non-causal). Basalt = B07 (robust driver, offset 0), the current best.
