@@ -12,6 +12,32 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
+## B18: Basalt Huber threshold 0.5 validated on the full sets (2026-10-03, pc)
+
+**Change**: `basalt_r17_huber05` (B17's winner) on the 13 controlled sequences at offsets 0 and 100 and on the 10 additional sequences; `basalt_r17_huber03` (0.3) on R_08 / R_11 / 3_18 for the direction.
+
+**Command**: `results/v2-B18-basalt-huber/batch.sh`. **Result**: pending.
+
+## B17: Basalt outlier handling, one knob each (2026-10-03, pc)
+
+**Hypothesis** (X01): the heading events come from a few wrong features (reflections, pedestrians, the wearer's arm) in low-feature stretches; a stricter robust loss or outlier gate should limit their pull.
+
+**Change** (one knob each on `basalt_ref1`, source build, robust driver, offset 0): `vio_obs_huber_thresh` 1.0 to 0.5; `vio_outlier_threshold` 3.0 to 2.0; `vio_obs_std_dev` 0.5 to 1.0 px; `optical_flow_epipolar_error` 0.005 to 0.0025.
+
+**Result** (ATE sim3 m; R_11 and 3_18 also score 2D / recall @ 5 m; reference B07/B08 in the first row):
+
+| Variant | R_08 | R_11 | sequence_3_18 |
+|---|---|---|---|
+| basalt_ref1 | 1.005 | 2.605, 73.3 / 96.5 | 81.0, 2.4 / 4.2 |
+| huber 0.5 | **0.817** | **2.139, 76.6 / 97.5** | **71.7, 3.1 / 5.1** |
+| outlier 2.0 | 1.003 | 2.588, 73.2 / 96.5 | 81.0, 2.5 / 4.2 |
+| obs std 1.0 px | 1.388 | 1.338, 71.6 / 100 | 55.7, 0.9 / 4.6 (one restart) |
+| epipolar 0.0025 | 1.013 | 2.592, 73.3 / 96.5 | 80.7, 2.1 / 4.0 |
+
+Huber 0.5 improves all three (19 % on R_08, 18 % on R_11, 12 % on 3_18) with no cost. Doubling the pixel noise cuts the ATE on R_11 and 3_18 (more IMU trust limits the heading events) but costs the control-point scores and R_08: the sim3 ATE and the score disagree, so it is not a clean win. The outlier gate and the epipolar check are no-ops here (they do not reach the features that matter).
+
+**Decision**: validate Huber 0.5 on the full sets (B18); keep the obs-std result as evidence for the "trust the IMU in degraded stretches" direction (see D04 for the OpenVINS version).
+
 ## D04: adaptive pixel noise when features collapse (2026-10-03, pc)
 
 **Hypothesis** (from X01): the heading events happen while few features are tracked; the few that remain (reflections, pedestrians, the wearer's arm) pull the orientation. If the vision noise is inflated while the feature count is low, the IMU holds the heading through the stretch at the cost of some position drift.
@@ -20,7 +46,18 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Command**: `results/v2-D04-adaptive-noise/batch.sh` (offset 0, R_01 sanity run, then sequence_2_11 / 3_18 / 4_11, R_08, R_11 per variant).
 
-**Result**: pending.
+**Result**, minimum 30 / factor 3 (ov_ref005 offset 0 in brackets; ATE m, score 2D / recall @ 5 m; degraded frames as a share of all):
+
+| Seq | adapt30x3 | ov_ref005 | degraded |
+|---|---|---|---|
+| R_01 | 0.227 | 0.289 | 1 % |
+| R_08 | **1.045** | 1.484 | 12 % |
+| R_11 | 1.741, 52.1 / 99.9 | **0.684, 72 / 100** | 10 % |
+| sequence_2_11 | 10.9, 12.7 / 16.9 | 11.2, 11.6 / 15.7 | 24 % |
+| sequence_3_18 | **20.5, 16.6 / 38.4** | 26.0, 13.1 / 33.0 | 15 % |
+| sequence_4_11 | 7.2, 27.8 / 60.9 | **5.9, 30.2 / 66.2** | 42 % |
+
+Mixed: 3_18 and R_08 gain, R_11 and 4_11 lose, and the rule fires on 10 to 40 % of the frames, far more than the stretches it was meant for (the per-frame count is noisier than the one-minute averages of X01). Variant 25 / 4 pending; a lower minimum or a smoothed count is the next step if the direction holds.
 
 ## B16: Basalt with CLAHE input (2026-10-03, pc)
 
