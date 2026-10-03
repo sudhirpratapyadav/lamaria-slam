@@ -84,7 +84,24 @@ OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's
 
 **Change**: `sqrt_keypoint_vio.cpp`: the cap reads env `BASALT_MAX_INV_DIST` (default 3.0 = upstream; in `docs/patches/basalt-0f3b2b5.patch`), announced once in the log. `basalt_ref1` otherwise (Huber 1.0), robust driver, offset 0, caps 1.25 (0.8 m) and 0.67 (1.5 m) on R_12, R_08, R_11, sequence_4_11, 2_11, 3_18.
 
-**Command**: `results/v2-B20-basalt-neardist/batch.sh`. **Result**: pending.
+**Command**: `results/v2-B20-basalt-neardist/batch.sh`.
+
+**Result** (ATE m; score 2D / recall @ 5 m; reference basalt_ref1 first):
+
+| Seq | reference (cap 0.33 m) | reject < 0.8 m | reject < 1.5 m |
+|---|---|---|---|
+| R_08 | **1.006** | 1.485 | 4.894 |
+| R_11 | 2.605, 73.3 | 2.422, 75.0 | **2.001**, 73.9 |
+| R_12 | 12.86, 12.0 / 11.0 | **11.30, 14.7 / 18.6** | 14.21, 11.1 / 10.9 |
+| sequence_2_11 | 30.9, 20.7 / 45.9 | 27.8, 21.9 / 48.2 | **22.7, 22.0 / 47.3** |
+| sequence_3_18 | 81.0, 2.4 / 4.2 | 81.5, 0.0 / 0.2 | **53.0**, 1.9 / 1.7 |
+| sequence_4_11 | 14.9, 9.9 / 18.9 | 13.1, 21.2 / 33.9 | **2.83, 42.1 / 99.6** (one restart) |
+
+Hypothesis confirmed on the outdoor walks: refusing landmarks closer than 1.5 m gives the best result any system has on the dark walk 4_11 (2.8 m, score 42, recall 99.6 %; OpenVINS 5.9 / 30 / 66, Huber 0.5 3.1 / 37 / 92) and cuts 2_11 and 3_18's ATE by a quarter to a third, with no restarts added. Indoors it is poison: R_08 goes from 1.0 to 4.9 m because the near structure is the signal there. R_12 (the shoe case) improves only with the milder cap; the shoe sits at about 1 m and the 0.8 m cap removes part of it.
+
+**Decision**: not a fixed setting; the right rule is relative. B21 makes the cap a fraction of the current median landmark distance (indoors the median is 2 to 3 m and nothing is cut; on a street it is 10 m and the body and pedestrians are cut).
+
+
 
 ## B19: Basalt Huber 0.7 (2026-10-03, pc)
 
