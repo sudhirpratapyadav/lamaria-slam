@@ -84,7 +84,13 @@ OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's
 
 **Change**: `sqrt_keypoint_vio.cpp`: before triangulating a new landmark, the median inverse distance of the current landmark database is computed (once at least 20 landmarks exist); env `BASALT_NEAR_FRAC=f` rejects new landmarks closer than f times that median distance (0 = off; in `docs/patches/basalt-0f3b2b5.patch`). `basalt_ref1` otherwise, robust driver, offset 0, f = 0.25 and 0.4 on R_08, R_11, R_12, sequence_4_11, 2_11, 3_18.
 
-**Command**: `results/v2-B21-basalt-nearfrac/batch.sh`. **Result**: pending.
+**Command**: `results/v2-B21-basalt-nearfrac/batch.sh`.
+
+**Result** (ATE m; score 2D / recall @ 5 m; reference and B20's absolute 1.5 m cap in brackets): R_08 1.72 / 1.93 for f = 0.25 / 0.4 (1.01 / 4.89); R_11 3.04, 49.0 / 2.64, 59.7 (2.61, 73.3 / 2.00, 73.9); R_12 13.0, 11.4 / **7.87, 13.3, recall 32 %** (12.9, 12.0 / 14.2, 11.1); sequence_2_11 24.5, 25.3 / **23.9, 31.1** (30.9, 20.7 / 22.7, 22.0); 3_18 60.0, 0.5 / 50.2, 1.3 (81.0, 2.4 / 53.0, 1.9); 4_11 9.3, 12.9 / 10.3, 15.0 with 100 to 200 poses lost to failed segments (14.9, 9.9 / 2.83, 42.1).
+
+**Reading**: the relative rule is the wrong shape. It halves R_12's error (the shoe case) and gives the best 2_11 score so far (31.1), but it costs R_11 a third of its score and R_08 0.7 to 0.9 m, and on the dark walk it is far behind the absolute 1.5 m cap. The median landmark distance is not a clean indoor/outdoor signal: it moves with the viewing direction and in the dark the few landmarks are near ones. **Decision**: discard; the absolute cap stays the tool for the walks. B22 runs it over the whole additional set to put a number on it.
+
+
 
 ## B20: Basalt, reject near landmarks (2026-10-03, pc)
 
