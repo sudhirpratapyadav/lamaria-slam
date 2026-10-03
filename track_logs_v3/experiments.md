@@ -16,9 +16,24 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 
 **Change** (`sqrt_keypoint_vio.cpp`, env-gated, in `docs/patches/basalt-0f3b2b5.patch`): `BASALT_IMU_GATE_PX` drops an observation whose reprojection residual from the IMU-predicted state exceeds the threshold (announced once, counts every 500 frames); `BASALT_OUTLIER_PX` calls `filterOutliers` after each optimisation with that reprojection threshold (`BASALT_OUTLIER_MIN_OBS`, default 2). `basalt_ref1` otherwise, robust driver, offset 0.
 
-**Command**: `results/v3-F01-imu-gate/batch.sh`: gate 5 px, gate 10 px, filter 3 px, gate 5 + filter 3, each on R_08, R_11, R_12, sequence_2_11, 3_18, 4_11. First log line on R_08 with gate 5: 128 of 24656 observations dropped in the first 500 frames (0.5 %).
+**Command**: `results/v3-F01-imu-gate/batch.sh`: gate 5 px, gate 10 px, filter 3 px, gate 5 + filter 3, each on R_08, R_11, R_12, sequence_2_11, 3_18, 4_11. The gate drops 0.3 to 0.7 % of observations.
 
-**Result**: pending.
+**Result** (ATE m; score 2D / recall @ 5 m; reference basalt_ref1 first):
+
+| Seq | reference | gate 5 px | gate 10 px | filter 3 px | gate 5 + filter 3 |
+|---|---|---|---|---|---|
+| R_08 | **1.006** | 1.327 | 1.299 | 1.072 | 1.129 |
+| R_11 | 2.605, 73.3 / 96.5 | 2.150, 78.5 / 97.3 | 2.394, 74.8 / 96.9 | **2.051, 78.7 / 97.7** | 2.077, 78.3 / 97.6 |
+| R_12 | **12.86, 12.0 / 18.1** | 13.97, 11.2 / 17.6 (1 restart) | 15.44, 9.3 / 11.1 | 14.17, 10.4 / 17.9 | 14.06, 10.3 / 17.9 |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | 25.09, **26.7 / 52.8** | 31.85, 20.9 / 42.4 | **22.75**, 21.2 / 44.7 | 22.18, 23.4 / 49.8 |
+| sequence_3_18 | 81.04, **2.4** / 4.2 | 55.42, 1.9 / 5.2 | 55.83, 1.2 / 1.4 | **54.41**, 1.3 / 2.6 | 55.07, 2.1 / 4.8 |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | 7.96, 16.0 / 32.9 | 4.72, 26.6 / 60.8 (crashed, re-run pending) | **3.79, 37.9 / 99.1** | 4.11, 29.7 / 83.9 |
+
+Enabling the post-solve outlier filter at 3 px (upstream's own function, never called) is the clear winner: the dark walk goes from 14.9 m / score 9.9 / recall 19 % to 3.8 / 37.9 / 99.1 %, the same level as v2's scene-specific near-feature cap but by a general mechanism; R_11 improves, 2_11 and 3_18 lose a quarter to a third of their ATE, R_08 is a near tie, R_12 loses a little. The IMU gate alone is weaker and hurts R_08; adding it to the filter adds nothing. So on these sequences the damage is done by features whose reprojection error is large *after* the solve (the Huber loss only damped them), more than by features inconsistent with the IMU prediction before it.
+
+**Decision**: iterate the filter (F06: 2, 4, 5 px and a stricter minimum-observation rule) and validate 3 px on the full sets (F07). The IMU gate stays available (off by default).
+
+**Applicability**: general (reprojection outlier rejection is standard practice; the threshold scales with resolution and noise), fails if the threshold is set below the honest noise level (drops good points) or if the solve itself is already wrong when the filter runs.
 
 **Applicability**: general (any VIO with an IMU prediction); can fail when the IMU prediction itself is poor (bad biases right after initialisation, wrong noise parameters) by rejecting good features; thresholds are in pixels, so they depend on resolution and lens.
 
