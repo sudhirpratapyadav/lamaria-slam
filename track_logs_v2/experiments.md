@@ -114,6 +114,21 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## M02: observable selectors between Basalt and OpenVINS, additional set (2026-10-03)
+
+Signals available without ground truth: Basalt's restart count, OpenVINS's re-init count, and the agreement between the two trajectories (RMSE after sim3-aligning one onto the other).
+
+| Selector | mean score 2D (10 sequences) |
+|---|---|
+| OpenVINS only | 21.8 |
+| Basalt only | 16.9 |
+| oracle | 25.9 |
+| Basalt if it needed no restart, else OpenVINS | 22.8 |
+| Basalt if the two agree within 5 to 20 m RMSE, else OpenVINS | 23.5 |
+| Basalt if no restart and duration < 1300 s, else OpenVINS | 24.4 |
+
+Agreement is a clean signal: the two estimates agree within 2.5 to 3.3 m exactly on the sequences where Basalt is better or equal (1_19, 1_20) and disagree by 20 to 64 m elsewhere; but above the threshold the selector can only fall back to OpenVINS, which is itself poor there. So a selector buys 2 to 3 points, and the remaining gap to the oracle (and beyond it) needs a better estimator on the long walks, not a better switch.
+
 ## B14: Basalt mapper with strict matching (2026-10-03, pc)
 
 `mapper_min_matches 40, second_best_test_ratio 1.5, ransac 2e-5, frames_to_match_threshold 0.08`: R_01 5.79 m (VIO 0.151), R_04 1.13 m (VIO 0.787). Still worse than the VIO alone on both. **Decision**: Basalt's mapper is parked; on loop-free walks its place recognition only injects wrong constraints, and the global BA does not reduce drift by itself.
