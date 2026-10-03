@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 06:16 IST. Edit in place.
+Last updated: 2026-10-03 09:36 IST. Edit in place.
 
 ## What v2 is
 
@@ -30,19 +30,18 @@ Controlled set, two-offset mean ATE: 2.83 m. Additional set (ov_ref004, offset 0
 
 ## Where the candidates stand (all numbers single runs unless stated; details in experiments.md)
 
-- Basalt (robust driver): controlled two-offset mean **2.43 m** (OpenVINS 2.83); additional-set mean score 16.9 (OpenVINS 22.0): wins short/medium and dark walks, loses the 2 km walks (structural drift, knobs do not help). Fisheye input helps 3 of 4 standard sequences. Cheap (~2x realtime, <2 cores).
-- OKVIS2 (x10, 10 keyframes, final BA): R_01 0.022, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live, recovered by the final BA); 15 keyframes worse on R_08; fisheye helps only R_01; ~10x Basalt's CPU. 13-sequence batch running detached.
-- ORB-SLAM3: R_01 0.031 m, but loses a quarter of R_04's frames and crashes deterministically on R_08; parked pending a code-level fix.
-- OpenVINS line: window variants parked; ov_ref005 stands (2.83 m / score 22.0).
-- Drift analysis (X01): on the 2 km walks both Basalt and OpenVINS are locally consistent (0.15 to 0.5 m per minute) and lose everything to a handful of heading events (5 to 28 degrees in a minute) inside low-feature stretches: dark (4_11), low texture (2_11, 2_12), overexposed or reflective street scenes (3_18). Not scale, not restarts. The lever is the front end in degraded input.
-- Mix-and-match (M01): a per-sequence choice between Basalt and OpenVINS would give 1.97 m and mean score 25.9 (oracle); a duration rule 24.2. Selector design is a v3 candidate.
+- Basalt (robust driver, `basalt_ref1`): controlled two-offset mean **2.43 m** (OpenVINS 2.83); additional-set mean score 16.9 (OpenVINS 22.0). Cheap (~2x realtime, <2 cores). Rounds since: CLAHE no effect (B16); tighter restart thresholds hurt (B15); Huber 0.5 better on 20 of 26 controlled runs but worse on the long control-point walks R_12/R_13, mean 2.61 (B18), 0.7 running (B19); doubling the pixel noise trades ATE for score (B17).
+- OKVIS2 (x10, 10 keyframes, final BA, non-causal): 11 of 13 controlled done (A07): best on the easy sequences (R_01 0.022, R_03 0.029) and R_10/R_11, 2x worse than Basalt on every medium sequence and R_08, fitted scale 0.91 to 0.96; 5 to 10x Basalt's CPU. R_12/R_13 running; CLAHE round (A08) queued.
+- ORB-SLAM3 (fisheye): unparked. The R_08 crash was the EuRoC example reading past its IMU vector at the last image (fixed, C03): R_08 1.38 m. R_01 0.031, R_04 0.79 to 0.83, R_11 1.00 (score 65.6); poses missing before the inertial initialisation (32 to 66 s) are its weak point. Pinhole-input run on the standard four in progress (C04).
+- OpenVINS line: window variants (D01-D03) and adaptive pixel noise (D04) parked; ov_ref005 stands (2.83 m / score 22.0).
+- Drift analysis (X01): on the 2 km walks both Basalt and OpenVINS are locally consistent (0.15 to 0.5 m per minute) and lose everything to a handful of heading events (5 to 28 degrees in a minute) inside low-feature stretches: dark (4_11), low texture (2_11, 2_12), overexposed or reflective street scenes (3_18). Not scale, not restarts. Every "trust the IMU more" variant tried since (D04, Huber, obs-std) lowers the ATE on some walks and lowers the control-point scores: the heading events need a better front end (feature rejection), not a different weighting.
+- Mix-and-match (M01/M02): a per-sequence choice between Basalt and OpenVINS would give 1.97 m and mean score 25.9 (oracle); observable selectors 23.5 to 24.4. Selector design is a v3 candidate; OKVIS2 and ORB-SLAM3 join the oracle once their 13-sequence runs exist.
 
 ## Next
 
-1. OKVIS2: 13-sequence batch (k=0, final BA) running detached two at a time; judge on the controlled set and cost.
-2. Basalt: B16 CLAHE at load time (source build) running on the standard four and three long walks; B15 tighter restart thresholds negative (2_12 pending). Then the same CLAHE step for OKVIS2.
-3. Ensemble: a selector between Basalt and OpenVINS runs (restart counts, consistency, agreement).
-4. ORB-SLAM3: one debugging round on the R_08 crash if time allows.
+1. Finish the running rounds: B19 (Huber 0.7), A07 (OKVIS2 R_12/R_13) then A08 (OKVIS2 CLAHE), C04 (ORB-SLAM3 pinhole).
+2. ORB-SLAM3 on the 13 controlled sequences if the pinhole input works; then the four-system oracle (M03).
+3. Front-end work against the heading events (X01): reject features on moving people and reflections, or a two-window consistency check, as the v3 design target.
 
 ## Blockers
 
