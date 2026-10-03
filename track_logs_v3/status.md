@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-03 16:45 IST. Edit in place.
+Last updated: 2026-10-03 18:41 IST. Edit in place.
 
 ## What v3 is
 
@@ -20,17 +20,18 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 
 ## Where things stand
 
-- Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own outlier filter.
-- F01 (IMU-consistency gate on existing landmarks + post-solve filter): gate 5 px on the six event sequences: 4_11 14.9 to 8.0 m (score 9.9 to 16.0), R_11 2.61 to 2.15 (score 73 to 78.5), 2_11 30.9 to 25.1 (score 20.7 to 26.7), R_08 worse (1.01 to 1.33), R_12 about the same; other variants running.
-- F02 (person masks from YOLO11n-seg in the optical flow): first pass void (low-confidence whole-image boxes starved the tracker); masks regenerating at confidence 0.4 with an oversized-mask guard.
-- F03 (temporal epipolar gate on new landmarks): queued behind F01.
-- X02/X04 diagnostics: the dark walk 4_11 is the "too few usable features" failure (XFeat finds no more there either; the gate fires uniformly), R_12 is the "wrong features" failure (gate fires exactly on the shoe episode, in the image centre, so no static mask is possible).
+- Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own post-solve outlier filter.
+- **F01 complete**: enabling that filter at 3 px is the first clear, general win of v3: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %** (the level of v2's scene-specific near-feature cap), R_11 score 73 to 79, 2_11 and 3_18 ATE down by a quarter to a third, R_08 a near tie, R_12 slightly worse. The IMU-consistency gate alone is weaker and hurts R_08; combined with the filter it adds nothing. F06 (filter at 2 / 4 / 5 px, stricter minimum observations) running; F07 (3 px on all 13 x 2 offsets + the 10 additional) queued.
+- F02 (person masks, YOLO11n-seg): small consistent gains where people walk through the view (2_11 30.9 to 24.3 m, score 20.7 to 26.0; R_11, R_12 slightly better), a loss indoors (R_08), split on 3_18. Kept as an option; F05 combines it with the gate.
+- F03 (epipolar gate on new landmarks) and F04 (untrustworthy-image rule) running / queued.
+- X05: a Basalt segfault (null pointer in the landmark-block QR) hits some runs deterministically (4_11 with masks at frame 8000; also behind v2's failed segments). First guard did not fix it; a debug-symbol build is in progress for a line-level backtrace. Crashed runs are re-run automatically once fixed.
+- Diagnostics: 4_11 is the "too few usable features" failure (X02, X04), R_12 the "wrong features" failure (gate fires exactly on the shoe episode, image centre, so no static mask).
 
 ## Next
 
-1. Read the survey, pick concrete tools per candidate.
-2. Build the external-observation interface in Basalt and a track-file format; verify it reproduces `basalt_ref1` when fed Basalt's own tracks.
-3. Candidate 1 first (cheap, general, tells how much damage is liars versus too few features).
+1. Finish F03 to F07; fix the segfault (X05).
+2. If F07 holds on the full sets, the outlier filter becomes part of the v3 reference config; then combinations (filter + masks, filter + gate on new landmarks) and the learned-keypoint candidate (XFeat seeding) for the dark stretches.
+3. The external-observation interface in Basalt stays on the list for the learned trackers.
 
 ## Blockers
 
