@@ -35,7 +35,9 @@ def main():
             f"(pre-init {s.get('images_before_first_estimate', '?')}, gaps {s.get('gap_filled_after_init', '?')}) | "
             f"{float(wall.group(1)):.0f} s / {e.get('est_duration_s', 0):.0f} s | "
             f"{int(rss.group(1)) / 1024:.0f} MB |"
-            if ate is not None else f"| {d.name} | FAILED ({e.get('est_poses')} poses) | | | | | | |"
+            if ate is not None else
+            (f"| {d.name} | (no pGT) | - | - | {cp:.1f} | {e.get('est_poses')} poses | | |" if cp is not None
+             else f"| {d.name} | FAILED ({e.get('est_poses')} poses) | | | | | | |")
         )
     print("| Sequence | ATE RMSE (m, sim3) | sim3 scale | recall@5m | CP score | poses matched/images | wall / seq | RSS |")
     print("|---|---|---|---|---|---|---|---|")

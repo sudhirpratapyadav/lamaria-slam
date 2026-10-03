@@ -7,6 +7,10 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 | Candidate | Stage | Event sequences (2_11, 3_18, 4_11, R_12, R_08, R_11) | Controlled 2-offset | Additional mean score | Applicability | Notes |
 |---|---|---|---|---|---|---|
 | Basalt ref1 (v2) | reference | 30.9 / 81.0 / 14.9 / 12.9 / 1.01 / 2.61 m | 2.43 | 16.9 | general | |
+| F01/F07 outlier filter 3 px | full sets done | 22.8 / 54.4 / 3.8 / 14.2 / 1.07 / 2.05 m | 2.50 (wins easy, hard, R_11; loses medium, R_12, R_13) | **21.2** (8 of 10 up; moving platform down) | general; restarts right after init (F08), vehicle interiors | candidate reference |
+| F03 epipolar gate 0.005 | event set, 4 re-running | 21.1 / 57.4 / 10.5 / ? / 1.14 / ? m; best 2_11 (30.3) and 3_18 (4.7) scores | | | general, IMU-prediction dependent, indoor tax | combine with filter (F09) |
+| F05 gate 5 + masks | event set done | 24.2 / 52.7 / 3.3 / 14.6 / 1.29 / 2.10 m | | | people and own body; 15-30 % tax where nothing to remove | option |
+| F04 untrusted-image rule | stopped | R_08 142 m | | | | discarded |
 
 ## F01: IMU-consistency gate and the dormant outlier filter in Basalt (2026-10-03, pc)
 
@@ -183,7 +187,7 @@ The curve is flat between 2 and 4 px on the walks (2_11 22.3 to 23.5 m, 3_18 53 
 
 **Change**: `BASALT_OUTLIER_PX=3`, `basalt_ref1` otherwise, robust driver; offsets 0 and 100 on the controlled set, offset 0 on the additional set.
 
-**Command**: `results/v3-F07-filt3-full/batch.sh` (systemd unit `lamaria-f07`; running, 5 of 36 runs left).
+**Command**: `results/v3-F07-filt3-full/batch.sh` (systemd unit `lamaria-f07`).
 
 **Result so far**, controlled set (ATE sim3 m, offsets 0 / 100; restarts of the robust driver in brackets where they differ from the reference; reference basalt_ref1 from v2 B07):
 
@@ -204,10 +208,10 @@ The curve is flat between 2 and 4 px on the walks (2_11 22.3 to 23.5 m, 3_18 53 
 | R_13 | 3.584 / 3.449 (39.1 / 40.3) | **3.349 / 3.544 (45.2 / 44.3)** |
 | **two-offset mean** | 2.50 | **2.43** |
 
-Additional set so far (score 2D, reference in brackets): 1_19 **74.1** (64.1), 1_20 **44.3** (39.6), 2_11 21.0 (20.7), 2_12 **8.2** (5.3), 3_18 2.0 (2.4); 3_17, 4_10, 4_11, 5_11, 5_12 running.
+Additional set (score 2D, reference B08 in brackets; restarts where they differ): 1_19 **74.1** (64.1), 1_20 **44.3** (39.6), 2_11 **21.0** (20.7), 2_12 **8.2** (5.3), 3_17 **5.7** (4.3), 3_18 2.0 (2.4), 4_10 **12.1** (8.4; 0 restarts against 2), 4_11 **34.2** / recall 97.9 % (9.9 / 18.9 %; 0 restarts against 1), 5_11 5.7 (6.9), 5_12 4.5 (7.6): mean score **21.2** (reference 16.9, Huber 0.5 19.7, 1.5 m near cap 21.6, OpenVINS 22.0). Eight of ten up, the two moving-platform sequences down by a fifth to a third: inside a vehicle the near structure gives large honest residuals that the filter removes.
 
-Reading before the last runs land: the filter wins the easy and hard sequences, R_11 and the additional set, and loses every medium sequence by 10 to 15 % and the two long control-point walks (R_12 by 1 to 3 m and 2 to 6 score points, R_13 by 5 points), the same two that punished Huber 0.5 in v2. R_04 is the clearest signal of a mechanism: the three restarts at offset 100 all happen within the first 240 frames of a segment, i.e. right after an initialisation, where the solve has not converged yet and a 3 px filter removes good observations and starves the problem. That suggests a warm-up (no filtering for the first seconds after any initialisation) as the next iteration (F08), not a different threshold.
+Reading: the filter wins the easy and hard sequences, R_11 and the additional set, and loses every medium sequence by 10 to 15 % and the two long control-point walks (R_12 by 1 to 3 m and 2 to 6 score points, R_13 by 5 points), the same two that punished Huber 0.5 in v2. R_04 is the clearest signal of a mechanism: the three restarts at offset 100 all happen within the first 240 frames of a segment, i.e. right after an initialisation, where the solve has not converged yet and a 3 px filter removes good observations and starves the problem. That suggests a warm-up (no filtering for the first seconds after any initialisation) as the next iteration (F08), not a different threshold.
 
-**Decision**: pending the last five runs; the filter is not yet the reference as a flat 3 px.
+**Decision**: the filter is the best single Basalt setting on the additional set (21.2, the first Basalt setting to match OpenVINS there without a scene-specific trick) and a wash on the controlled set (2.50 against 2.43, lost on the medium set and the long control-point walks). Not yet the reference as a flat 3 px: F08 tests the warm-up on the losers, and the moving-platform loss is noted as its known failure case.
 
 **Applicability**: as F01; the warm-up finding is general (any post-solve rejection must wait for the solve to be trustworthy).
