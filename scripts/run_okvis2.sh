@@ -33,18 +33,15 @@ cp "$CONFIG_DIR/options.json" "$OUT_DIR/"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 
-# OKVIS2 writes its csv files next to the dataset; run from OUT_DIR and point it at a symlink so
-# outputs land here.
-rm -f "$OUT_DIR/dataset"; ln -s "$OKIN" "$OUT_DIR/dataset"
+# OKVIS2 writes its csv files into the dataset folder it is given. Give it a per-run folder that
+# links to the shared input, so concurrent runs on one sequence cannot overwrite each other.
+[ -L "$OUT_DIR/dataset" ] && rm -f "$OUT_DIR/dataset"; rm -rf "$OUT_DIR/dataset"; mkdir -p "$OUT_DIR/dataset"
+for e in "$OKIN"/*; do case "$(basename "$e")" in okvis2-*|okvis_input) ;; *) ln -s "$e" "$OUT_DIR/dataset/";; esac; done
 cd "$OUT_DIR"
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \
   "$OKVIS_APP" "$OUT_DIR/okvis2.yaml" "$OUT_DIR/dataset" > "$OUT_DIR/okvis2.log" 2>&1 \
   || { echo "okvis2 failed, see $OUT_DIR/okvis2.log"; tail -5 "$OUT_DIR/okvis2.log"; exit 1; }
-# outputs may land in the dataset dir or next to it depending on the build; collect both
-for f in okvis2-slam_trajectory.csv okvis2-slam-final_trajectory.csv okvis2-slam-final_map.csv; do
-  [ -f "$OUT_DIR/dataset/$f" ] && mv "$OUT_DIR/dataset/$f" "$OUT_DIR/$f" || true
-  [ -f "$OKIN/$f" ] && mv "$OKIN/$f" "$OUT_DIR/$f" || true
-done
+for f in "$OUT_DIR"/dataset/okvis2-*; do [ -f "$f" ] && mv "$f" "$OUT_DIR/" || true; done
 
 "$PY" - "$OUT_DIR" <<'EOF'
 import sys

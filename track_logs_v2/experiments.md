@@ -8,9 +8,49 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
 | A OKVIS2 | A04 x10 + 10 keyframes, final BA | R_01 **0.022**, R_04 0.68, R_08 2.09, R_11 1.94 (score 56.7); live path fragile (R_11 diverged live) | 13-sequence batch running detached (2 at a time) | ~10x the CPU of Basalt |
-| B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; B09 on the long walks |
+| B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; X01: the walks are lost to heading events in low-feature stretches; B16 (CLAHE) running |
 | C ORB-SLAM3 | C01/C02 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 crashes deterministically | | parked pending a code-level fix |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
+
+## B16: Basalt with CLAHE input (2026-10-03, pc)
+
+**Hypothesis** (from X01): Basalt's heading errors sit in low-feature stretches (dark, low texture, overexposed). v1 found CLAHE worth 0.36 m mean and 1.2 to 2.0 m on the hard sequences for OpenVINS (v1 026); Basalt gets raw images, so the same preprocessing should recover texture for its optical flow.
+
+**Change**: `third_party/basalt` source build, `dataset_io_euroc.h`: optional CLAHE (clip from env `BASALT_CLAHE`, 8x8 tiles, OpenVINS's clip 10) applied to the 8-bit image at load time, so no image copy on disk. `basalt_segments.py` takes the binary from `BASALT_VIO`. Control run: the source-built binary without CLAHE on R_04 (the results so far come from the release binary, `~/.local/bin/basalt_vio`).
+
+**Command**: `results/v2-B16-basalt-clahe/batch.sh` (robust driver, `basalt_ref1`, offset 0, 2 runs at a time): R_04 control, then CLAHE on R_01 / R_04 / R_08 / R_11 / sequence_2_11 / 3_18 / 4_11.
+
+**Result**: pending.
+
+## B15: tighter restart thresholds for the robust Basalt driver (2026-10-03, pc)
+
+**Change**: `MAX_SPEED=4 MAX_JUMP=0.5` (default 6 / 1) on the standard four and the two long walks where Basalt is worst with restarts possible (sequence_2_12, 4_11).
+
+**Result**: standard four identical to B07 (no restart triggers on either threshold: R_01 0.151, R_04 0.781, R_08 1.005, R_11 2.60 / score 73.3, recall@1m 60). sequence_4_11: 2 restarts, ATE 16.2 (B08: 14.9), score 6.7 (9.9), recall @ 5 m 11.7 % (18.9 %): worse. sequence_2_12: pending.
+
+**Decision**: discard (pending 2_12). The tighter thresholds fire on fast head motion, not on divergence, and each restart costs more than it saves.
+
+## X01: where the drift on the long walks comes from (2026-10-03, pc, analysis only)
+
+**Question**: Basalt and OpenVINS lose the 2 km walks (scores 2 to 30). Is it scale, heading, or local tracking, and when does it happen?
+
+**Method**: `scripts/drift_analysis.py` sim3-aligns the estimate to the pGT in 60 s windows and reports each window's scale, heading (yaw of its own alignment) and residual; heading drift is the yaw change between consecutive windows. `scripts/sequence_timeline.py` adds per-window context: pGT speed and turning rate, gyro norm, image brightness and Laplacian variance (one frame per second), OpenVINS feature counts from `frame_times.csv`. Inputs: B08 (Basalt robust) and v1 037 (ov_ref005) on the additional set. Outputs in `results/v2-X01-drift-analysis/`.
+
+**Result** (Basalt / OpenVINS):
+
+| Seq | ATE sim3 | total heading drift | worst window (deg per min) | local scale range | 60 s residual median | restarts |
+|---|---|---|---|---|---|---|
+| 1_20 (1.1 km) | 3.6 / 2.1 | -5 / -4 deg | 2.2 / 2.2 | 0.95-1.02 / 0.95-0.99 | 0.18 / 0.14 m | 0 / 0 |
+| 2_11 (1.3 km) | 30.9 / 11.2 | 67 / 14 deg | 14.6 @ 1110 s / 6.5 @ 630 s | 0.71-1.08 / 0.91-1.00 | 0.40 / 0.16 | 0 / 0 |
+| 3_18 (1.7 km) | 81.0 / 26.0 | 123 / 46 deg | 28.0 @ 1170 s / 8.2 @ 810 s | 0.86-1.02 / 0.92-1.00 | 0.19 / 0.15 | 0 / 0 |
+| 4_11 (1.1 km, dark) | 14.9 / 5.9 | 15 / -18 deg | +20 and -18 @ 510-570 s / 9.9 @ 570 s | 0.53-1.15 / 0.82-0.98 | 0.56 / 0.20 | 1 (start) / 0 |
+| 2_12 (2.1 km) | 27.3 / 4.9 | 49 / 6 deg | 9.7 / 5.2 | 0.76-1.02 / 0.86-1.01 | 0.36 / 0.20 | 3 (start) / 1 |
+
+1. **Heading, not scale and not local tracking.** Within any 60 s window both systems are consistent to 0.15 to 0.5 m; the global error is a few heading events of 5 to 28 degrees in one minute, on top of a slow 0.5 to 1.5 deg/min background. The gyro alone would drift well under 1 deg/min, so these events are vision pulling the orientation wrong, inside continuous tracking (no restarts or re-inits anywhere near them on 2_11 / 3_18).
+2. **The events sit in low-feature stretches.** OpenVINS's feature counts there are 5 to 9 MSCKF and 13 to 27 SLAM points per frame against 12 to 15 / 35 to 40 elsewhere. The causes differ per walk: 4_11 is dark throughout (mean brightness 14 to 27 of 255); 2_11 and 2_12 have long low-texture stretches (Laplacian variance 7 to 10 against 20 to 30); 3_18 at 750 to 930 s is overexposed (brightness 95 to 109) and blurred. The worst Basalt window (3_18 at 1170 s, 28 deg) is a street with shop windows (reflections) and pedestrians at normal exposure; 2_11 at 1110 s is fast walking (1.5 m/s) with bright sky, pedestrians and the wearer's arm in view. Sample frames in `results/v2-X01-drift-analysis/frames/`.
+3. Basalt's local scale also wanders in those stretches (0.5 to 1.15), OpenVINS's much less (0.82 to 1.0); OpenVINS's CLAHE and 400-feature front end is the visible difference between the two.
+
+**Implications**: the lever for the long walks is the front end in degraded stretches (recover texture, reject reflections and moving people, trust the gyro when features are few), not the back end. Loop closure cannot help (no revisits). Immediate follow-ups: B16 (CLAHE for Basalt); the same for OKVIS2 once its batch is through; a yaw-protection rule (down-weight vision when the feature count collapses) as a v3 design item.
 
 ## A01: OKVIS2 out of the box (2026-10-03, pc, okvis2 a2ea006, USE_NN=OFF)
 

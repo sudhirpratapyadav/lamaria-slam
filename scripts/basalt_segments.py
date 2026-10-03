@@ -9,6 +9,7 @@ Divergence = per-frame speed above --max-speed (m/s) or a per-frame jump above
 f - back are kept, and the next segment starts at f - back; its first pose is
 mapped onto the last kept pose (SE3 composition), as in the runner.
 
+Env: BASALT_VIO (binary, default ~/.local/bin/basalt_vio), BASALT_CLAHE (source build only)
 Usage: basalt_segments.py SEQ_DIR OUT_DIR --calib CALIB_JSON --config CONFIG_JSON
        [--threads 3] [--max-speed 6] [--max-jump 1] [--back 20] [--max-segments 12] [--skip-frames 0]
 Writes OUT_DIR/trajectory.tum (seconds, IMU pose) and OUT_DIR/segments.json.
@@ -40,7 +41,7 @@ def run_basalt(seq_dir, out, skip, calib, config, threads):
     seg.mkdir(exist_ok=True)
     env = dict(os.environ, LD_LIBRARY_PATH=str(Path.home() / ".local/lib") + ":" + os.environ.get("LD_LIBRARY_PATH", ""))
     with open(seg / "basalt.log", "w") as log:
-        r = subprocess.run([str(Path.home() / ".local/bin/basalt_vio"), "--dataset-path", str(bin_dir), "--dataset-type", "euroc",
+        r = subprocess.run([os.environ.get("BASALT_VIO", str(Path.home() / ".local/bin/basalt_vio")), "--dataset-path", str(bin_dir), "--dataset-type", "euroc",
                             "--cam-calib", str(calib), "--config-path", str(config), "--save-trajectory", "tum", "--show-gui", "false",
                             "--num-threads", str(threads), "--use-imu", "true"], cwd=seg, env=env, stdout=log, stderr=subprocess.STDOUT)
     traj = seg / "trajectory.txt"

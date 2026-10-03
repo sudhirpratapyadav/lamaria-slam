@@ -16,6 +16,7 @@ cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
 {
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR (robust segments)"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
+  echo "binary: ${BASALT_VIO:-~/.local/bin/basalt_vio} BASALT_CLAHE=${BASALT_CLAHE:-}"
   echo "command: basalt_segments.py $SEQ_DIR $OUT_DIR --skip-frames ${SKIP_FRAMES:-0} --max-speed ${MAX_SPEED:-6} --max-jump ${MAX_JUMP:-1} --back ${BACK:-20} (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE THREADS=$THREADS)"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
