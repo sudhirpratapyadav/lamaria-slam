@@ -67,12 +67,14 @@ def main():
     H_inf = None
     if args.calib is not None:
         import json
-        from scipy.spatial.transform import Rotation as Rot
         v = json.load(open(args.calib))["value0"]
         def K(i):
             k = v["intrinsics"][i]["intrinsics"]; return np.array([[k["fx"], 0, k["cx"]], [0, k["fy"], k["cy"]], [0, 0, 1]])
         def R(i):
-            q = v["T_imu_cam"][i]; return Rot.from_quat([q["qx"], q["qy"], q["qz"], q["qw"]]).as_matrix()
+            q = v["T_imu_cam"][i]; x, y, z, w = q["qx"], q["qy"], q["qz"], q["qw"]
+            return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                             [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                             [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
         H_inf = K(1) @ R(1).T @ R(0) @ np.linalg.inv(K(0))  # cam0 pixel -> cam1 pixel for a point at infinity
 
     def klt(img0, img1, pts, init=None):
