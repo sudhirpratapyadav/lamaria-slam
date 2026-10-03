@@ -84,9 +84,20 @@ Small, consistent gains where people walk through the view (2_11 by a fifth in A
 
 **Change**: `sqrt_keypoint_vio.cpp`, in the triangulation of new landmarks: `BASALT_EPI_GATE` (same units as Basalt's stereo `optical_flow_epipolar_error`, default there 0.005; 0 = off) rejects candidate pairs with `|p0^T E p1|` above it, counts reported every 500 frames. `basalt_ref1` otherwise, robust driver, offset 0.
 
-**Command**: `results/v3-F03-epi-gate/batch.sh` (0.005 and 0.002 on the six event sequences; queued behind F01).
+**Command**: `results/v3-F03-epi-gate/batch.sh` (0.005 and 0.002 on the six event sequences). The first batch lost 7 of 12 runs to the memory reaper (SIGTERM, see logs 21:xx); they were re-run under a systemd unit, four of them are still running.
 
-**Result**: pending.
+**Result** (ATE m; score 2D / recall @ 5 m; reference basalt_ref1 first; "failed" = X05 crash segments restarted by the driver):
+
+| Seq | reference | epi 0.005 | epi 0.002 |
+|---|---|---|---|
+| R_08 | **1.006** | 1.142 | 1.204 |
+| R_11 | 2.605, 73.3 / 96.5 | re-running | **2.493, 75.8 / 96.7** |
+| R_12 | **12.86, 12.0 / 18.1** | re-running | 15.24, 10.6 / 17.2 |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | **21.06, 30.3 / 49.5** (1 failed segment) | re-running |
+| sequence_3_18 | 81.04, 2.4 / 4.2 | **57.42, 4.7 / 9.9** | re-running |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | **10.46, 10.3 / 22.5** (2 failed) | 21.79, 8.7 / 15.4 (5 failed) |
+
+At 0.005 (Basalt's own stereo epipolar tolerance) the gate helps every long walk it has run on: 2_11 to 21 m with the best control-point score of any single change so far (30.3), 3_18 to the best score on that walk (4.7, twice the reference), 4_11 by a third, at a 14 % cost on R_08 (indoor, like every rejection so far). The tighter 0.002 is worse everywhere. The crashes (X05) hit the 4_11 runs hard, so those numbers are not final. **Decision**: keep 0.005 as a candidate; combine with the outlier filter (F09) once the crash is fixed.
 
 **Applicability**: general; depends on the IMU prediction quality like F01; threshold is in normalised bearing units, so lens-independent.
 
@@ -119,3 +130,84 @@ Small, consistent gains where people walk through the view (2_11 by a fifth in A
 **First attempt (did not fix it)**: removing, before `optimize()`, landmarks with no observations in active frames or with an inactive host. The guard never fires on the crashing case (sequence_4_11 with masks still dies at about frame 8000), so the empty block comes from somewhere else. Next: a build with debug symbols (`-O3 -g`) and a backtrace with line numbers; a debug switch `BASALT_MASK_NO_DROP` isolates the track-dropping half of the mask. The guard stays (harmless). The crash also reproduces on sequence_4_11 with the IMU gate at 10 px and no mask, so it is tied to observation removal in general, not to the mask. The debug build was first attempted at three jobs and had to be stopped (seven compilers, memory pressure); it is being redone at one job. Runs with a "failed" segment are re-run once the cause is fixed.
 
 **Applicability**: a bug fix, general.
+
+## F05: IMU gate plus person masks (2026-10-03, pc)
+
+**Hypothesis**: F01's gate and F02's masks remove different liars (inconsistent motion versus known people); together they should cover more of the events than either.
+
+**Change**: no new code; `BASALT_IMU_GATE_PX` 5 or 10 with `BASALT_MASK_DIR` (confidence 0.4 masks, `BASALT_MASK_MAX_FRAC` 0.4), `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F05-gate-mask/batch.sh` (systemd unit `lamaria-f05`).
+
+**Result** (ATE m; score 2D / recall @ 5 m; gate 5 alone and masks alone from F01 / F02):
+
+| Seq | reference | gate 5 | masks | gate 5 + masks | gate 10 + masks |
+|---|---|---|---|---|---|
+| R_08 | **1.006** | 1.327 | 1.157 | 1.288 | 1.318 |
+| R_11 | 2.605, 73.3 / 96.5 | 2.150, 78.5 / 97.3 | 2.422, 75.1 / 96.8 | **2.100, 78.6 / 97.4** | 2.316, 75.7 / 97.0 |
+| R_12 | 12.86, 12.0 / 18.1 | 13.97, 11.2 / 17.6 | **12.61, 13.3 / 18.2** | 14.57, 9.5 / 17.4 (1 restart) | 15.86, 8.5 / 10.8 |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | 25.09, 26.7 / 52.8 | 24.29, 26.0 / 48.2 | **24.15, 31.5 / 56.7** | 24.45, 2.8 / 2.1 |
+| sequence_3_18 | 81.04, 2.4 / 4.2 | 55.42, 1.9 / 5.2 | 73.77, 0.4 / 0.2 | **52.73, 1.8 / 5.5** | 53.02, 1.8 / 5.4 |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | 7.96, 16.0 / 32.9 | (crashed) | **3.29, 36.1 / 92.3** | 9.08, 16.9 / 38.5 |
+
+The combination at 5 px is better than either part on the three walks with people (2_11 score 31.5, 3_18, R_11) and transforms 4_11 (3.3 m, where gate alone gave 8.0; the masks remove the wearer's body in the dark stretch, the gate the rest), but it is the worst setting on R_08 and R_12, the two sequences where there is little to remove. The 10 px gate is worse everywhere. The whole gate family keeps the same signature: good where liars exist, a 15 to 30 % tax indoors. **Decision**: gate 5 + masks stays a candidate for the people-heavy walks; it does not replace the filter (F01/F06), which gets 4_11 to the same place without the indoor tax.
+
+**Applicability**: as F01 and F02 (any VIO with IMU prediction; people and own body; sideways camera needs the rotation); the tax on clean indoor sequences is the known failure mode of every pre-solve rejection tried so far.
+
+## F06: outlier filter threshold and minimum observations (2026-10-03, pc)
+
+**Hypothesis**: F01's 3 px is one point on a curve; a tighter threshold removes more liars but also good points on the noisy indoor sequences, a looser one the reverse; requiring three observations before a landmark survives the filter should protect the noisy ones.
+
+**Change**: `BASALT_OUTLIER_PX` 2, 4, 5 and 3 with `BASALT_OUTLIER_MIN_OBS` 3; `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F06-filter-variants/batch.sh`, then `rerun_killed.sh` and `rerun_killed2.sh` for the 16 runs the memory reaper killed (the first re-run script read the sequence name from a file the killed runs had never written, so 11 of them started with an empty path and exited; second pass running).
+
+**Result** (ATE m; score 2D / recall @ 5 m; 3 px from F01):
+
+| Seq | reference | 2 px | 3 px | 3 px, min 3 obs | 4 px | 5 px |
+|---|---|---|---|---|---|---|
+| R_08 | **1.006** | 1.275 | 1.072 | 1.084 | 1.039 | re-running |
+| R_11 | 2.605, 73.3 / 96.5 | 2.166, 76.7 / 97.5 | **2.051, 78.7 / 97.7** | 2.087, 77.6 / 97.6 | re-running | re-running |
+| R_12 | **12.86, 12.0 / 18.1** | 13.21, 10.4 / 18.1 | 14.17, 10.4 / 17.9 | 14.08, 10.0 / 17.9 | 14.07, 10.1 / 17.8 | re-running |
+| sequence_2_11 | 30.92, 20.7 / 45.9 | **22.60, 32.8 / 52.4** | 22.75, 21.2 / 44.7 | 22.32, 23.6 / 51.3 | 23.46, 31.5 / 56.0 | re-running |
+| sequence_3_18 | 81.04, **2.4** / 4.2 | **52.95**, 1.8 / 4.2 | 54.41, 1.3 / 2.6 | 54.66, 1.1 / 3.5 | 53.65, 1.5 / 4.5 | re-running |
+| sequence_4_11 | 14.89, 9.9 / 18.9 | **3.51, 41.7 / 98.6** | 3.79, 37.9 / 99.1 | 3.48, 40.5 / 92.0 | 3.63, 34.3 / 78.0 | re-running |
+
+The curve is flat between 2 and 4 px on the walks (2_11 22.3 to 23.5 m, 3_18 53 to 55 m, 4_11 3.5 to 3.8 m) and the indoor cost grows with tightness (R_08 1.04 at 4 px, 1.07 at 3, 1.28 at 2). The minimum-observation rule changes nothing. The control-point score on 2_11 swings between 21 and 33 for runs whose ATE differs by a metre, so on that walk the score is not a reliable discriminator between close settings (noted for the metric). **Decision**: 3 px stays the setting of record pending F07; 4 px is the fallback if the full set shows the indoor tax matters more than the walks.
+
+**Applicability**: as F01 (general reprojection outlier rejection); the threshold scales with resolution and the image noise level; the 2 px setting is already into the honest noise of these 640x480 fisheye images on the indoor sequences.
+
+## F07: outlier filter 3 px on the full sets (2026-10-03, pc)
+
+**Hypothesis**: the F01 gain holds across all 13 controlled sequences at two offsets and the 10 additional sequences, so the filter can join the reference config.
+
+**Change**: `BASALT_OUTLIER_PX=3`, `basalt_ref1` otherwise, robust driver; offsets 0 and 100 on the controlled set, offset 0 on the additional set.
+
+**Command**: `results/v3-F07-filt3-full/batch.sh` (systemd unit `lamaria-f07`; running, 5 of 36 runs left).
+
+**Result so far**, controlled set (ATE sim3 m, offsets 0 / 100; restarts of the robust driver in brackets where they differ from the reference; reference basalt_ref1 from v2 B07):
+
+| Seq | filter 3 px | reference |
+|---|---|---|
+| R_01 | **0.119 / 0.124** | 0.151 / 0.156 |
+| R_02 | 0.190 / 0.233 (0 restarts) | **0.173 / 0.215** (3 restarts at offset 100) |
+| R_03 | **0.247 / 0.207** | 0.434 / 0.415 |
+| R_04 | 1.220 / 2.952 (2 / 3 restarts, all within the first 240 frames of a segment) | **0.781 / 0.935** (0 / 1) |
+| R_05 | 1.291 / 1.328 | **1.139 / 1.153** |
+| R_06 | 1.245 / 0.935 | **1.124 / 0.764** |
+| R_07 | 1.356 / 1.362 | **1.236 / 1.220** |
+| R_08 | 1.067 / **0.947** | **1.006** / 1.368 |
+| R_09 | **1.957 / 1.640** (1 restart) | 2.762 / 2.414 |
+| R_10 | **3.098 / 3.128** | 4.412 / 3.877 |
+| R_11 | **2.053 / 1.638 (score 78.6 / 81.3)** | 2.605 / 2.078 (73.3 / 77.0) |
+| R_12 | 13.96 / 15.66 (10.3 / 7.7) | **12.86 / 12.94 (12.0 / 14.0)** |
+| R_13 | 3.584 / 3.449 (39.1 / 40.3) | **3.349 / 3.544 (45.2 / 44.3)** |
+| **two-offset mean** | 2.50 | **2.43** |
+
+Additional set so far (score 2D, reference in brackets): 1_19 **74.1** (64.1), 1_20 **44.3** (39.6), 2_11 21.0 (20.7), 2_12 **8.2** (5.3), 3_18 2.0 (2.4); 3_17, 4_10, 4_11, 5_11, 5_12 running.
+
+Reading before the last runs land: the filter wins the easy and hard sequences, R_11 and the additional set, and loses every medium sequence by 10 to 15 % and the two long control-point walks (R_12 by 1 to 3 m and 2 to 6 score points, R_13 by 5 points), the same two that punished Huber 0.5 in v2. R_04 is the clearest signal of a mechanism: the three restarts at offset 100 all happen within the first 240 frames of a segment, i.e. right after an initialisation, where the solve has not converged yet and a 3 px filter removes good observations and starves the problem. That suggests a warm-up (no filtering for the first seconds after any initialisation) as the next iteration (F08), not a different threshold.
+
+**Decision**: pending the last five runs; the filter is not yet the reference as a flat 3 px.
+
+**Applicability**: as F01; the warm-up finding is general (any post-solve rejection must wait for the solve to be trustworthy).
