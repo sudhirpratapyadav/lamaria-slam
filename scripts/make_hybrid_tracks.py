@@ -85,7 +85,10 @@ def main():
             p1, st, _ = cv2.calcOpticalFlowPyrLK(img0, img1, p0, init.astype(np.float32).reshape(-1, 1, 2).copy(), flags=cv2.OPTFLOW_USE_INITIAL_FLOW, **lk)
         else:
             p1, st, _ = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk)
-        p0b, st2, _ = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk)
+        if init is not None:  # backward check starts from the original pixel (the cam1 pixel is far away across a wide baseline)
+            p0b, st2, _ = cv2.calcOpticalFlowPyrLK(img1, img0, p1, p0.copy(), flags=cv2.OPTFLOW_USE_INITIAL_FLOW, **lk)
+        else:
+            p0b, st2, _ = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk)
         ok = (st[:, 0] == 1) & (st2[:, 0] == 1) & (np.linalg.norm(p0b[:, 0] - p0[:, 0], axis=1) <= args.fb_err)
         h, wd = img1.shape
         q = p1[:, 0]
