@@ -6,3 +6,4 @@ Append-only, timestamped. Add with `scripts/log.sh "..."`.
 - **2026-10-03 15:30** Survey saved (docs/v3_frontend_survey.md). Found that Basalt never calls filterOutliers. F01 launched: IMU-consistency gate (pre-solve) and the post-solve outlier filter, env-gated, on the six event sequences.
 - **2026-10-03 15:52** X03: YOLO11n-seg finds pedestrians and the wearer's shoe when the frame is rotated upright. F02 launched: person masks precomputed per frame, consumed by Basalt's optical flow (no detection inside, tracks entering are dropped); mask generation at 1100 frames/min after a threading fix.
 - **2026-10-03 16:33** F02 first pass void: low-confidence whole-image person boxes starved the tracker (R_12 18.7 m). Masks regenerated at conf 0.4, oversized masks ignored in Basalt; F02 relaunched.
+- **2026-10-03 18:07** X05: Basalt segfault root-caused (landmark without observations -> empty QR block); guard added; crashed runs will be re-run.

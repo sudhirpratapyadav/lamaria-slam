@@ -83,3 +83,13 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 **Result**: pending.
 
 **Applicability**: general in principle (tunnels, dark rooms, lens occlusion); the threshold depends on the feature budget of the config; risk of long IMU-only stretches drifting if the threshold is too high.
+
+## X05: the Basalt segfault (2026-10-03, pc)
+
+**Symptom**: `basalt_vio` dies with a null-pointer segfault in `Eigen::makeHouseholder` (float QR) inside `LandmarkBlockAbsDynamic::performQR`, called from `optimize()`. Seen twice on sequence_4_11 with masks (F02, at about frame 8000 both times, so deterministic) and, in hindsight, in v2's B21/B22 runs with failed segments (4_11, 5_12). The robust driver hides it as a "failed" segment and restarts 100 frames later, which costs 100 poses and a stitch.
+
+**Cause**: a landmark left without any observation (its tracks dropped by the mask, the gates, `filterOutliers` or marginalisation) still gets a landmark block; with zero rows the QR dereferences null. Upstream never removes observations outside marginalisation, so it only hits this rarely.
+
+**Fix**: at the start of `optimize()`, landmarks with zero observations are removed (counted in the log). Every run started after 18:10 has it; earlier runs with a "failed" segment are re-run.
+
+**Applicability**: a bug fix, general.
