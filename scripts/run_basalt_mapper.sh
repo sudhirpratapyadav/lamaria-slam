@@ -40,7 +40,22 @@ cd "$OUT_DIR/mapper"
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/mapper/time.txt" \
   "$BIN/basalt_mapper" --cam-calib "$OUT_DIR/calib.json" --marg-data "$OUT_DIR/marg" --config-path "$OUT_DIR/config.json" --show-gui false \
   > "$OUT_DIR/mapper/mapper.log" 2>&1 || { echo "basalt_mapper failed"; tail -3 "$OUT_DIR/mapper/mapper.log"; exit 1; }
-[ -f "$OUT_DIR/mapper/keyframeTrajectory.txt" ] || { echo "mapper wrote no keyframeTrajectory.txt"; ls "$OUT_DIR/mapper"; exit 1; }
+# the headless save writes the EuRoC csv (ts_ns, p_xyz, q_wxyz); convert to TUM seconds / xyzw
+[ -f "$OUT_DIR/mapper/keyframeTrajectory.csv" ] || { echo "mapper wrote no keyframeTrajectory.csv"; ls "$OUT_DIR/mapper"; exit 1; }
+"$PY" - "$OUT_DIR/mapper" <<'EOP'
+import sys
+from pathlib import Path
+d = Path(sys.argv[1]); n = 0
+with open(d / "keyframeTrajectory.txt", "w") as f:
+    f.write("# timestamp tx ty tz qx qy qz qw; from basalt mapper keyframeTrajectory.csv\n")
+    for line in (d / "keyframeTrajectory.csv").read_text().splitlines():
+        if not line or line.startswith("#") or line.startswith("timestamp"): continue
+        v = [x.strip() for x in line.split(",")]
+        if len(v) < 8: continue
+        ts, px, py, pz, qw, qx, qy, qz = v[:8]
+        f.write(f"{int(ts) / 1e9:.9f} {px} {py} {pz} {qx} {qy} {qz} {qw}\n"); n += 1
+print(f"keyframeTrajectory.txt: {n} keyframes")
+EOP
 "$PY" "$ROOT/scripts/basalt_propagate_keyframes.py" "$OUT_DIR/vio/trajectory.tum" "$OUT_DIR/mapper/keyframeTrajectory.txt" "$OUT_DIR/trajectory.tum" | tee "$OUT_DIR/propagate.log"
 ARIA_CALIB="$(ls "$SEQ_DIR"/aria_calibrations/*.json 2>/dev/null | head -1 || true)"
 for variant in "" vio; do

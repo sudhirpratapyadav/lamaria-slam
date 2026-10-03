@@ -114,6 +114,21 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## B12: Basalt VIO + offline mapper (global BA) (2026-10-03, pc, source build)
+
+**Change**: `scripts/run_basalt_mapper.sh`: `basalt_vio --marg-data`, then `basalt_mapper` headless (patched to save its keyframe trajectory; EuRoC csv converted to TUM), optimised keyframe poses propagated to every frame via the VIO's relative motion (`basalt_propagate_keyframes.py`). `basalt_ref1`, offset 0.
+
+**Result** (ATE m sim3):
+
+| | VIO (source build) | VIO + mapper |
+|---|---|---|
+| R_01 (411 keyframes) | 0.151 | 0.240 (scale 1.011) |
+| R_04 (750 keyframes) | 0.786 | 49.4 (diverged, scale 0.0007) |
+
+The mapper log shows rejected Levenberg-Marquardt steps ("increased error after update") on R_01 and the R_04 map is destroyed, most likely by wrong bag-of-words matches on sequences that have no real revisits. Mapper cost: 85 / 136 s, 1.5 / 1.7 GB.
+
+**Decision**: not usable as is; one round with stricter matching (B14: min matches 40, ratio test 1.5, tighter RANSAC) and then park unless it turns around. The source build reproduces the binary release's VIO numbers.
+
 ## M01: mix-and-match analysis, per-sequence choice between Basalt and OpenVINS (2026-10-03)
 
 Using B07/B08 (robust Basalt) and v1 036/037 (OpenVINS ov_ref005):
