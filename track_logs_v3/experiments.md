@@ -219,3 +219,49 @@ Reading: the filter wins the easy and hard sequences, R_11 and the additional se
 **Decision**: the filter is the best single Basalt setting on the additional set (21.2, the first Basalt setting to match OpenVINS there without a scene-specific trick) and a wash on the controlled set (2.50 against 2.43, lost on the medium set and the long control-point walks). Not yet the reference as a flat 3 px: F08 tests the warm-up on the losers, and the moving-platform loss is noted as its known failure case.
 
 **Applicability**: as F01; the warm-up finding is general (any post-solve rejection must wait for the solve to be trustworthy).
+
+## F08: outlier filter with a warm-up after initialisation (2026-10-03, pc)
+
+**Hypothesis** (F07): the filter's extra restarts on R_04 (and the medium-set loss) come from filtering before the solve has converged; skipping the filter for the first frames after initialisation keeps the gain without the restarts.
+
+**Change**: `BASALT_OUTLIER_WARMUP` (frames after initialisation during which `filterOutliers` is not called; one initialisation per process, the robust driver restarts the process). 100 and 300 frames (5 and 15 s) with 3 px, `basalt_ref1` otherwise.
+
+**Command**: `results/v3-F08-filter-warmup/batch.sh` (R_04 at both offsets, R_12 at both, R_13, R_09, R_08, 4_11 at offset 0; queued behind the X05 re-runs).
+
+**Result**: pending.
+
+**Applicability**: general (any post-solve rejection needs a trustworthy solve first); the warm-up length is a time, so it depends on how fast the estimator converges (IMU noise, motion), not on the scene.
+
+## F09: outlier filter plus epipolar gate (2026-10-03, pc)
+
+**Hypothesis**: F03's gate removes liars before they become landmarks, F01's filter removes those that slipped through after the solve; the two should add up on the walks with people.
+
+**Change**: `BASALT_OUTLIER_PX=3` with `BASALT_EPI_GATE=0.005`, `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F09-filter-epi/batch.sh` (six event sequences; queued behind F08).
+
+**Result**: pending.
+
+## F10: learned keypoints seeding the tracker (2026-10-03, pc)
+
+**Hypothesis** (X02): in the dark and low-texture stretches FAST, with its threshold falling to 5, picks noise corners; a learned detector (XFeat) finds repeatable points there. Seeding Basalt's KLT with those points, one per empty grid cell, keeps the precision of patch tracking and borrows the detector's robustness.
+
+**Change**: `scripts/make_learned_keypoints.py` (XFeat on CPU, top 500 per cam0 frame, about 20 frames/s with six workers, stored as float32 x / y / score per frame under `data/training/<seq>/kp_xfeat/cam0/`). Basalt `frame_to_frame_optical_flow.h`: `BASALT_KP_DIR` loads the frame's points, the best one per empty 50 px cell (score at least `BASALT_KP_MIN_SCORE`) becomes a new track; `BASALT_KP_MODE=union` (FAST fills the cells still empty) or `replace` (external points only). With the outlier filter 3 px, `basalt_ref1` otherwise.
+
+**Command**: `results/v3-F10-learned-seed/keypoints.sh` then `batch.sh` (union and replace at min score 0.1 on the six event sequences, each run as its keypoints finish).
+
+**Result**: pending.
+
+**Applicability**: general in principle (any detector that beats FAST in the dark); costs a network pass per frame (XFeat is small: about 50 ms per frame on one CPU core here, far less on a GPU); fails where the detector itself finds nothing (X02's worst window) and adds nothing where FAST already finds good points.
+
+## F11: descriptor-matching front end through the external-tracks interface (2026-10-03, pc)
+
+**Hypothesis** (owner, thoughts.md): descriptor matching is more robust than patch tracking across appearance change and large motion; a matching front end feeding the same back end tells how much of the remaining error is the tracker. It also opens the back end to any learned tracker.
+
+**Change**: Basalt `frame_to_frame_optical_flow.h`: `BASALT_TRACKS_DIR/<t_ns>.bin` (records of track id, cam, x, y) replaces the KLT output for the frame (`BASALT_TRACKS_MODE=replace`) or is added next to it with offset ids (`augment`). `scripts/make_xfeat_tracks.py`: XFeat keypoints (top 1000) per frame, mutual-nearest-neighbour descriptor matches to the previous frame chained into track ids (flow at most 80 px), stereo matches cam0 to cam1 per frame, written as those records. Smoke test on 30 frames of 4_11: 570 to 720 of 1000 points chained frame to frame, about 100 stereo matches, 0.5 s per frame on two cores.
+
+**Command**: `results/v3-F11-xfeat-tracks/tracks.sh` (4_11 and R_08, about 3 h each, sequential by nature), then `batch.sh` (replace and augment, with the filter 3 px).
+
+**Result**: pending.
+
+**Applicability**: the interface is general (any front end, offline here, online later); the XFeat matcher as used is a baseline, not a tuned tracker: no sub-pixel refinement, no temporal window beyond one frame, so its precision is bounded by the detector's localisation; the stereo match count is low (the undistorted Aria pair has a wide baseline and viewpoint change) and may need a looser threshold.

@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..26c798b 100644
+index d16e708..06c5fd6 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -117,7 +117,7 @@ index d16e708..26c798b 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -167,6 +222,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -167,10 +222,13 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
        transforms = new_transforms;
        transforms->input_images = new_img_vec;
  
@@ -125,7 +125,63 @@ index d16e708..26c798b 100644
        addPoints();
        filterPoints();
      }
-@@ -308,6 +364,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+ 
++    applyExternalTracks(curr_t_ns);
++
+     if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
+       output_queue->push(transforms);
+     }
+@@ -178,6 +236,49 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+     frame_counter++;
+   }
+ 
++  // lamaria-slam (v3 F11): external front end. BASALT_TRACKS_DIR/<t_ns>.bin holds records of
++  // (int32 track id, int32 cam, float x, float y) written by any tracker (scripts/make_xfeat_tracks.py).
++  // BASALT_TRACKS_MODE=replace (default): the records are the frame's observations and the KLT
++  // output is discarded; "augment": they are added next to the KLT tracks with ids offset by 2^30.
++  long ext_frames = 0, ext_missing = 0, ext_records = 0;
++  void applyExternalTracks(int64_t t_ns) {
++    static const char* dir = std::getenv("BASALT_TRACKS_DIR");
++    static const std::string mode = [] {
++      const char* e = std::getenv("BASALT_TRACKS_MODE");
++      return std::string((e && *e) ? e : "replace");
++    }();
++    static bool announced = false;
++    if (!announced) {
++      announced = true;
++      std::cerr << "BASALT_TRACKS_DIR: " << ((dir && *dir) ? dir : "off") << " mode " << mode << std::endl;
++    }
++    if (!(dir && *dir)) return;
++    std::ifstream f(std::string(dir) + "/" + std::to_string(t_ns) + ".bin", std::ios::binary);
++    ext_frames++;
++    if (!f) {
++      ext_missing++;
++      if (mode == "replace") for (auto& obs : transforms->observations) obs.clear();
++      return;
++    }
++    std::vector<char> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
++    struct Rec { int32_t id, cam; float x, y; };
++    const size_t n = bytes.size() / sizeof(Rec);
++    const Rec* r = reinterpret_cast<const Rec*>(bytes.data());
++    if (mode == "replace") for (auto& obs : transforms->observations) obs.clear();
++    const KeypointId offset = mode == "replace" ? 0 : (KeypointId(1) << 30);
++    for (size_t i = 0; i < n; i++) {
++      if (r[i].cam < 0 || size_t(r[i].cam) >= transforms->observations.size()) continue;
++      Eigen::AffineCompact2f t;
++      t.setIdentity();
++      t.translation() = Eigen::Vector2f(r[i].x, r[i].y);
++      transforms->observations[r[i].cam][offset + KeypointId(r[i].id)] = t;
++      ext_records++;
++    }
++    if (ext_frames % 1000 == 0)
++      std::cerr << "external tracks: " << ext_frames << " frames, " << ext_missing << " without a file, "
++                << ext_records << " records" << std::endl;
++  }
++
+   void trackPoints(const basalt::ManagedImagePyr<uint16_t>& pyr_1,
+                    const basalt::ManagedImagePyr<uint16_t>& pyr_2,
+                    const Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>&
+@@ -308,6 +409,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -184,7 +240,7 @@ index d16e708..26c798b 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +425,29 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +470,29 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
