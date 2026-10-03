@@ -310,3 +310,11 @@ First lesson: XFeat points as the *main* seeds are bad for KLT (R_08 with XFeat 
 **Bug found on the way**: `computeError` reports a landmark's *host* observation as the sentinel -2 whenever its residual exceeds the threshold (meaning "remove the landmark"); at threshold 0 that is every landmark, and my first adaptive filter, which collected the distribution at threshold 0 and then applied the same sentinel rule, removed every landmark every frame (R_04 adapt3: 4.74 m with no restart, a VIO running on fresh landmarks only). Fixed: the statistics pass ignores the sentinels and the removal uses upstream's `filterOutliers` with the adaptive threshold. The F08b runs before the fix are discarded.
 
 **Applicability**: diagnostic; the sentinel note matters for anyone calling `computeError` with a zero threshold.
+
+## X07: how deterministic is a Basalt run? (2026-10-04, pc, analysis)
+
+**Method**: the same setting (flat 3 px filter, R_04 offset 0, robust driver, 3 threads) three times on the same binary (`results/v3-F08-filter-warmup/R_04_medium_skip0_ctrl3*`).
+
+**Result**: 0.920 / 0.915 / 0.914 m, the same two restarts at the same frames. So a run repeats to about half a percent (TBB reduction order is the only noise), which is well below every effect read in v3 so far. The F07 run of the same setting on the 18:34 build gave 1.22 m with the same two restarts: that build predates the X05 guard, which changes what happens *after* a divergence (degenerate landmarks are now dropped), and the restart dynamics after frame 393 differ. Cross-build comparisons on sequences with restarts carry that extra noise; comparisons within one build do not.
+
+**Applicability**: method note; it means single runs are enough for settings on one binary, and that the reference numbers should be re-taken on the current binary when restarts are involved.
