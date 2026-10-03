@@ -261,6 +261,8 @@ The warm-up is not the answer: at offset 0 the first divergence is at frame 393 
 |---|---|---|---|
 | sequence_4_11 | 14.46, 2.2 / 99.1, scale **0.82**, 1 restart (3.79, 37.9 / 99.1) | diverged at frame 175, run lost to a build race | 4.17, 29.5 / 71.0 (XFeat supplies 4.5 % of the new points) |
 | R_08 | (stopped) | 6.58, scale 0.95 (1.072) | 1.0725 (1.072): XFeat adds 2 % of the points, FAST fills every cell |
+| R_11 | | | 2.078, 78.1 / 97.6 (2.051, 78.7 / 97.7) |
+| sequence_2_11 | | | **21.92, 33.5 / 56.9** (22.75, 21.2 / 44.7): best 2_11 score and ATE of any setting so far, but the 2_11 score is known to swing by 10 points between close settings (F06) |
 
 First lesson: XFeat points as the *main* seeds are bad for KLT (R_08 with XFeat points only: 6.6 m against 1.07, no restart, just a steadily worse estimate). With XFeat first, the dark walk goes from 3.8 m back to 14.5 m with a scale of 0.82 (reference scales are 0.97 to 0.99): the points a learned detector likes (blobs, edges, texture) are not the points a patch tracker can follow and stereo-match, so the stereo depths and the scale go wrong. FAST corners are chosen for exactly that. Second lesson: in fill mode the learned points almost never get a chance, because Basalt's adaptive FAST (threshold down to 5) always finds *something* in a cell, noise corners included. F10c makes FAST stop at 20 so the weak cells stay empty, as an ablation on its own (fewer noise corners may help or hurt) and with XFeat filling them.
 
