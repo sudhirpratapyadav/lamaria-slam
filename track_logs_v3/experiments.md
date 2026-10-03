@@ -71,3 +71,15 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 **Result**: R_12: 7814 drops, 2441 of them (31 %) in the 450 s window where the wearer looks down at their shoes (X01/B18), the rest spread thinly; in the image they sit in the centre rows (rows 2 and 3, columns 3 to 5), not in a corner. sequence_4_11: 2479 drops spread evenly over time (48 in the 450 s window where the heading swings happen), also centred.
 
 **Reading**: on R_12 the gate finds the liars where and when they are, so the mechanism works as intended there. On the dark walk the swings are not caused by inconsistent features; the gate fires uniformly on noise, and 4_11 is the "too few usable features" failure type, not the "wrong features" type (consistent with X02). A static body-region prior is not viable: the wearer's body appears in the image centre whenever they look down, not in a fixed corner. **Applicability**: diagnostic only.
+
+## F04: untrustworthy-image rule (2026-10-03, pc)
+
+**Hypothesis** (X02/X04): on the dark walk the damage comes from frames with very few usable tracks, where the few noisy ones pull the heading. If such a frame contributes no visual observations and spawns no landmarks, the IMU carries the state through the stretch at a known, bounded drift instead.
+
+**Change**: `sqrt_keypoint_vio.cpp`: `BASALT_MIN_OBS_FRAME` (0 = off): when fewer tracked landmarks than this reach the frame in cam0, no observations are added for the frame and it cannot become a keyframe; count reported every 100 untrusted frames. `basalt_ref1` otherwise, robust driver, offset 0.
+
+**Command**: `results/v3-F04-untrusted-frame/batch.sh` (15 and 30 landmarks on 4_11, R_08, 2_11, R_11; queued behind F03).
+
+**Result**: pending.
+
+**Applicability**: general in principle (tunnels, dark rooms, lens occlusion); the threshold depends on the feature budget of the config; risk of long IMU-only stretches drifting if the threshold is too high.
