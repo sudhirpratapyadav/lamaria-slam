@@ -145,7 +145,7 @@ index ff9df90..c7b8902 100644
  
      if (!result_path.empty()) {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..10d97e4 100644
+index 55984fc..ceb57d0 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -331,7 +331,7 @@ index 55984fc..10d97e4 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -1014,6 +1136,22 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -1014,6 +1136,29 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -339,9 +339,16 @@ index 55984fc..10d97e4 100644
 +  // filterOutliers or marginalisation) gives an empty landmark block whose QR dereferences null
 +  // (segfault in makeHouseholder, seen on sequence_4_11 and 5_12). Drop such landmarks first.
 +  {
++    // the landmark block only counts observations in frames of the current problem (frame_poses
++    // and frame_states) and asserts that the host frame is one of them; mirror that here
++    auto frame_active = [&](int64_t t) { return frame_poses.count(t) > 0 || frame_states.count(t) > 0; };
 +    std::vector<KeypointId> empty_lms;
-+    for (const auto& kv_lm : lmdb.getLandmarks())
-+      if (lmdb.numObservations(kv_lm.first) == 0) empty_lms.push_back(kv_lm.first);
++    for (const auto& kv_lm : lmdb.getLandmarks()) {
++      int n_active = 0;
++      for (const auto& kv_obs : kv_lm.second.obs)
++        if (frame_active(kv_obs.first.frame_id)) n_active++;
++      if (n_active == 0 || !frame_active(kv_lm.second.host_kf_id.frame_id)) empty_lms.push_back(kv_lm.first);
++    }
 +    static long empty_total = 0;
 +    for (KeypointId id : empty_lms) lmdb.removeLandmark(id);
 +    if (!empty_lms.empty()) {
@@ -354,7 +361,7 @@ index 55984fc..10d97e4 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1569,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1576,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();

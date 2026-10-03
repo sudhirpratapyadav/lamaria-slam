@@ -101,6 +101,6 @@ Small, consistent gains where people walk through the view (2_11 by a fifth in A
 
 **Cause**: a landmark left without any observation (its tracks dropped by the mask, the gates, `filterOutliers` or marginalisation) still gets a landmark block; with zero rows the QR dereferences null. Upstream never removes observations outside marginalisation, so it only hits this rarely.
 
-**Fix**: at the start of `optimize()`, landmarks with zero observations are removed (counted in the log). Every run started after 18:10 has it; earlier runs with a "failed" segment are re-run.
+**First attempt (did not fix it)**: removing, before `optimize()`, landmarks with no observations in active frames or with an inactive host. The guard never fires on the crashing case (sequence_4_11 with masks still dies at about frame 8000), so the empty block comes from somewhere else. Next: a build with debug symbols (`-O3 -g`) and a backtrace with line numbers; a debug switch `BASALT_MASK_NO_DROP` isolates the track-dropping half of the mask. The guard stays (harmless). Runs with a "failed" segment are re-run once the cause is fixed.
 
 **Applicability**: a bug fix, general.
