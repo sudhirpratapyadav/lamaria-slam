@@ -30,7 +30,7 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Command**: `results/v2-B16-basalt-clahe/batch.sh` (robust driver, `basalt_ref1`, offset 0, 2 runs at a time): R_04 control, then CLAHE on R_01 / R_04 / R_08 / R_11 / sequence_2_11 / 3_18 / 4_11.
 
-**Result** (ATE sim3 m, offset 0; reference = B07 release binary): R_04 control with the source build 0.779 (B07 0.781: the source build reproduces the release); CLAHE 10: R_04 0.785, R_08 1.000 (1.005), R_11 2.589, score 73.2 (2.605, 73.3). R_01 0.151 (0.151). Long walks (score 2D / recall @ 5 m; B08 in brackets): sequence_2_11 ATE 30.4, 21.2 / 46.6 % (30.9, 20.7 / 45.9); 3_18 81.1, 0.0 / 0.2 % (81.0, 2.4 / 4.2); 4_11 15.6 with one restart, 15.3 / 36.3 % (14.9, 9.9 / 18.9). The drift decomposition is unchanged to the second decimal (3_18 worst window 28.0 deg both ways). Ties everywhere: Basalt's patch-based optical flow with its adaptive FAST threshold is insensitive to contrast, unlike OpenVINS's KLT front end.
+**Result** (ATE sim3 m, offset 0; reference = B07 release binary): R_04 control with the source build 0.779 (B07 0.781: the source build reproduces the release); CLAHE 10: R_04 0.785, R_08 1.000 (1.005), R_11 2.589, score 73.2 (2.605, 73.3). R_01 0.151 (0.151). Long walks (score 2D / recall @ 5 m; B08 in brackets): sequence_2_11 ATE 30.4, 21.2 / 46.6 % (30.9, 20.7 / 45.9); 3_18 81.1, 0.0 / 0.2 % (81.0, 2.4 / 4.2); 4_11 15.6 with one restart, 15.3 / 36.3 % (14.9, 9.9 / 18.9). The drift decomposition is unchanged to the second decimal (3_18 worst window 28.0 deg both ways). Sanity: clip 100 against clip 10 on R_01 moves the trajectory by 1.6 mm on average (8.5 mm max), so the preprocessing is applied and Basalt is simply insensitive to it. Ties everywhere: Basalt's patch-based optical flow with its adaptive FAST threshold is insensitive to contrast, unlike OpenVINS's KLT front end.
 
 **Decision**: discard; the patch stays (off by default). Next for Basalt: B17 (outlier handling) on the same stretches.
 
@@ -40,9 +40,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Change**: `MAX_SPEED=4 MAX_JUMP=0.5` (default 6 / 1) on the standard four and the two long walks where Basalt is worst with restarts possible (sequence_2_12, 4_11).
 
-**Result**: standard four identical to B07 (no restart triggers on either threshold: R_01 0.151, R_04 0.781, R_08 1.005, R_11 2.60 / score 73.3, recall@1m 60). sequence_4_11: 2 restarts, ATE 16.2 (B08: 14.9), score 6.7 (9.9), recall @ 5 m 11.7 % (18.9 %): worse. sequence_2_12: pending.
+**Result**: standard four identical to B07 (no restart triggers on either threshold: R_01 0.151, R_04 0.781, R_08 1.005, R_11 2.60 / score 73.3, recall@1m 60). sequence_4_11: 2 restarts, ATE 16.2 (B08: 14.9), score 6.7 (9.9), recall @ 5 m 11.7 % (18.9 %): worse. sequence_2_12: not completed (the harness job hit its time limit after 2 h); by then the driver had restarted eight times inside the first 25 s of the sequence (frames 28, 38, 97, 136, 137, 384, 415), so the thresholds fire on normal head motion; not rerun.
 
-**Decision**: discard (pending 2_12). The tighter thresholds fire on fast head motion, not on divergence, and each restart costs more than it saves.
+**Decision**: discard. The tighter thresholds fire on fast head motion, not on divergence, and each restart costs more than it saves.
 
 ## X01: where the drift on the long walks comes from (2026-10-03, pc, analysis only)
 
