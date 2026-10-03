@@ -114,6 +114,17 @@ R_08_hard: live 4.987 / final 5.152 (scale 0.94), 4034 s wall, 2.1 GB RSS (no di
 
 R_04 fisheye: 0.825 m, again 3923 of 5253 poses (the same tracking loss as C01, so it is not the IMU weighting). R_08: crashes after the second inertial BA on every attempt (deterministic on this sequence as built). Parked; the ORB-SLAM3 line needs a code-level fix for the crash and for re-tracking after loss before more tuning makes sense.
 
+## T01: timing at light load, R_01 (144.9 s of data) (2026-10-03, pc, load ~5 from two OKVIS2 runs)
+
+| System | wall | CPU share | core-seconds per second of data | RSS |
+|---|---|---|---|---|
+| OpenVINS ov_ref005 (4 OpenCV threads) | 89 s (1.6x realtime) | 1.25 cores | 0.77 | 111 MB |
+| Basalt ref1 (4 threads) | 31 s (4.7x realtime) | 3.55 cores | 0.75 | 79 MB |
+| OKVIS2 (A02, under heavy load) | 2011 s | ~0.7 cores | ~10 (not comparable) | 600 MB |
+| ORB-SLAM3 (C01) | 69+ s | 1.5 cores | ~0.7 | 600 MB to 1.5 GB |
+
+OpenVINS and Basalt cost the same CPU per second of data (about three quarters of one core of this PC); Basalt spreads it over threads. Both fit a Jetson-class budget in principle; OKVIS2 as configured (full optimisation budget, no realtime limit) does not.
+
 ## M02: observable selectors between Basalt and OpenVINS, additional set (2026-10-03)
 
 Signals available without ground truth: Basalt's restart count, OpenVINS's re-init count, and the agreement between the two trajectories (RMSE after sim3-aligning one onto the other).

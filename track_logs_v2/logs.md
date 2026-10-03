@@ -47,3 +47,4 @@ Timestamped decisions, real clock (IST), written through `scripts/log.sh` (now p
 - **2026-10-03 05:34** B12 Basalt mapper: worse on R_01 (0.24 vs 0.15) and diverges on R_04 (49 m): wrong place-recognition matches with no real loops. One strict-matching round (B14), then park.
 - **2026-10-03 05:36** B14 strict mapper still worse than the VIO (R_01 5.8, R_04 1.13); Basalt mapper parked.
 - **2026-10-03 05:37** M02: observable selectors (agreement, restarts, duration) give 23.5-24.4 mean score vs 21.8 OpenVINS / 16.9 Basalt / 25.9 oracle; agreement is a clean signal but the long walks need a better estimator, not a switch.
+- **2026-10-03 05:39** T01 timing (light load, R_01): OpenVINS 0.77 and Basalt 0.75 core-seconds per second of data (Basalt 4.7x realtime on 3.5 cores, 79 MB); OKVIS2 as configured ~10x that. B15 = Basalt restart thresholds (speed 4 / jump 0.5) on the standard four plus 2_12 and 4_11.
