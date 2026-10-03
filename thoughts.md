@@ -25,3 +25,22 @@
   - Missing poses (init gaps, restarts): cheap, a few points of recall.
 - Causal vs non-causal: the benchmark does not enforce causality. Rank 1 (Aria's SLAM, Meta's offline MPS) and rank 5 (OpenVINS + Maplab) are non-causal; rank 2 (AnonSLAM) is unknown, probably non-causal; ranks 3 and 4 not checked.
 - Shape of the solution: fix the events causally in the front end, then a non-causal finishing stage (global BA plus loop closure) to go from good to top.
+
+## 2026-10-03: how the methods work (front end discussion)
+
+- Pipeline shared by all four systems (OpenVINS, Basalt, OKVIS2, ORB-SLAM3)
+  - Front end finds and follows points; IMU preintegration sums gyro and accelerometer between images; back end fuses them; marginalisation keeps the problem small; extras are loop closure, global map, final bundle adjustment.
+  - Vocabulary: state (poses, velocity, biases, landmarks), measurements (pixels, IMU readings), model (projection, IMU kinematics, calibration), residual (prediction minus measurement). Noise parameters say how much each measurement is believed.
+- Filter vs optimiser
+  - Both are Bayesian; the difference is how many states are re-estimated together and whether the solve iterates. A filter nudges one belief once per measurement and never looks back; an optimiser re-solves a window of states and can undo a wrong step while it is still in the window.
+  - "Filter" is the Wiener/Kalman sense: an adaptive low-pass on the measurement stream. Filtering uses data up to now; smoothing uses later data too.
+  - An event pulls both wrong; the optimiser can recover if good features return inside the window. Marginalisation turns the oldest state back into a filter prior.
+- Front ends
+  - Tracking (KLT, optical flow): slide a remembered patch to where it overlaps best in the next frame. Sub-pixel precise, degrades gracefully in blur and dark, needs small motion, creeps and latches onto look-alikes when the point is lost.
+  - Descriptor matching (ORB, BRISK): summarise each corner as a bit string and find the closest one anywhere in the image or the map. Re-finds lost points, handles big jumps, coarser position, falls apart in blur and dark.
+  - Map points in ORB-SLAM3 and OKVIS2 keep all their observations and descriptors; only the matching is collapsed to one representative. Learned trackers keep the whole track as memory.
+  - Basalt wins despite no IMU-guided search because measurement quality (0.1 px) and graceful degradation matter more than how features are found at 20 Hz.
+  - Back-end-to-front-end feedback exists as IMU-guided search (ORB-SLAM3, OKVIS2) and outlier gating (all). Nobody uses the IMU to decide which features are lying; a feature on the wearer's shoe or a passer-by moves inconsistently with the gyro.
+- Target front end
+  - Precision from patch tracking, re-finding from descriptors, plus a third piece for bad images: a learned front end that sees in the dark and knows people and body parts, or a rule that says the image is untrustworthy now, lean on the IMU, invent no features.
+  - Learned options: detectors and descriptors (SuperPoint, ALIKED), matchers (LightGlue), trackers (CoTracker, RAFT, DPVO). Cautions: DPVO/DPV-SLAM scored badly in the benchmark paper; GPU needed (fine on the Orin, not on the old Nano).
