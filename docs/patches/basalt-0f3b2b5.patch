@@ -56,6 +56,37 @@ index ff9df90..c7b8902 100644
      auto time_end = std::chrono::high_resolution_clock::now();
  
      if (!result_path.empty()) {
+diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
+index 55984fc..fd49a1d 100644
+--- a/src/vi_estimator/sqrt_keypoint_vio.cpp
++++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
+@@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
+ #include <basalt/vi_estimator/marg_helper.h>
++#include <cstdlib>
++#include <iostream>
+ #include <basalt/vi_estimator/sqrt_keypoint_vio.h>
+ 
+ #include <basalt/optimization/accumulator.h>
+@@ -441,8 +443,16 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+         Vec4 p0_triangulated = triangulate(p0_3d.template head<3>(),
+                                            p1_3d.template head<3>(), T_0_1);
+ 
++        // lamaria-slam: the inverse-distance cap (upstream: 3.0, i.e. nothing closer than 0.33 m)
++        // can be tightened with BASALT_MAX_INV_DIST to reject near features (wearer's body, B20)
++        static const Scalar max_inv_dist = [] {
++          const char* e = std::getenv("BASALT_MAX_INV_DIST");
++          const double v = (e && *e) ? std::atof(e) : 3.0;
++          std::cerr << "BASALT_MAX_INV_DIST: " << v << std::endl;
++          return Scalar(v);
++        }();
+         if (p0_triangulated.array().isFinite().all() &&
+-            p0_triangulated[3] > 0 && p0_triangulated[3] < 3.0) {
++            p0_triangulated[3] > 0 && p0_triangulated[3] < max_inv_dist) {
+           Keypoint<Scalar> kpt_pos;
+           kpt_pos.host_kf_id = tcidl;
+           kpt_pos.direction =
 diff --git a/vcpkg.json b/vcpkg.json
 index e36dd6b..5c7302a 100644
 --- a/vcpkg.json

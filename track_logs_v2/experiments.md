@@ -78,6 +78,14 @@ OKVIS2's final BA wins 7 of 13 and the single-offset mean (2.15 against Basalt's
 
 **Decision**: OKVIS2 stays in the mix as the non-causal, high-accuracy member for a selector (M03), not as the base to optimise. Next: A08 (CLAHE) on R_08/R_11, and a 13-sequence three-way oracle with OpenVINS.
 
+## B20: Basalt, reject near landmarks (2026-10-03, pc)
+
+**Hypothesis** (B18's R_12 analysis, X01): the heading excursions coincide with the wearer's own body (shoe, arm) and near moving objects in view. Basalt accepts any landmark triangulated farther than 0.33 m (a hard-coded inverse-distance cap of 3.0); refusing landmarks closer than 0.8 m or 1.5 m removes the body features at the cost of some close indoor structure.
+
+**Change**: `sqrt_keypoint_vio.cpp`: the cap reads env `BASALT_MAX_INV_DIST` (default 3.0 = upstream; in `docs/patches/basalt-0f3b2b5.patch`), announced once in the log. `basalt_ref1` otherwise (Huber 1.0), robust driver, offset 0, caps 1.25 (0.8 m) and 0.67 (1.5 m) on R_12, R_08, R_11, sequence_4_11, 2_11, 3_18.
+
+**Command**: `results/v2-B20-basalt-neardist/batch.sh`. **Result**: pending.
+
 ## B19: Basalt Huber 0.7 (2026-10-03, pc)
 
 **Result** (ATE m; score 2D / recall @ 5 m where control points exist; reference basalt_ref1 and Huber 0.5 in brackets): R_08 0.890 (1.006 / 0.818); R_09 2.869 (2.762 / 3.880); R_11 2.376, 75.0 (2.605, 73.3 / 2.110, 76.7); R_12 offset 0 16.10, 7.2 (12.86, 12.0 / 16.22, 7.1) and offset 100 14.39, 12.6 (12.94, 14.0 / 16.07, 6.9); R_13 3.567, 43.1 (3.349, 45.2 / 3.589, 42.0); sequence_1_20 39.1 (39.6 / 38.3); 2_11 22.3 (20.7 / 24.1); 3_18 77.8, 2.5 (81.0, 2.4 / 71.5, 2.9); **4_11 3.60, 34.4 / 92.0 %** (14.9, 9.9 / 18.9 % / 3.11, 37.1 / 92.4 %), with three restarts (0.5: one; reference: none).
@@ -135,7 +143,7 @@ Better on 20 of 26 runs, by 10 to 30 % on the easy and medium sequences, but wor
 | obs std 1.0 px | 1.388 | 1.338, 71.6 / 100 | 55.7, 0.9 / 4.6 (one restart) |
 | epipolar 0.0025 | 1.013 | 2.592, 73.3 / 96.5 | 80.7, 2.1 / 4.0 |
 
-Huber 0.5 improves all three (19 % on R_08, 18 % on R_11, 12 % on 3_18) with no cost. Doubling the pixel noise cuts the ATE on R_11 and 3_18 (more IMU trust limits the heading events) but costs the control-point scores and R_08: the sim3 ATE and the score disagree, so it is not a clean win. The outlier gate and the epipolar check are no-ops here (they do not reach the features that matter).
+Huber 0.5 improves all three (19 % on R_08, 18 % on R_11, 12 % on 3_18) with no cost. Doubling the pixel noise cuts the ATE on R_11 and 3_18 (more IMU trust limits the heading events) but costs the control-point scores and R_08: the sim3 ATE and the score disagree, so it is not a clean win. The epipolar check is a no-op here, and the outlier gate is a no-op by construction: `vio_outlier_threshold` is commented out in this Basalt version (`vio_config.cpp`), so the key in the config is read and ignored.
 
 **Decision**: validate Huber 0.5 on the full sets (B18); keep the obs-std result as evidence for the "trust the IMU in degraded stretches" direction (see D04 for the OpenVINS version).
 
