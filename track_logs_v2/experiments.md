@@ -47,7 +47,32 @@ So far OKVIS2's final BA beats Basalt on the easy sequences and R_10/R_11 but lo
 
 **Change**: `basalt_r17_huber05` (B17's winner) on the 13 controlled sequences at offsets 0 and 100 and on the 10 additional sequences; `basalt_r17_huber03` (0.3) on R_08 / R_11 / 3_18 for the direction.
 
-**Command**: `results/v2-B18-basalt-huber/batch.sh`. **Result**: pending.
+**Command**: `results/v2-B18-basalt-huber/batch.sh`.
+
+**Result**, controlled set (ATE sim3 m, offsets 0 / 100; B07 reference in brackets):
+
+| Seq | Huber 0.5 | basalt_ref1 (B07) |
+|---|---|---|
+| R_01 | 0.146 / 0.150 | 0.151 / 0.156 |
+| R_02 | 0.141 / 0.185 | 0.173 / 0.215 |
+| R_03 | 0.373 / 0.342 | 0.434 / 0.415 |
+| R_04 | 0.628 / 0.632 | 0.781 / 0.935 |
+| R_05 | 0.997 / 1.055 | 1.139 / 1.153 |
+| R_06 | 1.121 / 0.851 | 1.124 / 0.764 |
+| R_07 | 1.102 / 0.941 | 1.236 / 1.220 |
+| R_08 | 0.818 / 1.022 | 1.006 / 1.368 |
+| R_09 | 3.880 / 2.125 | 2.762 / 2.414 |
+| R_10 | 4.379 / 3.224 | 4.412 / 3.877 |
+| R_11 | 2.110 / 1.947 (score 76.7 / 78.4) | 2.605 / 2.078 (73.3 / 77.0) |
+| R_12 | 16.22 / 16.07 (score 7.1 / 6.9) | 12.86 / 12.94 (12.0 / 14.0) |
+| R_13 | 3.589 / 3.698 (score 42.0 / 41.1) | 3.349 / 3.544 (45.2 / 44.3) |
+| **two-offset mean** | **2.61** | **2.43** |
+
+Better on 20 of 26 runs, by 10 to 30 % on the easy and medium sequences, but worse on both offsets of the two long control-point walks (R_12 by 3.3 m and 5 to 7 score points, R_13 by 0.2 m and 3 points) and on one R_09 offset, which flips the 13-sequence mean the wrong way. Additional set (score 2D, B08 in brackets): 1_19 69.0 (64.1), 1_20 38.3 (39.6), 2_11 24.1 (20.7), 2_12 6.4 (5.3), 3_17 1.3 (4.3), 3_18 2.9 (2.4), 4_10 8.0 (8.4), 5_11 6.7 (6.9); 4_11 and 5_12 pending: four up, four down, no net change. Huber 0.3 (direction check): R_08 0.862, R_11 1.638 / 78.9, 3_18 68.3 / 1.1: the ATE keeps falling with a tighter threshold, the control-point scores do not follow.
+
+**Reading**: a tighter Huber threshold helps wherever features are plentiful (easy/medium) and hurts on the longest walks, where it leaves too few effective observations and the drift grows. It is the same trade-off as D04 and B17's obs-std: more IMU weight, less vision. **Decision**: not kept as is; B19 tries 0.7 on the sequences that moved most (R_12, R_13, R_09, R_08, R_11, 2_11, 1_20, 3_18, 4_11).
+
+
 
 ## B17: Basalt outlier handling, one knob each (2026-10-03, pc)
 
