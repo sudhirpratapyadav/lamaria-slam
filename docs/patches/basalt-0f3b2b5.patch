@@ -282,13 +282,20 @@ index d16e708..911f418 100644
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
 diff --git a/include/basalt/vi_estimator/ba_base.h b/include/basalt/vi_estimator/ba_base.h
-index 61707a7..b9bd1ea 100644
+index 61707a7..17cbfb2 100644
 --- a/include/basalt/vi_estimator/ba_base.h
 +++ b/include/basalt/vi_estimator/ba_base.h
-@@ -60,6 +60,9 @@ class BundleAdjustmentBase {
+@@ -60,6 +60,16 @@ class BundleAdjustmentBase {
                      Scalar outlier_threshold = 0) const;
  
    void filterOutliers(Scalar outlier_threshold, int min_num_obs);
++  long filter_removed_landmarks = 0, filter_removed_obs = 0, filter_skipped_frames = 0;  // counters (lamaria-slam)
++  // lamaria-slam (v3 F08d): one residual pass; skips the frame when more than max_frac of the
++  // observations exceed the threshold (a burst means the pose is wrong, not the points), and with
++  // lm_rule removes an observation only if its landmark's median residual is below thr / 2
++  // (the landmark is good and this observation is the odd one). Host observations are never a
++  // reason to delete a landmark here. Returns false when the frame was skipped.
++  bool filterOutliersV2(Scalar outlier_threshold, int min_num_obs, Scalar max_frac, bool lm_rule);
 +  // lamaria-slam (v3 F08b): threshold relative to the current residual spread,
 +  // max(floor_px, median + k * 1.4826 * MAD); returns the threshold used
 +  Scalar filterOutliersAdaptive(Scalar floor_px, Scalar k, int min_num_obs, size_t* removed_obs = nullptr);
@@ -337,7 +344,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..a8c8537 100644
+index 2960dad..93bd5d3 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -348,10 +355,102 @@ index 2960dad..a8c8537 100644
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -311,6 +312,37 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
-   // std::endl;
- }
+@@ -273,42 +274,106 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+   std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
+   computeError(error, &outliers, outlier_threshold);
  
+-  //  std::cout << "============================================" <<
+-  //  std::endl; std::cout << "Num landmarks: " << lmdb.numLandmarks() << "
+-  //  with outliners
+-  //  "
+-  //            << outliers.size() << std::endl;
++  // lamaria-slam (v3 F08c): BASALT_OUTLIER_KEEP_HOST=1 keeps a landmark whose *host* observation
++  // exceeds the threshold (upstream deletes it with all its observations; the host observation
++  // itself cannot be removed, the landmark is parameterised by it). Counters for the log.
++  static const bool keep_host = [] {
++    const char* e = std::getenv("BASALT_OUTLIER_KEEP_HOST");
++    return e && *e && *e != '0';
++  }();
+ 
+   for (const auto& kv : outliers) {
+     int num_obs = lmdb.numObservations(kv.first);
+-    int num_outliers = kv.second.size();
+-
+-    bool remove = false;
+-
+-    if (num_obs - num_outliers < min_num_obs) remove = true;
+-
+-    //    std::cout << "\tlm_id: " << kv.first << " num_obs: " << num_obs
+-    //              << " outliers: " << num_outliers << " [";
+-
++    int num_host = 0;
++    std::set<TimeCamId> bad;
+     for (const auto& kv2 : kv.second) {
+-      if (kv2.second == -2) remove = true;
++      if (kv2.second == -2) num_host++;
++      else bad.emplace(kv2.first);
++    }
++    bool remove = (num_host > 0 && !keep_host) || (num_obs - int(bad.size()) < min_num_obs);
+ 
+-      //      std::cout << kv2.second << ", ";
++    if (remove) {
++      lmdb.removeLandmark(kv.first);
++      filter_removed_landmarks++;
++    } else if (!bad.empty()) {
++      lmdb.removeObservations(kv.first, bad);
++      filter_removed_obs += bad.size();
+     }
++  }
++}
+ 
+-    //    std::cout << "] " << std::endl;
++template <class Scalar_>
++bool BundleAdjustmentBase<Scalar_>::filterOutliersV2(Scalar thr, int min_num_obs, Scalar max_frac,
++                                                     bool lm_rule) {
++  Scalar error;
++  std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> all;
++  computeError(error, &all, Scalar(0));
++
++  size_t n_total = 0, n_above = 0;
++  for (const auto& kv : all)
++    for (const auto& kv2 : kv.second)
++      if (kv2.second >= 0) { n_total++; if (kv2.second > thr) n_above++; }
++  if (n_total == 0) return true;
++  if (max_frac > 0 && Scalar(n_above) > max_frac * Scalar(n_total)) {
++    filter_skipped_frames++;
++    return false;
++  }
+ 
+-    if (remove) {
++  for (const auto& kv : all) {
++    std::set<TimeCamId> bad;
++    std::vector<Scalar> es;
++    bool invalid = false;
++    for (const auto& kv2 : kv.second) {
++      if (kv2.second == -1) { bad.emplace(kv2.first); invalid = true; }
++      else if (kv2.second >= 0) { es.push_back(kv2.second); if (kv2.second > thr) bad.emplace(kv2.first); }
++    }
++    if (bad.empty()) continue;
++    if (lm_rule && !invalid && !es.empty()) {
++      const size_t m = es.size() / 2;
++      std::nth_element(es.begin(), es.begin() + m, es.end());
++      if (es[m] > thr / 2) continue;  // the landmark itself is off: keep its observations, let the solve move it
++    }
++    const int num_obs = lmdb.numObservations(kv.first);
++    if (num_obs - int(bad.size()) < min_num_obs) {
+       lmdb.removeLandmark(kv.first);
++      filter_removed_landmarks++;
+     } else {
+-      std::set<TimeCamId> outliers;
+-      for (const auto& kv2 : kv.second) outliers.emplace(kv2.first);
+-      lmdb.removeObservations(kv.first, outliers);
++      lmdb.removeObservations(kv.first, bad);
++      filter_removed_obs += bad.size();
+     }
+   }
++  return true;
++}
++
 +template <class Scalar_>
 +Scalar_ BundleAdjustmentBase<Scalar_>::filterOutliersAdaptive(Scalar floor_px, Scalar k, int min_num_obs,
 +                                                              size_t* removed_obs) {
@@ -375,19 +474,19 @@ index 2960dad..a8c8537 100644
 +    const Scalar sigma = Scalar(1.4826) * es[m];
 +    thr = std::max(floor_px, med + k * sigma);
 +  }
-+
+ 
+-  // std::cout << "============================================" <<
+-  // std::endl;
 +  // removal pass with upstream's own rules (host observation above the threshold removes the landmark)
 +  const int before = lmdb.numObservations();
 +  filterOutliers(thr, min_num_obs);
 +  if (removed_obs) *removed_obs = size_t(std::max(0, before - lmdb.numObservations()));
 +  return thr;
-+}
-+
+ }
+ 
  template <class Scalar_>
- void BundleAdjustmentBase<Scalar_>::computeDelta(const AbsOrderMap& marg_order,
-                                                  VecX& delta) const {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..8438a58 100644
+index 55984fc..4fad6f2 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -654,7 +753,7 @@ index 55984fc..8438a58 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1605,71 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1605,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
@@ -720,7 +819,15 @@ index 55984fc..8438a58 100644
 +        std::cerr << "adaptive filter: mean threshold " << adapt_thr_sum / 500 << " px, " << adapt_removed_total
 +                  << " observations removed so far" << std::endl, adapt_thr_sum = 0;
 +    } else {
-+      this->filterOutliers(outlier_px, outlier_min_obs);
++      static const Scalar max_frac = [] { const char* e = std::getenv("BASALT_OUTLIER_MAX_FRAC"); return Scalar((e && *e) ? std::atof(e) : 0.0); }();
++      static const bool lm_rule = [] { const char* e = std::getenv("BASALT_OUTLIER_LM_RULE"); return e && *e && *e != '0'; }();
++      static bool v2_announced = false;
++      if (!v2_announced) { v2_announced = true; std::cerr << "BASALT_OUTLIER_MAX_FRAC: " << max_frac << " BASALT_OUTLIER_LM_RULE: " << lm_rule << std::endl; }
++      if (max_frac > 0 || lm_rule) this->filterOutliersV2(outlier_px, outlier_min_obs, max_frac, lm_rule);
++      else this->filterOutliers(outlier_px, outlier_min_obs);
++      if (frames_since_init % 500 == 0)
++        std::cerr << "outlier filter: " << this->filter_removed_landmarks << " landmarks and "
++                  << this->filter_removed_obs << " observations removed, " << this->filter_skipped_frames << " frames skipped so far" << std::endl;
 +    }
 +  }
    marginalize(num_points_connected, lost_landmaks);
