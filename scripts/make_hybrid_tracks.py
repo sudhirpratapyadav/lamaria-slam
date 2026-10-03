@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--top-k", type=int, default=1000)
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--no-revive", action="store_true", help="ablation: plain KLT + FAST, no descriptors")
+    ap.add_argument("--calib", type=Path, default=None, help="Basalt calib.json; the stereo KLT starts from the infinite-homography prediction (the cameras are canted)")
     ap.add_argument("--xfeat", type=Path, default=Path(__file__).resolve().parent.parent / "third_party/accelerated_features")
     args = ap.parse_args()
     for v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
@@ -63,11 +64,25 @@ def main():
     lk = dict(winSize=(21, 21), maxLevel=3, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
     fast = cv2.FastFeatureDetector_create(threshold=args.fast_thr)
 
-    def klt(img0, img1, pts):
+    H_inf = None
+    if args.calib is not None:
+        import json
+        from scipy.spatial.transform import Rotation as Rot
+        v = json.load(open(args.calib))["value0"]
+        def K(i):
+            k = v["intrinsics"][i]["intrinsics"]; return np.array([[k["fx"], 0, k["cx"]], [0, k["fy"], k["cy"]], [0, 0, 1]])
+        def R(i):
+            q = v["T_imu_cam"][i]; return Rot.from_quat([q["qx"], q["qy"], q["qz"], q["qw"]]).as_matrix()
+        H_inf = K(1) @ R(1).T @ R(0) @ np.linalg.inv(K(0))  # cam0 pixel -> cam1 pixel for a point at infinity
+
+    def klt(img0, img1, pts, init=None):
         if len(pts) == 0:
             return np.zeros((0, 2), np.float32), np.zeros(0, bool)
         p0 = pts.astype(np.float32).reshape(-1, 1, 2)
-        p1, st, _ = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk)
+        if init is not None:
+            p1, st, _ = cv2.calcOpticalFlowPyrLK(img0, img1, p0, init.astype(np.float32).reshape(-1, 1, 2).copy(), flags=cv2.OPTFLOW_USE_INITIAL_FLOW, **lk)
+        else:
+            p1, st, _ = cv2.calcOpticalFlowPyrLK(img0, img1, p0, None, **lk)
         p0b, st2, _ = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk)
         ok = (st[:, 0] == 1) & (st2[:, 0] == 1) & (np.linalg.norm(p0b[:, 0] - p0[:, 0], axis=1) <= args.fb_err)
         h, wd = img1.shape
@@ -173,7 +188,11 @@ def main():
         # 4. stereo
         ids = list(live.keys())
         pts = np.array([live[k] for k in ids]) if ids else np.zeros((0, 2))
-        q1, ok1 = klt(img0, img1, pts)
+        init = None
+        if H_inf is not None and len(pts):
+            ph = np.c_[pts, np.ones(len(pts))] @ H_inf.T
+            init = ph[:, :2] / ph[:, 2:3]
+        q1, ok1 = klt(img0, img1, pts, init)
         recs = [np.array([(k, 0, x, y) for k, (x, y) in zip(ids, pts)], rec_t)]
         recs.append(np.array([(k, 1, float(p[0]), float(p[1])) for k, p, good in zip(ids, q1, ok1) if good], rec_t))
         np.concatenate(recs).tofile(out / f"{stamp}.bin")
