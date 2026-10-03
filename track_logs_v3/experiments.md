@@ -76,7 +76,7 @@ Enabling the post-solve outlier filter at 3 px (upstream's own function, never c
 | R_12 | **12.61, 13.3 / 18.2** | 12.86, 12.0 / 18.1 | 4630 |
 | sequence_2_11 | **24.29, 26.0 / 48.2** | 30.92, 20.7 / 45.9 | 13182 |
 | sequence_3_18 | 73.77, 0.4 / 0.2 | 81.04, **2.4 / 4.2** | 8202 |
-| sequence_4_11 | **9.45, 10.6** / 16.1 (run with crashed segments; clean re-run queued) | 14.89, 9.9 / 18.9 | |
+| sequence_4_11 | 11.41, 8.4 / 19.3 (clean re-run after the X05 fix, 1 restart; the crashed run had read 9.45) | 14.89, 9.9 / 18.9 | |
 
 Small, consistent gains where people walk through the view (2_11 by a fifth in ATE and five score points, R_11, R_12), a loss on R_08 (indoor, few people: the masks only remove good points) and a split on 3_18. The shoe episode on R_12 improves only slightly: the mask covers the feet in the looking-down frames, but the heading swing there is already partly caused by the near pavement filling the view. **Decision**: keep as an option; combine with the IMU gate (F05) and test the combination on the full sets.
 
