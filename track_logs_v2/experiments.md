@@ -78,9 +78,9 @@ Huber 0.5 improves all three (19 % on R_08, 18 % on R_11, 12 % on 3_18) with no 
 | sequence_3_18 | **20.5, 16.6 / 38.4** | 26.0, 13.1 / 33.0 | 15 % |
 | sequence_4_11 | 7.2, 27.8 / 60.9 | **5.9, 30.2 / 66.2** | 42 % |
 
-Mixed: 3_18 and R_08 gain, R_11 and 4_11 lose, and the rule fires on 10 to 40 % of the frames, far more than the stretches it was meant for (the per-frame count is noisier than the one-minute averages of X01). Variant 25 / 4 (fires less often, pushes harder): R_08 2.37, R_11 1.74 / 52.6, 2_11 10.6 / 13.5 / 21.8 %, 3_18 24.4 / 12.0 / 25.5 %, 4_11 11.1 / 22.4 / 48.7 %: worse than the reference on four of five. The strength of the push is the problem (R_11 loses with either variant, 4_11 loses more with factor 4); a gentler variant (minimum 20, factor 2) runs as a last check.
+Mixed: 3_18 and R_08 gain, R_11 and 4_11 lose, and the rule fires on 10 to 40 % of the frames, far more than the stretches it was meant for (the per-frame count is noisier than the one-minute averages of X01). Variant 25 / 4 (fires less often, pushes harder): R_08 2.37, R_11 1.74 / 52.6, 2_11 10.6 / 13.5 / 21.8 %, 3_18 24.4 / 12.0 / 25.5 %, 4_11 11.1 / 22.4 / 48.7 %: worse than the reference on four of five. The strength of the push is the problem (R_11 loses with either variant, 4_11 loses more with factor 4); the gentler variant (minimum 20, factor 2) is no better: R_08 2.27, R_11 1.17 / 67.0, 2_11 10.6 / 12.7 / 17.7 %, 3_18 26.0 / 12.8 / 32.5 %, 4_11 7.2 / 29.1 / 61.3 % (worse on R_08, R_11, 4_11; ties elsewhere).
 
-**Decision so far**: not kept. The mechanism stays in the runner, off by default. Together with B17's obs-std result it says that trusting the IMU more in degraded stretches trades ATE for control-point score; a selective rule needs a better trigger than the raw per-frame count (v3 design item).
+**Decision**: discard. The mechanism stays in the runner, off by default. Together with B17's obs-std result it says that trusting the IMU more in degraded stretches trades ATE for control-point score; a selective rule needs a better trigger than the raw per-frame count (v3 design item).
 
 ## B16: Basalt with CLAHE input (2026-10-03, pc)
 
