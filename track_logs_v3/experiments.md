@@ -383,6 +383,8 @@ What is left to separate them is *where in time* the large residuals sit. The su
 
 **Command**: `results/v3-F13-hybrid-tracks/tracks.sh` (4_11 and R_08, hybrid and plain, 2 threads each) then `batch.sh`.
 
-**Result**: pending.
+**First pass, void**: the first track files had 0.6 stereo matches per frame. Cause: the calibration puts the two SLAM cameras **75 degrees apart**, so only a strip of cam0's view exists in cam1 and the corresponding pixel is hundreds of pixels away; a KLT search started at the same pixel (what the first version did, and what the XFeat stereo "matches" of F11 mostly were: 2 to 3 % of false pairs with small displacement) cannot find it. Fix: the cam1 search starts from the infinite-homography prediction `K1 R_c1_c0 K0^-1 p0`; on 4_11 that converges for 90 of 102 predicted-visible corners at frame 8000 and 122 to 162 of 241 at frame 15000 (forward-backward error below 1 px), and for none in the dark start where the overlap strip holds no corners. Whether Basalt's own stereo step gets more than that is being measured (X06d: cam1 observations per frame in the landmark database).
+
+**Result**: pending (tracks regenerating with the stereo initialisation).
 
 **Applicability**: the mechanism is general and cheap (one descriptor pass every 5 frames); it can only help where tracks are lost and found again (occlusions, people, momentary darkness); it does nothing for a stretch where nothing is trackable; the matcher's thresholds are descriptor-specific.
