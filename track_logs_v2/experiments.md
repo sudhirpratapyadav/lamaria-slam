@@ -7,8 +7,8 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 | Candidate | Stage | Controlled set, 2-offset mean ATE (13 seq) | Additional set score 2D / recall @ 5 m (seq_1_19, 1_20, 2_11, 2_12) | Notes |
 |---|---|---|---|---|
 | v1 OpenVINS ov_ref005 | tuned (v1) | 2.83 m | 40.0/99.9, 46.3/99.9, 11.6/15.7, 29.0/60.4; 3_17 9.9/21.6, 3_18 13.1/33.0, 4_10 0.9/0, 4_11 30.2/66.2 (v1 037) | causal, ~1.4x realtime on one core |
-| A OKVIS2 | A07 x10 + 10 keyframes, final BA (non-causal) | 13-sequence mean **2.15** at offset 0 (Basalt 2.46); wins 7/13 incl. R_01 0.022, R_03 0.029, R_12 4.5; loses the medium set 2x; pair oracle with Basalt 1.66 | | 5-10x the CPU of Basalt, up to 4.4 GB; live path diverges on R_11 |
-| B Basalt | B07/B08 robust | **2.43 m** (OpenVINS 2.83), better on 10/13 | mean score 16.9 vs 22.0 (wins 1_19, 2_11, 4_10; loses the 2 km walks) | ~2x realtime on <2 cores; X01: the walks are lost to heading events in low-feature stretches; B16 (CLAHE) running |
+| A OKVIS2 | A07 x10 + 10 keyframes, final BA (non-causal) | 13-sequence mean **2.15** at offset 0 (Basalt 2.46); wins 7/13 incl. R_01 0.022, R_03 0.029, R_12 4.5; loses the medium set 2x; pair oracle with Basalt 1.66 | | 5-10x the CPU of Basalt, up to 8 GB; A08 CLAHE: R_11 0.91 / score 75.6 (best), R_08 2x worse |
+| B Basalt | B07/B08 robust; B18 Huber 0.5; B20/B22 near cap | **2.43 m** two-offset (ref1; Huber 0.5: 2.61, better on 20/26 but loses R_12/R_13) | ref1 16.9; Huber 0.5 **19.7**; 1.5 m near cap 21.6 (best on 6/10, fails 5_12); OpenVINS 21.8; Basalt-settings oracle 23.2 | ~2x realtime on <2 cores; X01: walks lost to heading events from body/near/reflective features; CLAHE no effect |
 | C ORB-SLAM3 | C01-C03 fisheye | R_01 **0.031**; R_04 0.79-0.83 with 25 % frames lost; R_11 1.00 (score 65.6); R_08 1.38 after the example's IMU-loop crash was fixed (C03) | | ~1.2x realtime on 2 cores; poses missing before inertial init |
 | D OpenVINS line | D01-D03 window variants | no broad win (2.83 m reference stands) | 2_11 up to 27.3 / 68.5 % with the fixed window; 2_12 32.1 / 73.1 % with D03 | parked; BA smoother deferred |
 
@@ -34,7 +34,9 @@ One section per experiment, newest first, same fields as v1 (hypothesis, change,
 
 **Change**: `DatasetReader.cpp` applies CLAHE (clip 10, 8x8) at image load when env `OKVIS_CLAHE` is set (`docs/patches/okvis2-a2ea006.patch`); `okvis2_a04_n10_kf10` (x10, 10 keyframes, final BA) on R_08 and R_11, offset 0.
 
-**Result**: R_11: live **0.911**, final **0.911** (scale 0.886), score **75.6** (A04 without CLAHE: live diverged at 37.6, final 1.935, score 56.7; OpenVINS 72, Basalt 73.3, ORB-SLAM3 65.6). The live path no longer diverges, and the final BA does not need to rescue it. 5220 s wall at 1.6 cores, 5.2 GB RSS. R_08: pending.
+**Result**: R_11: live **0.911**, final **0.911** (scale 0.886), score **75.6** (A04 without CLAHE: live diverged at 37.6, final 1.935, score 56.7; OpenVINS 72, Basalt 73.3, ORB-SLAM3 65.6). The live path no longer diverges, and the final BA does not need to rescue it. 5220 s wall at 1.6 cores, 5.2 GB RSS. R_08: live 4.77, final **3.99** (scale 0.911) against 2.09 without CLAHE; 9409 s wall, 8.2 GB RSS.
+
+**Reading**: the same preprocessing halves R_11 and doubles R_08. Like Basalt's near-feature cap (B20-B22) it is a sequence-dependent lever, not a global setting. **Decision**: parked; CLAHE off by default for OKVIS2, kept as a per-sequence option for a selector.
 
 ## M03: three-system oracle on the controlled set (2026-10-03, pc, analysis only)
 

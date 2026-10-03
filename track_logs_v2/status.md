@@ -1,6 +1,6 @@
 # Current status (v2: exploration)
 
-Last updated: 2026-10-03 09:36 IST. Edit in place.
+Last updated: 2026-10-03 13:13 IST. **All runs finished; v2 paused for the owner's discussion on how to take it further.** Edit in place.
 
 ## What v2 is
 
@@ -28,20 +28,31 @@ Learned/dense methods (DPVO, DPV-SLAM, MASt3R-style) scored badly in the paper o
 
 Controlled set, two-offset mean ATE: 2.83 m. Additional set (ov_ref004, offset 0): score 2D 41 / 14 / 15 / 21, recall @ 5 m 100 / 37 / 24 / 49 % on sequence_1_19 / 1_20 / 2_11 / 2_12; ov_ref005 on all ten pending (v1 experiment 037).
 
-## Where the candidates stand (all numbers single runs unless stated; details in experiments.md)
+## Where the candidates stand (single runs unless stated; details in experiments.md)
 
-- Basalt (robust driver, `basalt_ref1`): controlled two-offset mean **2.43 m** (OpenVINS 2.83); additional-set mean score 16.9 (OpenVINS 22.0). Cheap (~2x realtime, <2 cores). Rounds since: CLAHE no effect (B16); tighter restart thresholds hurt (B15); Huber 0.5 better on 20 of 26 controlled runs but worse on the long control-point walks R_12/R_13, mean 2.61 (B18), 0.7 running (B19); doubling the pixel noise trades ATE for score (B17).
-- OKVIS2 (x10, 10 keyframes, final BA, non-causal): 11 of 13 controlled done (A07): best on the easy sequences (R_01 0.022, R_03 0.029) and R_10/R_11, 2x worse than Basalt on every medium sequence and R_08, fitted scale 0.91 to 0.96; 5 to 10x Basalt's CPU. R_12/R_13 running; CLAHE round (A08) queued.
-- ORB-SLAM3 (fisheye): unparked. The R_08 crash was the EuRoC example reading past its IMU vector at the last image (fixed, C03): R_08 1.38 m. R_01 0.031, R_04 0.79 to 0.83, R_11 1.00 (score 65.6); poses missing before the inertial initialisation (32 to 66 s) are its weak point. Pinhole-input run on the standard four in progress (C04).
-- OpenVINS line: window variants (D01-D03) and adaptive pixel noise (D04) parked; ov_ref005 stands (2.83 m / score 22.0).
-- Drift analysis (X01): on the 2 km walks both Basalt and OpenVINS are locally consistent (0.15 to 0.5 m per minute) and lose everything to a handful of heading events (5 to 28 degrees in a minute) inside low-feature stretches: dark (4_11), low texture (2_11, 2_12), overexposed or reflective street scenes (3_18). Not scale, not restarts. Every "trust the IMU more" variant tried since (D04, Huber, obs-std) lowers the ATE on some walks and lowers the control-point scores: the heading events need a better front end (feature rejection), not a different weighting.
-- Mix-and-match (M01/M02): a per-sequence choice between Basalt and OpenVINS would give 1.97 m and mean score 25.9 (oracle); observable selectors 23.5 to 24.4. Selector design is a v3 candidate; OKVIS2 and ORB-SLAM3 join the oracle once their 13-sequence runs exist.
+Reference numbers: controlled set two-offset mean ATE; additional set mean score 2D over the 10 sequences (leaders: AnonSLAM 75 / Aria 91 on the main set).
+
+| System | Controlled | Additional | Cost | Notes |
+|---|---|---|---|---|
+| OpenVINS ov_ref005 (v1) | 2.83 | 21.8 | 1.4x realtime, 1 core | causal; CLAHE + 400 features + 8x8 grid |
+| Basalt basalt_ref1 (B07) | **2.43** | 16.9 | 2x realtime, <2 cores | robust driver with restarts |
+| Basalt Huber 0.5 (B18) | 2.61 (better on 20/26, loses R_12/R_13) | 19.7 | same | dark walk 4_11: 9.9 to 37.1 |
+| Basalt 1.5 m near cap (B20/B22) | not run (ruins indoor: R_08 1.0 to 4.9) | 21.6 (best on 6/10; 5_12 fails) | same | 4_11: 42.1, recall 99.6 % |
+| OKVIS2 final BA (A07) | 2.15 at offset 0 (Basalt 2.46 at offset 0) | not run | 5-10x Basalt, up to 8 GB | non-causal; wins easy + R_12; CLAHE: R_11 0.91 / 75.6, R_08 2x worse |
+| ORB-SLAM3 fisheye (C02/C03) | 4 sequences only (R_01 0.031, R_04 0.8, R_08 1.38, R_11 1.00) | | 1.2x realtime, 2 cores | needs raw fisheye; poses missing before IMU init; pinhole path fails |
+| Oracle, per sequence | 1.56 (three systems, offset 0) | 28.8 (Basalt settings + OpenVINS) | | upper bound for a selector |
+
+What v2 established:
+
+- **Where the error is (X01)**: on the long walks every system is locally consistent and loses the sequence to a few heading events of 5 to 28 degrees inside a minute, in low-feature stretches (dark, low texture, overexposed) and, as shown on R_12, from features on the wearer's own body and on near moving objects. Not scale, not restarts, not the back end.
+- **Weighting cannot fix it**: adaptive pixel noise (D04), Basalt obs-std and Huber (B17-B19) all trade ATE against control-point score.
+- **Rejecting the cause works but is scene-dependent**: Basalt's 1.5 m near-feature cap gives the best 4_11 of any system and lifts six of ten additional sequences, and ruins indoor sequences; a relative rule (B21) does not fix that. CLAHE helps OKVIS2 enormously on R_11 and hurts it on R_08; it does nothing for Basalt.
+- **Complementarity is large**: per-sequence oracles are 1.56 m (controlled) and 28.8 (additional) against 2.15 / 21.8 for the best single setting. A selector with an observable signal (M02 reached 24.4 against an oracle of 25.9 with two systems) is the cheapest route to a big step.
+- ORB-SLAM3 is viable only on raw fisheye input (its crash was a bug in the example, fixed); covering all sequences needs the other nine `.vrs` files (owner's call, 49 GB free now).
 
 ## Next
 
-1. Finish the running rounds: B19 (Huber 0.7), A07 (OKVIS2 R_12/R_13) then A08 (OKVIS2 CLAHE), C04 (ORB-SLAM3 pinhole).
-2. ORB-SLAM3 on the 13 controlled sequences if the pinhole input works; then the four-system oracle (M03).
-3. Front-end work against the heading events (X01): reject features on moving people and reflections, or a two-window consistency check, as the v3 design target.
+Paused at the owner's request for a discussion on direction. Candidate directions for v3, in my order: (1) a per-sequence selector over a small set of runs (Basalt plain / Basalt near-cap / OKVIS2 final / OpenVINS) using observable signals (indoor-outdoor, restart counts, live-final agreement, cross-system agreement); (2) a front end that rejects body and near moving features with a scene-aware trigger, built into Basalt; (3) OKVIS2's final BA as the non-causal finishing stage where its cost is acceptable.
 
 ## Blockers
 
