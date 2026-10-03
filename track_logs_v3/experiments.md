@@ -22,3 +22,10 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 
 **Applicability**: general (any VIO with an IMU prediction); can fail when the IMU prediction itself is poor (bad biases right after initialisation, wrong noise parameters) by rejecting good features; thresholds are in pixels, so they depend on resolution and lens.
 
+## X02: do learned detectors find points where FAST finds none? (2026-10-03, pc, analysis only)
+
+**Method**: `scripts/keypoint_density.py` (run with `.venv-ml`, CPU torch): one frame every 4 s, FAST per 50 px grid cell with Basalt's adaptive threshold (40 down to 5) against XFeat (CPU, score > 0.1), averaged per 60 s window, next to image brightness.
+
+**Result, sequence_4_11 (dark walk)**: FAST fills 80 to 142 of 165 cells throughout; XFeat finds 180 to 645 points. The bad window (450 s, where v2 saw the 20-degree swings) is the minimum of both: 82 cells, 179 XFeat points, brightness 17. The darkest window (750 s, brightness 13) has 79 cells but 455 XFeat points. So the adaptive FAST threshold always finds *something* (noise corners in the dark); the learned detector finds more in most dark windows but not in the worst one. The limiting factor at 450 s is not the count of detectable points but what they are worth for tracking: this diagnostic cannot see that, the tracking experiments (F-series) will.
+
+**Applicability of the tool**: general diagnostic. XFeat ran at about 0.3 s per frame on the CPU here (unoptimised), fine offline. Other event walks (3_18, 2_11, R_12) running.

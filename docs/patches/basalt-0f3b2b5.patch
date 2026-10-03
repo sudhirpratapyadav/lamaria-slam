@@ -57,14 +57,15 @@ index ff9df90..c7b8902 100644
  
      if (!result_path.empty()) {
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..acc70ab 100644
+index 55984fc..935d729 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
-@@ -34,6 +34,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+@@ -34,6 +34,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
  
  #include <basalt/vi_estimator/marg_helper.h>
 +#include <basalt/utils/ba_utils.h>
++#include <fstream>
 +#include <cstdlib>
 +#include <iostream>
 +#include <algorithm>
@@ -73,7 +74,7 @@ index 55984fc..acc70ab 100644
  #include <basalt/vi_estimator/sqrt_keypoint_vio.h>
  
  #include <basalt/optimization/accumulator.h>
-@@ -309,6 +315,17 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -309,6 +316,17 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    stats_sums_.add("frame_id", opt_flow_meas->t_ns).format("none");
    Timer t_total;
  
@@ -91,7 +92,7 @@ index 55984fc..acc70ab 100644
    if (meas.get()) {
      BASALT_ASSERT(frame_states[last_state_t_ns].getState().t_ns ==
                    meas->get_start_t_ns());
-@@ -350,6 +367,27 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -350,6 +368,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          kobs.kpt_id = kpt_id;
          kobs.pos = kv_obs.second.translation().cast<Scalar>();
  
@@ -112,6 +113,14 @@ index 55984fc..acc70ab 100644
 +          imu_gate_seen++;
 +          if (valid && res.norm() > imu_gate_px) {
 +            imu_gate_dropped++;
++            // optional dump of the dropped observations (where in the image the liars are)
++            static std::ofstream gate_dump = [] {
++              const char* e = std::getenv("BASALT_GATE_DUMP");
++              return (e && *e) ? std::ofstream(e) : std::ofstream();
++            }();
++            if (gate_dump.is_open())
++              gate_dump << tcid_target.frame_id << ' ' << tcid_target.cam_id << ' ' << kobs.pos.x() << ' '
++                        << kobs.pos.y() << ' ' << res.norm() << '\n';
 +            continue;
 +          }
 +        }
@@ -119,7 +128,7 @@ index 55984fc..acc70ab 100644
          lmdb.addObservation(tcid_target, kobs);
          // obs[tcid_host][tcid_target].push_back(kobs);
  
-@@ -407,6 +445,24 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,6 +454,24 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          }
        }
  
@@ -144,7 +153,7 @@ index 55984fc..acc70ab 100644
        // triangulate
        bool valid_kp = false;
        const Scalar min_triang_distance2 =
-@@ -441,8 +497,17 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -441,8 +506,17 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          Vec4 p0_triangulated = triangulate(p0_3d.template head<3>(),
                                             p1_3d.template head<3>(), T_0_1);
  
@@ -163,7 +172,7 @@ index 55984fc..acc70ab 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -1431,6 +1496,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1505,19 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();

@@ -11,3 +11,5 @@ third_party/okvis2/
 third_party/basalt/
 third_party/ORB_SLAM3/
 third_party/Pangolin/
+.venv-ml/
+third_party/accelerated_features/
