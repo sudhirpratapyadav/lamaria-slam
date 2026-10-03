@@ -1,4 +1,4 @@
-# Current status (v2: exploration)
+# Current status (v2: exploration; closed 2026-10-03, see track_logs_v3/)
 
 Last updated: 2026-10-03 13:13 IST. **All runs finished; v2 paused for the owner's discussion on how to take it further.** Edit in place.
 

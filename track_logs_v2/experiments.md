@@ -1,5 +1,14 @@
 # Experiments (v2: exploration of estimator classes)
 
+**v2 closed on 2026-10-03** (owner's decision; continues in `track_logs_v3/`). Summary:
+
+- Candidates built and scored on the same harness: OpenVINS (v1 reference, 2.83 m controlled, 21.8 additional), Basalt (robust driver; **2.43 m**, best cost), OKVIS2 (final BA 2.15 m at offset 0, wins easy sequences and R_12, 5 to 10x cost), ORB-SLAM3 (fisheye only, R_08 crash fixed, 0.03 to 1.4 m on four sequences).
+- Finding X01: the long walks are lost to a few heading events (5 to 28 degrees in a minute) in low-feature stretches and from features on the wearer's body, passers-by and reflections; local tracking is fine, scale and restarts are not the cause; the IMU cannot correct yaw.
+- Reweighting (adaptive pixel noise D04, Basalt obs-std, Huber B17-B19) trades ATE against control-point score: not a fix. Rejecting near landmarks (B20-B22) gives the best 4_11 of any system (score 42, recall 99.6 %) and lifts 6 of 10 additional sequences, but ruins indoor sequences; CLAHE halves OKVIS2's R_11 and doubles its R_08, and does nothing for Basalt. Scene-dependent levers, kept as per-sequence options.
+- Complementarity: per-sequence oracles 1.56 m (controlled) and 28.8 (additional) against 2.15 / 21.8 for the best single setting.
+- Decision for v3: a better front end on the Basalt back end (IMU-consistent rejection, semantic masking, learned keypoints and trackers, combinations), measured by the heading events; the non-causal finishing stage (global BA, loop closure) is v4.
+
+
 One section per experiment, newest first, same fields as v1 (hypothesis, change, command, per-sequence result, cost, decision). Scoreboard at the top. The v1 reference (`configs/ov_ref005`, OpenVINS) is the baseline every candidate is compared against: controlled set two-offset mean ATE 2.83 m; additional set scores in v1 experiments 030 / 037.
 
 ## Scoreboard

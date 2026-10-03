@@ -3,4 +3,4 @@
 # Usage: scripts/log.sh "text"
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-printf -- "- **%s** %s\n" "$(date '+%Y-%m-%d %H:%M')" "$1" >> "$ROOT/track_logs_${LOG_VERSION:-v2}/logs.md"
+printf -- "- **%s** %s\n" "$(date '+%Y-%m-%d %H:%M')" "$1" >> "$ROOT/track_logs_${LOG_VERSION:-v3}/logs.md"
