@@ -44,10 +44,10 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..4e83869 100644
+index d16e708..26c798b 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-@@ -35,6 +35,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+@@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
  #pragma once
  
@@ -55,10 +55,11 @@ index d16e708..4e83869 100644
 +#include <opencv2/core.hpp>
 +#include <cstdlib>
 +#include <iostream>
++#include <fstream>
  #include <thread>
  
  #include <sophus/se2.hpp>
-@@ -108,7 +112,57 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -108,7 +113,57 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
    }
  
@@ -116,7 +117,7 @@ index d16e708..4e83869 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -167,6 +221,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -167,6 +222,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
        transforms = new_transforms;
        transforms->input_images = new_img_vec;
  
@@ -124,7 +125,90 @@ index d16e708..4e83869 100644
        addPoints();
        filterPoints();
      }
-@@ -324,6 +379,7 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +364,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+     return patch_valid;
+   }
+ 
++  // lamaria-slam (v3 F10): learned keypoints seeding the tracker. BASALT_KP_DIR/<t_ns>.bin holds
++  // float32 (x, y, score) triples for cam0 (scripts/make_learned_keypoints.py). The best external
++  // point per empty grid cell (score >= BASALT_KP_MIN_SCORE) becomes a new track; with
++  // BASALT_KP_MODE=union (default) FAST then fills the cells still empty, with "replace" it does not.
++  long kp_frames = 0, kp_missing = 0, kp_added = 0, kp_fast_added = 0;
++  void externalPoints(int64_t t_ns, const Eigen::aligned_vector<Eigen::Vector2d>& pts0,
++                      Eigen::aligned_vector<Eigen::Vector2d>& out) {
++    static const char* dir = std::getenv("BASALT_KP_DIR");
++    static const float min_score = [] {
++      const char* e = std::getenv("BASALT_KP_MIN_SCORE");
++      return (e && *e) ? float(std::atof(e)) : 0.0f;
++    }();
++    static bool announced = false;
++    if (!announced) {
++      announced = true;
++      std::cerr << "BASALT_KP_DIR: " << ((dir && *dir) ? dir : "off") << " min score " << min_score << std::endl;
++    }
++    if (!(dir && *dir)) return;
++    std::ifstream f(std::string(dir) + "/" + std::to_string(t_ns) + ".bin", std::ios::binary);
++    kp_frames++;
++    if (!f) { kp_missing++; return; }
++    std::vector<char> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
++    const size_t n = bytes.size() / (3 * sizeof(float));
++    const float* v = reinterpret_cast<const float*>(bytes.data());
++    const int P = config.optical_flow_detection_grid_size;
++    const auto& img = pyramid->at(0).lvl(0);
++    const int x_start = (img.w % P) / 2, y_start = (img.h % P) / 2;
++    const int nx = img.w / P, ny = img.h / P;
++    // occupancy as in detectKeypoints: a cell with a tracked point gets nothing new
++    std::vector<int> best(size_t(nx) * ny, -1);
++    std::vector<char> occupied(size_t(nx) * ny, 0);
++    auto cell = [&](double x, double y) {
++      const int cx = int((x - x_start) / P), cy = int((y - y_start) / P);
++      if (x < x_start || y < y_start || cx >= nx || cy >= ny) return -1;
++      return cy * nx + cx;
++    };
++    for (const auto& p : pts0) { const int c = cell(p[0], p[1]); if (c >= 0) occupied[c] = 1; }
++    for (size_t i = 0; i < n; i++) {
++      const float x = v[3 * i], y = v[3 * i + 1], sc = v[3 * i + 2];
++      if (sc < min_score || !img.InBounds(x, y, 8)) continue;
++      const int c = cell(x, y);
++      if (c < 0 || occupied[c]) continue;
++      if (best[c] < 0 || v[3 * best[c] + 2] < sc) best[c] = int(i);
++    }
++    for (int b : best)
++      if (b >= 0) out.emplace_back(v[3 * b], v[3 * b + 1]);
++    kp_added += out.size();
++    if (kp_frames % 1000 == 0)
++      std::cerr << "learned kp: " << kp_frames << " frames, " << kp_missing << " without a file, "
++                << kp_added << " external points added, " << kp_fast_added << " FAST points added" << std::endl;
++  }
++
+   void addPoints() {
+     Eigen::aligned_vector<Eigen::Vector2d> pts0;
+ 
+@@ -317,13 +425,29 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+ 
+     KeypointsData kd;
+ 
+-    detectKeypoints(pyramid->at(0).lvl(0), kd,
+-                    config.optical_flow_detection_grid_size, 1, pts0);
++    static const std::string kp_mode = [] {
++      const char* e = std::getenv("BASALT_KP_MODE");
++      return std::string((e && *e) ? e : "union");
++    }();
++    Eigen::aligned_vector<Eigen::Vector2d> ext;
++    externalPoints(transforms->t_ns, pts0, ext);
++    for (const auto& p : ext) { kd.corners.emplace_back(p); pts0.emplace_back(p); }
++    const size_t n_ext = kd.corners.size();
++
++    if (!(std::getenv("BASALT_KP_DIR") && *std::getenv("BASALT_KP_DIR")) || kp_mode != "replace") {
++      KeypointsData kd_fast;
++      detectKeypoints(pyramid->at(0).lvl(0), kd_fast,
++                      config.optical_flow_detection_grid_size, 1, pts0);
++      kd.corners.insert(kd.corners.end(), kd_fast.corners.begin(), kd_fast.corners.end());
++      kp_fast_added += kd_fast.corners.size();
++    }
++    (void)n_ext;
+ 
+     Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
          new_poses1;
  
      for (size_t i = 0; i < kd.corners.size(); i++) {
