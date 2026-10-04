@@ -1,0 +1,5 @@
+NOISE_SCALE=20
+WALK_SCALE=1.0
+THREADS=3
+GYRO_NOISE_SCALE=2
+GYRO_WALK_SCALE=20   # v4 F01d: gyro x2 with a 20x gyro bias walk
