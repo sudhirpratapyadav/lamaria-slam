@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-04 02:45 IST. Edit in place.
+Last updated: 2026-10-04 08:00 IST. Edit in place.
 
 ## What v3 is
 
@@ -20,19 +20,19 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 
 ## Where things stand
 
-- Survey done (`docs/v3_frontend_survey.md`). Found that Basalt never calls its own post-solve outlier filter.
-- **The filter (F01/F06/F07)**: 3 px post-solve reprojection filter, the first clear general win: dark walk 4_11 from 14.9 m / score 9.9 / recall 19 % to **3.8 / 37.9 / 99.1 %**; additional set mean score **21.2** (reference 16.9, 8 of 10 up); controlled two-offset mean 2.50 against 2.43 (loses the medium set and the long control-point walks). Threshold curve flat 2 to 5 px on the walks, indoor tax grows with tightness.
-- **Filter + epipolar gate (F03/F09)**: the gate on new landmarks (0.005) combined with the filter is best or tied-best on five of six event sequences (R_12 back to the reference, 2_11 20.1 m, 4_11 3.5 m / recall 99.9 %). **Candidate reference pair.**
-- **Why the medium set loses (X06/X07/F08)**: residuals are tiny everywhere (median 0.22 px); R_04 diverges at one frame in a burst where the pose, not the points, is wrong, and the filter removes the constraints that would fix it. Warm-up: not kept (costs the dark walk). MAD-adaptive threshold: just a tighter fixed threshold, closed. Keep-host (do not delete a landmark on its host residual): R_04 **0.56 / 0.53** at the two offsets, better than the reference, but 4_11 7.1 m, so the host rule is what cleans the dark walk. **F08d** (burst skip: no filtering in a frame where more than 2 % of observations exceed the threshold; per-landmark rule) running, with the host rule on. Runs repeat to 0.5 % (X07).
-- **Learned candidates**: XFeat keypoints seeding KLT (F10, three modes plus a FAST-threshold ablation): negative whenever they supply a large share of the points, neutral when a few percent; parked, with the finding that the weak FAST corners carry the dark walk and a learned detector's points are less trackable by KLT. XFeat descriptor-matching front end through the new external-tracks interface (F11): first run 15.3 m on 4_11 (filter alone 3.8); the matcher needs sub-pixel refinement and a longer temporal window before it is a fair test. Person masks (F02/F05): small gains where people walk through the view, a tax indoors; option.
-- **Crash (X05) solved**: self-pair triangulation in float after a divergence; fixed in the patch. Crashed runs re-run.
-- Infrastructure: batches as systemd units; a second build tree (`build/dev`) and an atomic install dir (`third_party/basalt/install`) so rebuilds never race a starting run; vcpkg packages restored from the binary cache.
+- **The filter (F01/F06/F07)**: Basalt never called its own post-solve reprojection filter; at 3 px it is the first clear general win (dark walk 4_11 14.9 m to 3.8 m; additional-set mean score 16.9 to 21.2; controlled two-offset mean 2.50 against 2.43, losing the medium set).
+- **Per-landmark rule (F08d, X08)**: an observation above 3 px is removed only if its landmark is otherwise well fitted; the dark walk goes to **1.66 m / score 56.7 / recall 99.6 %** (reproduced across builds: 2.26 then 1.66 with the same divergence structure), R_12, R_08, 2_11 at or better than the reference. **Candidate reference: filter 3 px + per-landmark rule.** The epipolar gate (F03/F09) helped on its own but gate + rule together break the dark walk on every build (16 to 23 m): a real interaction on sparse maps, so no gate in the candidate.
+- **Method finding (X07/X08)**: runs repeat to 0.5 % on one binary, but builds of identical logic differ on sequences with divergences (floating-point contraction), so cross-build comparisons on 4_11 / R_04 are unreliable. Binaries are now frozen per experiment (`scripts/snapshot_basalt.sh`). **F15** (running next) re-measures reference, flat filter, rule, gate, gate + rule and stereo-as-constraint on one snapshot over the six event sequences; **F16** validates the candidate on the full sets on the same snapshot. These two decide v3's reference.
+- **Stereo (X06d/F14)**: Basalt had **zero** stereo observations on this sensor (cameras 75 degrees apart; the same-pixel search never converges), so every Basalt result so far is monocular + IMU. Starting the stereo search from the calibration gives real stereo observations; they help R_08 (0.95) and 3_18, but on the dark walk most matches are wrong and the map collapses (14.8 m as initialiser, 102 m as constraint). Parked for this sensor pending a match-quality gate; right default for a parallel pair like the robot's camera.
+- **Filter variants not kept** (all measured): warm-up, MAD-adaptive threshold, keep-host, burst skip (indoor win, outdoor loss), median-gated burst skip, newest-frames rule. R_04's divergence at frame 393 with any filter stays the one known cost.
+- **Learned candidates, all parked with reasons**: XFeat seeding of KLT (F10: negative when dominant, neutral when sparse; weak FAST corners carry the dark walk), XFeat descriptor-matching front end (F11: 152 m), hybrid KLT + descriptor re-association (F13: worse than its own KLT ablation, and the external cv2 KLT is far below Basalt's patch tracker). Person masks (F02/F05): option for people-heavy scenes. The external-tracks interface stays for later learned trackers.
+- X05 crash solved (self-pair triangulation in float after a divergence). Infrastructure: systemd units, dev build tree, atomic install, per-experiment snapshots.
 
 ## Next
 
-1. F08d result; then the full-set validation (13 x 2 offsets + 10 additional) of filter 3 px + epipolar gate 0.005 (+ burst rule if it holds) as the v3 reference candidate.
-2. F11 iteration: KLT refinement step from the matched position, two-frame temporal consistency; R_08 runs.
-3. Then the remaining list: learned trackers via the interface (A100 territory), mixed re-association of lost tracks by descriptor.
+1. F15 (same-binary comparison) then F16 (full sets with filter + rule): set the v3 reference from those two.
+2. If F16 holds: the additional-set mean and controlled mean become the v3 numbers; then decide with the owner between finishing v3 and opening v4 (non-causal).
+3. Open ideas with evidence behind them: a stereo match-quality gate (depth consistency over two frames) to switch stereo on; re-association inside Basalt's tracker rather than outside.
 
 ## Blockers
 
