@@ -10,6 +10,7 @@ Usage: make_basalt_calib.py CALIB_JSON OUT_JSON [--noise-scale 1] [--walk-scale 
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 
@@ -23,6 +24,7 @@ def main():
     ap.add_argument("--gyro-walk-scale", type=float, help="gyro bias walk factor (default: --walk-scale)")
     ap.add_argument("--cam0-rot-deg", type=float, nargs=3, metavar=("RX", "RY", "RZ"), help="rotate cam0 about its own axes (deg), T_i_c0 * Exp(r)")
     ap.add_argument("--cam1-rot-deg", type=float, nargs=3, metavar=("RX", "RY", "RZ"))
+    ap.add_argument("--cam0-focal-scale", type=float, default=float(os.environ.get("CAM0_FOCAL_SCALE", "1")), help="multiply cam0 fx, fy (v4 F10 intrinsics probe; also env CAM0_FOCAL_SCALE)")
     args = ap.parse_args()
     c = json.loads(args.calib_json.read_text())
     T, intr, res = [], [], []
@@ -35,6 +37,8 @@ def main():
             q = list((R.from_quat(q) * R.from_euler("xyz", rot, degrees=True)).as_quat())
         T.append({"px": t[0], "py": t[1], "pz": t[2], "qx": q[0], "qy": q[1], "qz": q[2], "qw": q[3]})
         fx, fy, cx, cy = cam["params"][:4]
+        if key == "cam0" and args.cam0_focal_scale != 1.0:
+            fx, fy = fx * args.cam0_focal_scale, fy * args.cam0_focal_scale
         if cam["model"] == "PINHOLE":
             intr.append({"camera_type": "pinhole", "intrinsics": {"fx": fx, "fy": fy, "cx": cx, "cy": cy}})
         elif cam["model"] == "EQUIDISTANT":

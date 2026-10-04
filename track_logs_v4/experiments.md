@@ -201,7 +201,11 @@ The drift responds to the offset in the predicted direction and almost linearly 
 
 **Command**: `results/v4-F07-nan-landmark/batch.sh` (unit `lamaria-v4-f07`): v3 reference settings on the reference runs that logged the failure (4_11, R_03, R_10, R_07 at skip 0; R_04 at skip 100; 1_20 at skip 0, which logged 6 failures without a restart) plus R_01 skip 0 and R_04 skip 0 as no-failure controls (must be bit-identical to F21).
 
-**Result**: running.
+**Result** (ATE m; reference in brackets): R_01 0.132 (0.132), R_03 0.345 (0.345, restart at 1.6 s in both), R_04 0.697 / 0.665 (0.697 / 0.665), R_07 1.201 (1.201), R_10 4.371 (4.371), 1_20 2.77, score 41.1 (41.0), 4_11 1.770, 3 restarts at 3 / 5 / 7 s (identical): **bit-identical to the reference on every run**, although 10 to 30 non-finite increments were skipped in each. Basalt's `use_valid_projections_only` already drops the observations of a NaN landmark at the next linearisation, so the applied NaN was in effect a removal; the guard only makes that explicit. F07b (the F06 +5 ms arms, both-camera landmarks): 2_11 **14.7 m**, 3 restarts at 87 / 1094 / 1106 s (F06: 27.5, 5 restarts at 87 / 527 / 528 / 552 / 801), i.e. a different branch of the same chaos, not a cure; 4_11 pending.
+
+**Decision**: kept as a harmless guard (no run changes unless a NaN would have been applied), **not** a fix for the restarts. The restarts of the reference set are initialisation blow-ups: in 4_11 and R_03 the speed ramps from 0 to 6 to 8 m/s within the first 3 s of a segment (monocular front end without scale, velocity started at zero while the wearer is already walking); the driver's restart absorbs them at the cost of a few poses and of the chaotic branch. A proper visual-inertial initialisation (velocity and gravity from the first second, or stereo depth at start) is the general fix; listed as a v4 item.
+
+**X07, self-occlusion checked and dropped** (`scripts/occluder_check.py`, `results/v4-X07-occluder/`): one 2_11 frame showed the wearer's hair over most of cam0, so an attached textured occluder (device A's wearer, cam0 side, invisible in the dark) was a candidate for the drift. Measured over the sequences (fraction of pixels with almost no temporal change while the image moves), cam0 of device A carries 3 to 9 % of such pixels against 1 % on device B, but the per-minute drift does not follow it: 2_11 drifts -3.1 deg/min in minutes with under 2 % occluder and -1.5 with over 5 %; 2_12 and R_12 likewise. Not the mechanism.
 
 **Applicability**: general (any sequence, platform or sensor: a solver robustness fix, nothing benchmark-specific). It only acts where a degenerate landmark would have been applied; runs without the warning are unchanged.
 
@@ -260,6 +264,17 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Change**: `make_basalt_calib.py --cam0-rot-deg RX RY RZ` (camera frame rotated about its own axes, `T_i_c0 * Exp(r)`), driver env `CAM0_ROT_DEG` / `CAM1_ROT_DEG`; +-0.3 deg about each cam0 axis on 2_11, v3 reference settings, F21 binary. `results/v4-F09-cam0-extrinsic-probe/`, unit `lamaria-v4-f09`. If one axis moves the heading linearly, the zero crossing is a candidate correction to be validated on the other device-A sequences (3_18, R_12, 2_12, 3_17; 4_11 and device B must not move).
 
-**Result**: running.
+**Result** (sequence_2_11; ATE m; score; heading at the end; reference 21.51, 21.1, -57.4):
+
+| cam0 rotation | ATE | score | heading |
+|---|---|---|---|
+| +0.3 deg x | 24.5 | 17.7 | -63.1 |
+| +0.3 deg y | 22.7 | 21.2 | -58.8 |
+| -0.3 deg y | 20.4 | 20.6 | -55.4 |
+| +0.3 deg z | 20.5 | 20.4 | -53.9 |
+| -0.3 deg z | 22.4 | 23.1 | -59.2 |
+| -0.3 deg x | (run void: input race with another batch; not needed) | | |
+
+**Decision**: closed. The heading moves 10 to 20 degrees per degree of cam0 rotation, so a calibration error of 3 to 5 degrees would be needed to explain the drift; factory extrinsics are not off by that much, and the probes at 0.3 deg stay within the per-run spread in ATE. The cam0 extrinsic rotation is not the mechanism.
 
 **Applicability**: a device calibration refinement (sensor-specific numbers, general procedure); the robot gets its own calibration, so what carries is the method (and, later, its automation in the backend).
