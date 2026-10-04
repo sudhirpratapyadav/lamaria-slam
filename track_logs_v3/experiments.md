@@ -635,3 +635,11 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: parked, both forms. Re-association by patch re-tracking makes things worse wherever it was tried, dark or indoor, confirmed or not: a patch that the strict KLT lost and that re-locks a frame later is wrong more often than right (repeated texture, blur), and the back-end grace that lets the revived id continue its landmark also keeps stale landmarks in the window. Together with F13 (descriptor re-association outside the tracker), the conclusion for this sensor at 20 Hz is that losing a track and starting a fresh one is the safer behaviour; re-association would need a stronger test than appearance (a geometric check against the IMU-predicted position, which is v4-size work in the back end).
 
 **Applicability**: general for any patch tracker (cheap: a few extra patch alignments per frame); it helps where tracks drop out briefly and the scene is unchanged behind the interruption; it can hurt if a patch re-locks on similar texture nearby (the residual bound is the guard) or if the grace keeps stale landmarks in the window too long.
+
+## X10: a build without floating-point contraction (2026-10-04, pc, method)
+
+**Change**: Basalt built in a separate tree with `-ffp-contract=off` (otherwise identical: `-O3 -march=native`, deterministic reductions on), `results/v3-X10-fpcontract/bin`; filter 3 px + per-landmark rule on 4_11 and R_08.
+
+**Result**: 4_11 1.77 m, score 56.9 (build-16 snapshot: 4.503, 30.4; the arithmetic changed, so a different branch of the dark walk's restart chaos, as expected); R_08 1.031 (1.028). **Speed: no cost** (4_11 1067 s against 1054 s; R_08 155 s against 212 s, noise). X10b checks the property that matters: whether two `-ffp-contract=off` builds with different *inactive* code give bit-identical trajectories (an inactive code change, rebuild, same runs, md5 of the trajectories).
+
+**Applicability**: method; if X10b holds, every future build of this project uses `-ffp-contract=off` so results compare across builds, at no speed cost on this CPU.
