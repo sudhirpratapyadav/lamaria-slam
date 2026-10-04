@@ -444,3 +444,34 @@ First reading: R_08 gains 8 % from the stereo observations. The dark walk collap
 **Fix for the method**: `scripts/snapshot_basalt.sh` freezes the binaries into each experiment folder; **F15** re-runs the whole filter comparison (reference, flat 3 px, + per-landmark rule, + gate, + gate + rule, + stereo as constraint) on one snapshot over the six event sequences; the full-set validation is then done on the same snapshot. Earlier same-binary comparisons (F01, F06, F07 within a batch) stand; the per-landmark-rule and combination claims are re-measured in F15 before anything becomes the reference.
 
 **Applicability**: method note, general: on chaotic sequences compare settings on one binary only, and consider `-ffp-contract=off` for a build whose results must repeat across code changes (at a small speed cost).
+
+## F12: reference candidate on the full sets (2026-10-04, pc)
+
+**Change**: filter 3 px + epipolar gate 0.005 + per-landmark rule, `basalt_ref1` otherwise, robust driver; 13 controlled sequences at offsets 0 / 100 and the 10 additional. Binaries: the install dir, which was replaced by builds 9 to 11 during the batch (see X08; the code paths in use did not change, the floating-point contraction may have).
+
+**Command**: `results/v3-F12-ref-candidate/batch.sh`.
+
+**Result**, controlled set (ATE m, offsets 0 / 100; restarts; flat 3 px from F07 and the reference from v2 B07):
+
+| Seq | filter + gate + rule | flat 3 px | reference |
+|---|---|---|---|
+| R_01 | 0.138 / 0.140 | 0.119 / 0.124 | 0.151 / 0.156 |
+| R_02 | 0.192 / 0.333 (0 / 3 restarts) | 0.190 / 0.233 | 0.173 / 0.215 |
+| R_03 | 0.343 / 0.297 (1 / 0) | 0.247 / 0.207 | 0.434 / 0.415 |
+| R_04 | 1.218 / 1.122 (1 / 4) | 1.220 / 2.952 | 0.781 / 0.935 |
+| R_05 | 1.254 / 1.208 | 1.291 / 1.328 | 1.139 / 1.153 |
+| R_06 | 1.232 / 0.854 | 1.245 / 0.935 | 1.124 / 0.764 |
+| R_07 | 1.363 / 1.346 (1 / 0) | 1.356 / 1.362 | 1.236 / 1.220 |
+| R_08 | 1.036 / 0.997 | 1.067 / 0.947 | 1.006 / 1.368 |
+| R_09 | 2.214 / 1.797 (0 / 1) | 1.957 / 1.640 | 2.762 / 2.414 |
+| R_10 | 4.708 / 4.773 (1 / 1) | 3.098 / 3.128 | 4.412 / 3.877 |
+| R_11 | 2.176 / 1.637 (score 78.1 / 79.4) | 2.053 / 1.638 (78.6 / 81.3) | 2.605 / 2.078 (73.3 / 77.0) |
+| R_12 | 13.26 / 14.44 (10.3 / 9.4) (1 / 1) | 13.96 / 15.66 (10.3 / 7.7) | 12.86 / 12.94 (12.0 / 14.0) |
+| R_13 | 3.448 / 3.393 (40.5 / 40.9) (0 / 3) | 3.584 / 3.449 (39.1 / 40.3) | 3.349 / 3.544 (45.2 / 44.3) |
+| **two-offset mean** | **2.50** | 2.50 | 2.43 |
+
+Additional set (score 2D; flat / reference in brackets; restarts): 1_19 74.1 (74.1 / 64.1), 1_20 41.2 (44.3 / 39.6), 2_11 20.7 (21.0 / 20.7), 2_12 6.2 (8.2 / 5.3), 3_17 5.2 (5.7 / 4.3), 3_18 1.1 (2.0 / 2.4), **4_10 0.0 (12.1 / 8.4; 6 restarts)**, **4_11 8.6 (34.2 / 9.9; 9 restarts)**, 5_11 5.9 (5.7 / 6.9), 5_12 3.4 (4.5 / 7.6): mean **16.6** (flat 21.2, reference 16.9).
+
+**Reading**: on the controlled set the combination equals the flat filter (2.50) and loses to the reference on the medium set as before; on the additional set it loses everything the flat filter had gained, through the two dark walks (4_10 and 4_11 fall into restart storms). That contradicts the event-set results of the same parts (4_11: 2.26 with the rule, 3.51 with the gate), and X08 shows the same setting giving 3.51 and 8.85 m on two builds of identical logic. **Decision**: no reference change from F12. F15 re-measures every setting on one frozen binary; that result, not this one, decides. If the dark walks still fail there, the gate + rule interaction on sparse maps is real and the per-landmark rule alone (or the flat filter) is the candidate.
+
+**Applicability**: as F01 / F03 / F08d; the lesson about chaos is in X08.
