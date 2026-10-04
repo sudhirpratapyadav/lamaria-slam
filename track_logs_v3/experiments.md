@@ -2,7 +2,7 @@
 
 ## v3 summary (closed 2026-10-04; details in the sections below)
 
-**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **[F16 PENDING]**. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_12 13.0 to 12.6, R_11 2.58 to 2.18, R_08 1.00 to 1.03.
+**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **[F16 PENDING]**. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
 
 **What worked and why**: the long walks were lost to observations with large reprojection error that the Huber loss only damped; removing them after the solve (filter) and keeping the ones that belong to otherwise consistent landmarks (per-landmark rule) fixes most of it. Both are standard robust estimation, general, and cost nothing.
 
@@ -526,6 +526,6 @@ Additional set (score 2D; flat / reference in brackets; restarts): 1_19 74.1 (74
 
 **Command**: `results/v3-X09-repeat/batch.sh` (two more repeats on the F15 snapshot: the spread), `build_det.sh` (build 13, two repeats on the deterministic binary: bit-exactness check).
 
-**Result**: pending.
+**Result**: R_12, filter + rule, F15 snapshot binary, four runs: 12.557 (F15), 13.881 (F16), 13.937, 13.895. Three of four sit within 0.4 % of each other and the F15 run is the odd draw 10 % away, so the usual spread is small and the rare branch is large. Deterministic binary (build 13), two runs: **13.978 and 13.978, bit-identical trajectories** (same md5), wall time 416 s against 433 s for the fast version, i.e. no cost. Consequences: (1) `BASALT_DETERMINISTIC` stays on by default from here; (2) the per-landmark rule's R_12 figure in F15 (12.56) was the lucky draw, its honest level is about 13.9 against the reference's 13.0 single sample, so on R_12 the rule is a small loss or a tie, not a gain; the dark-walk, 2_11 and 3_18 gains are far outside this spread and stand.
 
 **Applicability**: method and tooling; determinism matters for every comparison in this project and costs nothing on the robot (it can run with the fast reduction).
