@@ -188,8 +188,11 @@ The drift responds to the offset in the predicted direction and almost linearly 
 |---|---|---|---|---|
 | sequence_2_11 | 27.5, 18.0, 46 %, **5 restarts** (39 numerical failures) | 11.8, 8.8, 11 %, heading **-19.5 deg** (rms 9.3) | 12.5, 5.8, 11 %, heading -25 | 6.8, 19.8, 47 %, heading -4.7 |
 | sequence_4_11 (dark) | 130.6, 0, 0 %, 4 restarts (106 failures) | 24.7, 9.5, 22 %, 0 restarts | 5.27, 35.2 | (F21: 1.77, 56.9) |
-| R_08_hard | running (650 numerical failures logged, 3 restarts so far) | **0.340** (F21 1.03, F02 0.75) | 0.75 | |
-| R_04, 3_18 | running | running | | |
+| R_08_hard | 138 m, **12 restarts in the first 43 s** | **0.340** (F21 1.03, F02 0.75) | 0.75 | |
+| R_04_medium | 0.775, 1 restart (scale 0.938) | **0.523**, 1 restart (F21 0.70, F02 0.55) | 0.55 | |
+| sequence_3_18 | **19.9**, 3.5, 4 %, no restart, heading **+33.5** (rms 13.7) | 31.9, 7.1, 16 %, heading -54.6 | 34, heading about -60 | (F21: 56.1, 1.7, heading -95) |
+
+**Complete reading**: the combination is strong where it holds (3_18 56 to 20 m with the measured 5 ms, the heading's sign flips; R_08 1.03 to 0.34 and R_04 0.70 to 0.52 with 10 ms) and unstable elsewhere: the same 5 ms arm that wins 3_18 loses 2_11 to five mid-sequence restarts and R_08 / 4_11 to initialisation blow-ups, and 3_18 at 10 ms is worse than at 5 ms while 2_11 is the opposite. Two conclusions: (1) with both cameras the offset no longer acts as a heading knob, so there is no reason to go beyond the measured 5 ms; (2) nothing here can be judged before the initialisation is robust (F11), after which F12 (both cameras, no shift, full sets) and a +5 ms arm on the walks decide the v4 causal reference.
 
 **First reading**: the two fixes are **not independent**. With landmarks in both cameras the heading's sensitivity to the offset falls from 5 to about 0.5 degrees per millisecond (-25 at 0 ms, -19.5 at +10 ms), so most of what the IMU shift removed on cam0-only geometry was the one-sided geometry itself, and the residual -20 to -25 degrees on 2_11 is a third thing, not timing. The +5 ms arms are wrecked by restarts that come from a solver numerical failure (NaN landmark increments applied to the state, see F07), which also hit the F02 and reference runs at random: F06 has to be read again on the F07 binary.
 
