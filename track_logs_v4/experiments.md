@@ -121,3 +121,39 @@ The gyro at x2 removes most of the drift but not all of it on 3_18: the visual y
 Indoors the second camera's landmarks pay off clearly (R_04 -21 %, R_08 -27 %, the best R_08 of any setting); on the dark walk the run is cleaner (no restart, recall 96 %) but the ATE is worse (5.3 against 1.8; the F21 figure sits in the 1.6 to 4.5 range of that walk's restart chaos, so the gap is smaller than it looks and needs the second offset). Cost 2x.
 
 First reading of 2_11: the heading bias halves (-57 to -25 degrees) and the ATE with it, so the geometric explanation holds; but the control-point score and the 5 m recall fall (21 to 6, 49 to 11 %). The two metrics disagree because they align differently: the ATE is a sim3 fit over the whole trajectory, the score and recall are judged after the control-point alignment, and a trajectory with a smaller but differently shaped error can lose there. Not a candidate on its own; the question is what it does on top of the gyro at x2 (F03), where the heading is already mostly held and the extra observations should count for robustness and scale rather than heading.
+
+## X04: camera-IMU consistency from the images (2026-10-05, pc, analysis)
+
+**Method**: new `scripts/cam_imu_check.py` (OpenCV, system Python): frame-to-frame rotation of one camera from KLT tracks with a rotation-only RANSAC fit on bearings (consecutive frames have a few cm of baseline, so the essential matrix is degenerate), compared with the gyro integrated over the same interval and rotated into the camera frame with the calibration. Outputs: the time offset that minimises the median rotation residual (1 ms grid), the extrinsic rotation implied by the data against the calibration (Wahba), per-axis rotation scale. The mean rotation-rate difference it also prints is contaminated by translation parallax of near features (one-signed while walking) and is not usable as a measure of the estimator's visual bias.
+
+**Result** (3000 frames each, `results/v4-X04-cam-imu-check/`):
+
+| Sequence, camera | time offset (images later than stamped) | extrinsic rotation, data vs calibration | inliers per pair |
+|---|---|---|---|
+| 2_11 cam0 | **5 ms** | 4.2 deg over 3000 frames (0.3 deg over 400: the long-stretch figure drifts with the uncorrected gyro bias; the short one is the trustworthy number) | 155 |
+| 2_11 cam1 | **5 ms** | 1.1 deg over 400 frames | 154 |
+| 1_19 cam0 | **4 ms** | | 240 |
+| R_08 cam0 | **4 ms** | | 285 |
+
+Both devices and both cameras agree on a camera-IMU time offset of 4 to 5 ms (v1 010 had found 4.3 ms for OpenVINS and discarded it as a setting; nobody checked its effect on heading). Basalt's VIO ignores `cam_time_offset_ns` (the line is commented out upstream), so the offset is applied to the input instead (`scripts/make_timeshift_input.py`: IMU stamps shifted).
+
+**Applicability**: general, and the kind of check to run first on any new sensor (lesson 6 of AGENTS.md); the robot's camera-IMU offset must be measured the same way.
+
+## F05: camera-IMU time offset (2026-10-05, pc)
+
+**Hypothesis** (X04): the 4 to 5 ms offset, unmodelled, is part of the daytime heading drift (the IMU rotation between two frames is matched against image content from 5 ms later; with head motion coupled to the stride this does not average out).
+
+**Change**: IMU timestamps shifted so that the images count as 4.5 ms later (`dtp45`) or earlier (`dtm45`) relative to the IMU, `data/derived/sequence_2_11_dt*`; v3 reference settings (gyro x20), F21 binary. F05b sweeps +7, +10, +15 ms on 2_11 and applies +4.5 ms to 1_19 and 4_11 (no drift there: a correct offset must not hurt them). `results/v4-F05-time-offset/`, `results/v4-F05b-time-offset-sweep/`.
+
+**Result** (sequence_2_11; ATE m; score; recall @ 5 m; heading error at the end):
+
+| Offset | ATE | score | recall 5 m | heading end |
+|---|---|---|---|---|
+| -4.5 ms | 29.70 | 25.9 | 51 % | -78.9 deg |
+| 0 (reference) | 21.51 | 21.1 | 49 % | -57.4 deg |
+| **+4.5 ms** | **14.32** | 5.7 | 11 % | **-34.9 deg** |
+| +7 / +10 / +15 ms | running | | | |
+
+The drift responds to the offset in the predicted direction and almost linearly (-79, -57, -35 degrees for -4.5, 0, +4.5 ms), so the time offset is a real part of the mechanism; +4.5 ms removes about 40 % of it. The control-point score falls again while the ATE improves (same pattern as F02: the score is judged after the control-point alignment and does not reward a smaller but reshaped error the same way). F05b tells whether a larger offset removes the rest or whether the remainder is the cam0 geometry (X02 d).
+
+**Applicability**: a sensor property (Aria image stamps against the IMU clock), not a benchmark fit; the robot's offset is to be measured, not copied.
