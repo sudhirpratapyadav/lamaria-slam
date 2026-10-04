@@ -12,7 +12,10 @@
 
 ## Running
 
-- F01 (`lamaria-v4-f01`): gyro x2 on the full sets; F01b (`lamaria-v4-f01b`): gyro x1 / x5 on seven event sequences; X02 (d): cameras swapped on 2_11.
+- F01 (`lamaria-v4-f01`): gyro x2 on the full sets. So far: 3_17 47 to 9.0 m (score 6 to 22), 3_18 56 to 22.4 (1.7 to 10), 2_12 to 6.2 m (score 22.7, was 3.7).
+- F01b (`lamaria-v4-f01b`): gyro x1 / x5 on seven event sequences. 2_11: x1 5.2, x2 2.9, x5 12.1, x20 21.5 m. **4_11 (dark) pulls the other way**: x1 8.2, x5 6.3, x20 1.8 m.
+- F01c (`lamaria-v4-f01c`): gyro x2 with accelerometer x5 / x10 and with a 5x gyro bias walk (scale got worse with the gyro trusted: 0.93 to 0.95).
+- F02 (`lamaria-v4-f02`): landmarks in both cameras (`BASALT_MONO_CAMS=1`), own snapshot. 2_11: heading bias -57 to -25 deg, ATE 21.5 to 12.5, but score 21 to 6, 2x cost.
 
 ## Plan
 
