@@ -290,3 +290,20 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 **Result**: running.
 
 **Applicability**: general (any platform that may start while moving: a robot pushed, a handheld device, glasses); it costs w seconds of poses at the start of a run (the submission fills them from the first estimate); on a stationary start it is a no-op in effect.
+
+## F10: cam0 intrinsics probe, focal length (2026-10-05, pc)
+
+**Hypothesis** (X05): device A's cam0 undistorted-pinhole model is off; a focal error would bias bearings and could give both the heading drift and the 1 to 3 % scale deficit seen on every device-A sequence.
+
+**Change**: `CAM0_FOCAL_SCALE` (env, `make_basalt_calib.py --cam0-focal-scale`): cam0 fx, fy scaled by 0.98 / 0.99 / 1.01 / 1.02 on 2_11, v3 reference settings, F21 binary. `results/v4-F10-cam0-focal-probe/`.
+
+**Result** (sequence_2_11; reference 21.51, score 21.1, heading -57.4, scale 0.993):
+
+| cam0 focal | ATE | score | recall 5 m | heading | sim3 scale |
+|---|---|---|---|---|---|
+| x0.98 | 23.5 | 6.0 | 13 % | -52.6 | 1.002 |
+| x0.99 | 22.5 | 30.0 | 57 % | -54.7 | 0.997 |
+| x1.01 | 20.4 | 30.3 | 57 % | -58.1 | 0.984 |
+| x1.02 | 18.7 | 26.9 | 52 % | -58.5 | 0.979 |
+
+**Decision**: closed. Two percent of focal length moves the heading by 3 degrees and the sim3 scale by 1 % (as expected: the focal sets the visual scale against the IMU's), so no plausible intrinsic error produces a 57-degree drift. The score's jump from 21 to 30 at +-1 % is the control-point alignment's usual sensitivity, not a signal. **The mechanism hunt stops here** (X01 to X07, F01, F04, F05, F08, F09, F10): the drift is specific to device A's cam0-hosted landmarks and is not explained by any calibration or timing term we can probe; what we keep is the general defence, landmarks in both cameras (F02), plus per-sequence self-calibration in the backend later.
