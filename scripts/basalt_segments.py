@@ -30,10 +30,15 @@ PY = sys.executable
 
 
 def run_basalt(seq_dir, out, skip, calib, config, threads):
-    okin = seq_dir / (f"okvis_input_skip{skip}" if skip else "okvis_input")
+    # offsets 0 and 100 are the shared, kept inputs in the sequence folder; the per-restart inputs live in
+    # the run's own folder (v4: two concurrent runs of one sequence that restarted at the same frame used
+    # to share one folder, and the first to finish deleted it under the other)
+    shared = skip in (0, 100)
+    base = seq_dir if shared else out
+    okin = base / (f"okvis_input_skip{skip}" if skip else "okvis_input")
     subprocess.run([PY, str(ROOT / "scripts" / "make_okvis2_input.py"), str(seq_dir / "runner_input"), str(okin), "--skip-frames", str(skip)],
                    check=True, stdout=subprocess.DEVNULL)
-    bin_dir = seq_dir / (f"basalt_input_skip{skip}" if skip else "basalt_input")
+    bin_dir = base / (f"basalt_input_skip{skip}" if skip else "basalt_input")
     bin_dir.mkdir(exist_ok=True)
     link = bin_dir / "mav0"
     if not link.is_symlink():
@@ -52,7 +57,7 @@ def run_basalt(seq_dir, out, skip, calib, config, threads):
     # folders (one per divergence, 144 MB each; offsets 0 and 100 are shared across experiments and kept)
     for f in seg.glob("stats_*.ubjson"):
         f.unlink(missing_ok=True)
-    if skip not in (0, 100):
+    if not shared:
         shutil.rmtree(okin, ignore_errors=True)
         shutil.rmtree(bin_dir, ignore_errors=True)
     if r.returncode != 0 or not traj.exists():
