@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..b13ae5a 100644
+index d16e708..b3e420d 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -251,7 +251,7 @@ index d16e708..b13ae5a 100644
              }
            }
          }
-@@ -308,6 +445,129 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +445,143 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -318,7 +318,10 @@ index d16e708..b13ae5a 100644
 +    std::vector<PatchT> patches;
 +  };
 +  std::map<KeypointId, LostTrack, std::less<KeypointId>, Eigen::aligned_allocator<std::pair<const KeypointId, LostTrack>>> lost_tracks;
-+  long revive_lost = 0, revive_ok = 0, revive_frames_seen = 0;
++  // BASALT_REVIVE_STRICT=1 (F20b): a revived track is held back one frame and emitted only if the normal
++  // forward-backward KLT step from the revived position succeeds in the next frame
++  Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> provisional;
++  long revive_lost = 0, revive_ok = 0, revive_frames_seen = 0, revive_confirmed = 0, revive_rejected = 0;
 +  void revivePoints(OpticalFlowResult::Ptr& new_transforms) {
 +    static const int revive_frames = [] {
 +      const char* e = std::getenv("BASALT_REVIVE_FRAMES");
@@ -330,8 +333,19 @@ index d16e708..b13ae5a 100644
 +      const char* e = std::getenv("BASALT_REVIVE_MAX_RES");
 +      return Scalar((e && *e) ? std::atof(e) : 0.2);
 +    }();
++    static const bool strict = [] { const char* e = std::getenv("BASALT_REVIVE_STRICT"); return e && *e && *e != '0'; }();
 +    if (revive_frames <= 0 || !old_pyramid) return;
 +    auto& obs_new = new_transforms->observations.at(0);
++    // 0. provisional revivals from the previous frame: confirm with the strict KLT step old -> new
++    if (strict && !provisional.empty()) {
++      Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> confirmed;
++      trackPoints(old_pyramid->at(0), pyramid->at(0), provisional, confirmed);
++      for (const auto& kv : confirmed) {
++        if (!obs_new.count(kv.first)) { obs_new[kv.first] = kv.second; revive_confirmed++; }
++      }
++      revive_rejected += provisional.size() - confirmed.size();
++      provisional.clear();
++    }
 +    // 1. try to revive tracks lost in earlier frames
 +    for (auto it = lost_tracks.begin(); it != lost_tracks.end();) {
 +      const long age = frame_counter - it->second.frame;
@@ -353,7 +367,7 @@ index d16e708..b13ae5a 100644
 +                pyramid->at(0).lvl(0).InBounds(tr.translation()[0], tr.translation()[1], 19);
 +      }
 +      if (valid) {
-+        obs_new[it->first] = tr;
++        if (strict) provisional[it->first] = tr; else obs_new[it->first] = tr;
 +        revive_ok++;
 +        it = lost_tracks.erase(it);
 +      } else {
@@ -375,13 +389,13 @@ index d16e708..b13ae5a 100644
 +    }
 +    if (++revive_frames_seen % 1000 == 0)
 +      std::cerr << "revive: " << revive_frames_seen << " frames, " << revive_lost << " tracks lost, " << revive_ok << " revived, "
-+                << lost_tracks.size() << " pending" << std::endl;
++                << revive_confirmed << " confirmed, " << revive_rejected << " rejected, " << lost_tracks.size() << " pending" << std::endl;
 +  }
 +
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +577,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +591,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -422,7 +436,7 @@ index d16e708..b13ae5a 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +620,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +634,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {

@@ -628,6 +628,6 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 
 **Command**: `results/v3-F20-revive/build_and_run.sh` (ctrl / 10 frames / 30 frames, six event sequences, 18 runs).
 
-**Result**: pending.
+**Result so far**: the counters give the verdict before the scores do: on 4_11 about 200 tracks per frame are reported lost and 81 % of them revived (4.49 M lost, 3.65 M revived over 22000 frames), i.e. most tracks oscillate between the strict KLT (which rejects them, forward-backward bound 0.2 px) and the revival path (no backward check, residual bound 0.2), so the revival feeds the back end exactly the matches the tracker had refused. The control run was truncated by the full disk (re-run queued). **F20b** fixes the design: a revived track is provisional and is emitted only if the next frame's normal forward-backward KLT step from the revived position succeeds (`BASALT_REVIVE_STRICT=1`); `results/v3-F20b-revive-strict/`, same arms, own snapshot (build 16).
 
 **Applicability**: general for any patch tracker (cheap: a few extra patch alignments per frame); it helps where tracks drop out briefly and the scene is unchanged behind the interruption; it can hurt if a patch re-locks on similar texture nearby (the residual bound is the guard) or if the grace keeps stale landmarks in the window too long.
