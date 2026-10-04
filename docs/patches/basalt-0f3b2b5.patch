@@ -645,7 +645,7 @@ index 2960dad..e509196 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..c819758 100644
+index 55984fc..26131b5 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -763,7 +763,7 @@ index 55984fc..c819758 100644
    if (take_kf) {
      // Triangulate new points from one of the observations (with sufficient
      // baseline) and make keyframe for camera 0
-@@ -407,14 +481,38 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,14 +481,46 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          }
        }
  
@@ -799,10 +799,18 @@ index 55984fc..c819758 100644
 +        // is not identity once the state has diverged far from the origin (one ulp at 1e6 m is
 +        // 6 cm), and the degenerate single-observation landmark then crashes the QR.
 +        if (tcido == tcidl) continue;
++        // lamaria-slam (v3 F14c): BASALT_STEREO_NO_TRIANG=1 never triangulates a new landmark from the
++        // same-frame stereo pair alone (a wrong stereo match across the 75 degree pair would fix a wrong
++        // depth from the start); the stereo observation is still added and constrains the landmark later
++        static const bool stereo_no_triang = [] {
++          const char* e = std::getenv("BASALT_STEREO_NO_TRIANG");
++          return e && *e && *e != '0';
++        }();
++        if (stereo_no_triang && tcido.frame_id == tcidl.frame_id) continue;
  
          const Vec2 p0 = opt_flow_meas->observations.at(0)
                              .at(lm_id)
-@@ -438,11 +536,41 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -438,11 +544,41 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
          if (T_0_1.translation().squaredNorm() < min_triang_distance2) continue;
  
@@ -845,7 +853,7 @@ index 55984fc..c819758 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -452,6 +580,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -452,6 +588,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
            num_points_added++;
            valid_kp = true;
@@ -853,7 +861,7 @@ index 55984fc..c819758 100644
          }
        }
  
-@@ -459,6 +588,13 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -459,6 +596,13 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          for (const auto& kv_obs : kp_obs) {
            lmdb.addObservation(kv_obs.first, kv_obs.second);
          }
@@ -867,7 +875,7 @@ index 55984fc..c819758 100644
        }
      }
  
-@@ -1014,6 +1150,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -1014,6 +1158,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -912,7 +920,7 @@ index 55984fc..c819758 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1605,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1613,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();

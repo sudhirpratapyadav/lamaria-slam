@@ -402,3 +402,22 @@ What is left to separate them is *where in time* the large residuals sit. The su
 **Check (X06e, first 90 s of each)**: with the initialisation Basalt holds **31 cam1 observations per frame on R_04 (6 % of all observations) and 11 on 4_11 (11 %)**, where it held none. The match rate is still low: of the new cam0 points predicted inside cam1, 6 % pass Basalt's stereo pass (30588 predicted, 1834 matched on R_04), against 90 % for the same initialisation with a 1 px forward-backward bound in Python; Basalt's bound is 0.2 px (`optical_flow_max_recovered_dist2` 0.04) and the patch appearance changes across the 75 degree viewpoint difference. F14b adds `BASALT_STEREO_RECOVERED_DIST2` (1 px^2 for the stereo pass only).
 
 **Applicability**: general for any wide-baseline or canted stereo rig (this hardware's HJY1A pair at 60 mm with parallel axes would not need it, but it costs nothing there); it is also the kind of silent failure to check first on a new sensor: count the stereo observations.
+
+## F14: stereo tracking initialised from the calibration (2026-10-04, pc)
+
+**Hypothesis** (X06d): Basalt had no stereo observations on this sensor; giving it real ones restores metric depth at landmark creation and the scale constraint, and should help most where temporal parallax is poor (dark, slow).
+
+**Change**: `frame_to_frame_optical_flow.h`: `BASALT_STEREO_INIT=1` starts the cam1 search for each new cam0 point at the projection of its bearing rotated into cam1 (generic camera models), the backward check starts from the cam0 pixel; `BASALT_STEREO_RECOVERED_DIST2` (F14b) loosens the forward-backward bound for the stereo pass only; `BASALT_STEREO_NO_TRIANG=1` (F14c, `sqrt_keypoint_vio.cpp`) keeps the stereo observation but never triangulates a new landmark from the same-frame pair alone. Back end: F12 candidate settings (filter 3 px + epipolar gate 0.005 + per-landmark rule).
+
+**Command**: `results/v3-F14-stereo-init/batch.sh`, `batch_b.sh`, `batch_c.sh` (six event sequences; F14c four).
+
+**Result so far** (ATE m; score / recall; same settings without stereo from F12 or F09 in brackets):
+
+| Seq | stereo init | stereo, loose bound (F14b) | stereo as constraint only (F14c) |
+|---|---|---|---|
+| R_08 | **0.953** (1.036) | running | queued |
+| sequence_4_11 | 14.76, 7.2 / 14.3, **scale 0.77**, no restart (2.26, 45.7 / 99.5) | running | queued |
+
+First reading: R_08 gains 8 % from the stereo observations. The dark walk collapses: it gets about one new stereo match per two frames (11657 over 22000 frames) and its map is tiny (20 to 30 landmarks), so a landmark triangulated from a wrong stereo match (a patch that converged on repeated texture across the 75 degree view, within the 0.2 px backward bound) fixes a wrong depth from the start and the scale drifts to 0.77; with the filter removing only 761 landmarks instead of 19321 the wrong ones stay. On R_08 the same mistakes are outvoted by a dense map. F14c separates the two roles of a stereo match (initialiser of depth versus one more constraint): with the stereo pair excluded from triangulation, a wrong match becomes an outlier observation the filter can remove.
+
+**Applicability**: general for canted or wide-baseline pairs; on a parallel 60 mm pair (the robot's camera) the same-pixel start already works and the depth from stereo is reliable, so there the plain stereo init is the right default and this failure mode does not arise.
