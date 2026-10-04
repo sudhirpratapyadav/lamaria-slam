@@ -93,6 +93,8 @@ The per-minute heading drift of the estimate on the daytime walks is **steady** 
 
 **F01 further** (gyro x2, walk x1): sequence_1_20 **37.5 m** (F21 score 41), sequence_4_10 11.2 m, score 4.9 (F21 20.6), sequence_5_11 score 13.8 (F21 8.2). **F01b indoor** (ATE m; F21 in brackets): R_04 x1 2.74 / x5 4.37 (0.70); R_08 5.05 / 2.54 (1.03); R_11 2.99, score 38 / 1.42, 65 (2.17, 76.5); R_12 5.21, 22 / 9.87, 12 (13.9, 9.6). **F01d** (gyro x2, bias walk faster): 1_19 walk x5 10.65 / x20 2.40, score 42 / **x100 1.08, score 67.8** (F21 0.65, 74.8), so a fast bias walk gives 1_19 back; but 3_18 with walk x20 is **53.1 m**, the whole daytime gain gone, and 4_11 walk x20 6.06, score 40.7. **F04** (gyro x20, more baseline before a landmark): 2_11 at 0.2 m 20.3, score 26.4; at 0.5 m 21.9, 22.2 (21.5, 21.1): no effect on the drift, so far-landmark triangulation is not the source.
 
+**F01 controlled set (gyro x2, both offsets, F21 in brackets)**: R_01 0.198 / 0.201 (0.132 / 0.137), R_02 0.534 / 0.435 (0.210 / 0.262), R_03 0.385 / 0.390 (0.345 / 0.298), R_04 5.58 with 2 restarts (0.697): worse on every controlled sequence. F01c: 4_11 with accelerometer x10 and gyro x2: 32.9 m, 11 restarts; 4_11 with gyro x2 and walk x5: 8.81, score 27. F01d on 3_18: walk x5 46.0, x20 53.1, x100 59.7 (reference 56.1): every faster walk gives the drift back. The F01 / F01c / F01d batches were stopped at this point (02:50), their remaining runs cancelled; the verdict did not need them.
+
 **Decision on the IMU weights**: a fixed gyro factor is not a setting we can keep. The daytime walks want the gyro's short-term precision against a visual yaw bias; 1_19, 1_20, the dark walks and every indoor sequence want vision free to re-estimate a bias that moves (and the x20 noise evidently also covers model errors the estimator does not have: time offset, extrinsics, gyro scale), and any bias walk fast enough for them hands the heading back to vision on 3_18. **Not kept**; `GYRO_NOISE_SCALE` / `GYRO_WALK_SCALE` stay as options. The gain on the daytime walks (2_11 2.9 m, 3_17 9 m, 2_12 6 m) stands as the measure of what removing the visual yaw bias is worth; the bias itself has to be fixed on the visual side.
 
 The gyro at x2 removes most of the drift but not all of it on 3_18: the visual yaw bias is reduced by the stronger gyro, not gone, which is what X02 (d) predicts (the bias is in the cam0-monocular geometry). Scale after the fix: 0.99 on both long walks (was 0.92 / 1.07), but the 60 s window scales still span 0.89 to 1.05, and on 2_11 the fitted scale is 0.95: with the heading fixed, scale is the next visible error, which is the stereo thread's job.
@@ -117,6 +119,8 @@ The gyro at x2 removes most of the drift but not all of it on 3_18: the visual y
 | R_04_medium | 0.697 (F21) | **0.550** |
 | R_08_hard | 1.031 (F21) | **0.748** |
 | R_11_5cp | 2.174, 76.7 (F21) | 2.594, 76.3 |
+| R_12_10cp | 13.88, 9.6 (F21) | **11.04, 9.7** |
+| sequence_3_18 | 56.12, 1.7 (F21) | **34.39, 6.1** |
 
 Indoors the second camera's landmarks pay off clearly (R_04 -21 %, R_08 -27 %, the best R_08 of any setting); on the dark walk the run is cleaner (no restart, recall 96 %) but the ATE is worse (5.3 against 1.8; the F21 figure sits in the 1.6 to 4.5 range of that walk's restart chaos, so the gap is smaller than it looks and needs the second offset). Cost 2x.
 
@@ -152,7 +156,8 @@ Both devices and both cameras agree on a camera-IMU time offset of 4 to 5 ms (v1
 | -4.5 ms | 29.70 | 25.9 | 51 % | -78.9 deg |
 | 0 (reference) | 21.51 | 21.1 | 49 % | -57.4 deg |
 | **+4.5 ms** | **14.32** | 5.7 | 11 % | **-34.9 deg** |
-| +7 / +10 / +15 ms | running | | | |
+| **+10 ms** | **6.81** | 19.8 | 47 % | pending |
+| +7 / +15 ms | running | | | |
 
 The drift responds to the offset in the predicted direction and almost linearly (-79, -57, -35 degrees for -4.5, 0, +4.5 ms), so the time offset is a real part of the mechanism; +4.5 ms removes about 40 % of it. The control-point score falls again while the ATE improves (same pattern as F02: the score is judged after the control-point alignment and does not reward a smaller but reshaped error the same way). F05b tells whether a larger offset removes the rest or whether the remainder is the cam0 geometry (X02 d).
 
