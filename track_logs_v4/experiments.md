@@ -81,3 +81,21 @@ The per-minute heading drift of the estimate on the daytime walks is **steady** 
 | sequence_3_18 | | **22.42, 10.2, 12 %** (56.1, 1.7, 5 %) | | **still a steady drift**: -1.5 deg per minute, -43 deg at the end (was -3.4 per minute, -95) |
 
 The gyro at x2 removes most of the drift but not all of it on 3_18: the visual yaw bias is reduced by the stronger gyro, not gone, which is what X02 (d) predicts (the bias is in the cam0-monocular geometry). Scale after the fix: 0.99 on both long walks (was 0.92 / 1.07), but the 60 s window scales still span 0.89 to 1.05, and on 2_11 the fitted scale is 0.95: with the heading fixed, scale is the next visible error, which is the stereo thread's job.
+
+## F02: landmarks in both cameras (2026-10-05, pc)
+
+**Hypothesis** (X02 d): the residual heading bias comes from running monocular on the left-looking cam0; detecting and tracking points in cam1 as well, with landmarks hosted in either camera, symmetrises the geometry and adds observations where cam0 has none.
+
+**Change**: `BASALT_MONO_CAMS=1`: `frame_to_frame_optical_flow.h` `addPoints()` detects new points in every camera with the grid occupancy rule (fresh ids, tracked frame to frame in their own camera); `sqrt_keypoint_vio.cpp` creates landmarks from unconnected tracks of every camera, hosted in that camera (upstream: cam0 only). Stereo matching unchanged. v3 reference settings (gyro x20, to isolate the camera effect), own snapshot (build 17, md5 in `results/v4-F02-mono-cams/bin`); controls with the option off on 2_11 and 4_11.
+
+**Command**: `results/v4-F02-mono-cams/batch.sh` (unit `lamaria-v4-f02`).
+
+**X03 check (150 s single-process runs on 2_11, residual dump)**: with the option, cam1 holds 300 to 670 observations per frame against 400 to 1200 in total (control: 150 to 625, all cam0), landmarks 128 to 230 against 50 to 112; residual medians unchanged (0.15 to 0.25 px). Speed halves (3100 against 6200 frames in 150 s at 3 threads): twice the landmarks, twice the cost. Mechanically it does what it should.
+
+**Result so far** (ATE m; score; recall @ 5 m; heading at the end):
+
+| Seq | control (same snapshot) | both cameras |
+|---|---|---|
+| sequence_2_11 | 21.51, 21.1, 48.5 % (bit-identical to F21), heading -57 deg, 523 s | **12.54**, 5.8, 11.1 %, heading **-25 deg**, 917 s |
+
+First reading: the heading bias halves (-57 to -25 degrees) and the ATE with it, so the geometric explanation holds; but the control-point score and the 5 m recall fall (21 to 6, 49 to 11 %). The two metrics disagree because they align differently: the ATE is a sim3 fit over the whole trajectory, the score and recall are judged after the control-point alignment, and a trajectory with a smaller but differently shaped error can lose there. Not a candidate on its own; the question is what it does on top of the gyro at x2 (F03), where the heading is already mostly held and the extra observations should count for robustness and scale rather than heading.
