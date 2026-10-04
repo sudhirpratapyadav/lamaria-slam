@@ -560,3 +560,22 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: **adopted as the v3 reference**: the controlled set is a tie with v2's reference (2.42 against 2.43, where the flat filter had lost to 2.50), and the additional set is up by a quarter (21.5 against 16.9), carried by the dark walks. The losses are the long outdoor walks' scores (already near zero for every setting; v4 territory) and the moving platform (vehicle interiors: near structure with large honest residuals; mark `BASALT_OUTLIER_PX` off or at 5 px for that case).
 
 **Applicability**: general robust estimation; thresholds (3 px, median bound 1.5 px) are in pixels of this 758x572 undistorted image and scale with resolution; known failures: one fast-turn divergence on R_04 (absorbed by the robust driver), vehicle interiors.
+
+## F18: the per-landmark rule's median bound (2026-10-04, pc)
+
+**Change**: `BASALT_OUTLIER_LM_MED` = 1.0 / 2.0 / 3.0 px (default 1.5 = half the threshold), filter 3 px, own snapshot binary (build 12, pre-deterministic). Six event sequences.
+
+**Result** (ATE m; score where it exists; default from F15 on its own snapshot, so cross-snapshot for that column only):
+
+| Seq | 1.5 px (default, F15) | 1.0 px | 2.0 px | 3.0 px |
+|---|---|---|---|---|
+| sequence_4_11 | 1.642, 53.1 | 1.764, 55.2 | 5.389, 25.5 | 4.399, 36.2 |
+| R_08_hard | 1.034 | 1.084 | 1.052 | 1.075 |
+| sequence_2_11 | 21.29, 23.9 | 22.37, 29.5 | 21.43, 24.2 | 20.22, 24.8 |
+| R_12_10cp | 12.56, 11.2 | 14.70, 9.3 | 13.26, 10.6 | 13.51, 10.4 |
+| R_11_5cp | 2.178, 76.6 | 2.154, 76.7 | 2.269, 76.2 | 2.152, 77.2 |
+| sequence_3_18 | 56.07, 1.6 | 56.48, 1.8 | 69.19, 3.1 | 54.73, 1.4 |
+
+**Decision**: the default stays. 1 px is a tie everywhere; 2 and 3 px lose the dark walk (5.4 and 4.4 against 1.6) and 2 px loses 3_18 (69 against 56); the rest is within the run spread. The bound is doing real work at the sparse end and is not sensitive elsewhere.
+
+**Applicability**: as F08d; the bound scales with the threshold.
