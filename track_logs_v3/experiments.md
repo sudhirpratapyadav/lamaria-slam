@@ -422,14 +422,14 @@ Two readings. First, the external cv2 KLT front end is far below Basalt's own pa
 
 | Seq | stereo init (sim3 scale) | stereo, loose bound (F14b) | stereo as constraint only (F14c) |
 |---|---|---|---|
-| R_08 | **0.953** (0.986) (1.036) | 1.083 | queued |
+| R_08 | **0.953** (0.986) (1.036) | 1.083 | 0.977 |
 | R_11 | 2.228, 77.9 (0.944) (2.176, 78.1) | **2.064, 79.5** | |
 | R_12 | 15.16, 9.3 (0.924) (13.26, 10.3) | 15.71, 9.6 | queued |
 | sequence_2_11 | 21.79, 17.2 (1.007) (20.12, 24.9) | 20.30, 18.2 | queued |
 | sequence_3_18 | **50.02, 2.1** (1.094) (54.46, 1.8) | 50.56, 1.9 | |
-| sequence_4_11 | 14.76, 7.2 / 14.3, **scale 0.77**, no restart (2.26, 45.7 / 99.5) | 7.67, 13.6 | queued |
+| sequence_4_11 | 14.76, 7.2 / 14.3, **scale 0.77**, no restart (2.26, 45.7 / 99.5) | 7.67, 13.6 | **102 m**, score 0 |
 
-F14b (stereo bound 1 px^2): more matches, no better: R_08 loses its gain (1.08), R_11 a touch better, 4_11 half-way back (7.7) but still three times the no-stereo result, R_12 and 2_11 unchanged. Plain stereo init, complete: gains on R_08 and 3_18, losses on R_11, R_12, 2_11 and a collapse on 4_11; and the fitted scales got *worse* where it lost (R_11 0.944, R_12 0.924 against 0.97 to 0.99 without stereo), which is the signature of wrong stereo depths entering the map.
+F14c (stereo as a constraint only, never for triangulation): R_08 0.977, **sequence_4_11 102 m** with score 0: as constraints the stereo observations are worse than as initialisers, i.e. on the dark walk most of the stereo matches that pass Basalt's 0.2 px backward check are *wrong* (dark, low texture, 75 degrees of viewpoint change), and a wrong observation attached to a good landmark pulls it until the host rule deletes it. On R_08's rich texture the same matches are mostly right and help. **Decision**: stereo initialisation stays available (`BASALT_STEREO_INIT`) and is the right default for a parallel pair like the robot's camera, but it is not switched on for this sensor until the stereo matches have a quality gate (patch contrast or a triangulation-consistency check) that holds in the dark; parked. F14b (stereo bound 1 px^2): more matches, no better: R_08 loses its gain (1.08), R_11 a touch better, 4_11 half-way back (7.7) but still three times the no-stereo result, R_12 and 2_11 unchanged. Plain stereo init, complete: gains on R_08 and 3_18, losses on R_11, R_12, 2_11 and a collapse on 4_11; and the fitted scales got *worse* where it lost (R_11 0.944, R_12 0.924 against 0.97 to 0.99 without stereo), which is the signature of wrong stereo depths entering the map.
 
 First reading: R_08 gains 8 % from the stereo observations. The dark walk collapses: it gets about one new stereo match per two frames (11657 over 22000 frames) and its map is tiny (20 to 30 landmarks), so a landmark triangulated from a wrong stereo match (a patch that converged on repeated texture across the 75 degree view, within the 0.2 px backward bound) fixes a wrong depth from the start and the scale drifts to 0.77; with the filter removing only 761 landmarks instead of 19321 the wrong ones stay. On R_08 the same mistakes are outvoted by a dense map. F14c separates the two roles of a stereo match (initialiser of depth versus one more constraint): with the stereo pair excluded from triangulation, a wrong match becomes an outlier observation the filter can remove.
 
