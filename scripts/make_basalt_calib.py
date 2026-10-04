@@ -21,12 +21,18 @@ def main():
     ap.add_argument("--walk-scale", type=float, default=1.0)
     ap.add_argument("--gyro-noise-scale", type=float, help="gyro noise factor (default: --noise-scale)")
     ap.add_argument("--gyro-walk-scale", type=float, help="gyro bias walk factor (default: --walk-scale)")
+    ap.add_argument("--cam0-rot-deg", type=float, nargs=3, metavar=("RX", "RY", "RZ"), help="rotate cam0 about its own axes (deg), T_i_c0 * Exp(r)")
+    ap.add_argument("--cam1-rot-deg", type=float, nargs=3, metavar=("RX", "RY", "RZ"))
     args = ap.parse_args()
     c = json.loads(args.calib_json.read_text())
     T, intr, res = [], [], []
     for key in ("cam0", "cam1"):
         cam = c[key]
         q, t = cam["T_b_s"]["qvec"], cam["T_b_s"]["tvec"]
+        rot = args.cam0_rot_deg if key == "cam0" else args.cam1_rot_deg
+        if rot:  # extrinsic-rotation probe (v4 F09): camera frame rotated about its own axes
+            from scipy.spatial.transform import Rotation as R
+            q = list((R.from_quat(q) * R.from_euler("xyz", rot, degrees=True)).as_quat())
         T.append({"px": t[0], "py": t[1], "pz": t[2], "qx": q[0], "qy": q[1], "qz": q[2], "qw": q[3]})
         fx, fy, cx, cy = cam["params"][:4]
         if cam["model"] == "PINHOLE":

@@ -9,10 +9,12 @@ PY="${PY:-$ROOT/.venv/bin/python}"
 SEQ="$(basename "$SEQ_DIR")"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 NOISE_SCALE=1.0; WALK_SCALE=1.0; THREADS=3; GYRO_NOISE_SCALE=""; GYRO_WALK_SCALE=""
+CAM0_ROT_DEG="${CAM0_ROT_DEG:-}"; CAM1_ROT_DEG="${CAM1_ROT_DEG:-}"  # "rx ry rz" in degrees, from the environment or options.sh (v4 F09 probe)
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
 "$PY" "$ROOT/scripts/make_basalt_calib.py" "$CALIB" "$OUT_DIR/calib.json" --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE" \
-  ${GYRO_NOISE_SCALE:+--gyro-noise-scale "$GYRO_NOISE_SCALE"} ${GYRO_WALK_SCALE:+--gyro-walk-scale "$GYRO_WALK_SCALE"} > /dev/null
+  ${GYRO_NOISE_SCALE:+--gyro-noise-scale "$GYRO_NOISE_SCALE"} ${GYRO_WALK_SCALE:+--gyro-walk-scale "$GYRO_WALK_SCALE"} \
+  ${CAM0_ROT_DEG:+--cam0-rot-deg $CAM0_ROT_DEG} ${CAM1_ROT_DEG:+--cam1-rot-deg $CAM1_ROT_DEG} > /dev/null
 cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
 {
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR (robust segments)"; echo "host: $(hostname)"

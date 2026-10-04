@@ -157,9 +157,20 @@ Refined with a 0.5 ms residual curve and a parabola through its minimum (`*_fine
 | 0 (reference) | 21.51 | 21.1 | 49 % | -57.4 deg |
 | **+4.5 ms** | **14.32** | 5.7 | 11 % | **-34.9 deg** |
 | **+10 ms** | **6.81** | 19.8 | 47 % | **-4.7 deg** (max 12, rms 4) |
-| +7 / +15 ms | running | | | |
+| +7 ms | 10.53 | 11.0 | 15 % | **-19.9 deg (max 20, rms 8.4)** (the first +7 arm had been built with a 70 ms shift by mistake: 91 m, 12 restarts, void; this is the rerun) |
+| +15 ms | 4.15 | 28.4 | 81 % | **+19.0 deg** (rms 8.5): overshoot, the drift changes sign |
+
+Sequences without the drift at +4.5 ms (must not be hurt; F21 reference in brackets):
+
+| Sequence | ATE | score | recall 5 m | heading |
+|---|---|---|---|---|
+| sequence_1_19 | 1.26 (0.65) | 64.4 (74.8; the reference's other start offset gives 64.1) | 100 % | rms 1.1, end -0.2 deg (F21: rms 2.9, end +5.1) |
+| sequence_4_11 (dark) | 4.38, 2 restarts (1.77, 3 restarts) | 33.2 (56.9; other offsets 41 / 10) | 74 % | rms 7.6, max 23 (F21: rms 2.2) |
+
 
 The drift responds to the offset in the predicted direction and almost linearly (-79, -57, -35 degrees for -4.5, 0, +4.5 ms), so the time offset is a real part of the mechanism; +4.5 ms removes about 40 % of it. The control-point score falls again while the ATE improves (same pattern as F02: the score is judged after the control-point alignment and does not reward a smaller but reshaped error the same way). F05b tells whether a larger offset removes the rest or whether the remainder is the cam0 geometry (X02 d).
+
+**F05b reading**: on 2_11 with cam0-only landmarks the end heading is linear in the offset over the whole range, about **5 degrees per millisecond** (-79, -57, -35, -20, -5, +19 for -4.5, 0, +4.5, +7, +10, +15 ms), with the zero crossing near +11 ms, i.e. twice the offset measured from the images (X04, 5 ms, sharp minimum on both devices). The IMU shift therefore does more than correct the timing: on this one-sided geometry a timing error and a heading bias are nearly interchangeable, so the "best" offset on 2_11 absorbs whatever else biases the heading. Only the measured 5 ms is a sensor constant we may keep; +10 ms would be a 2_11 fit. On 1_19 the heading is as good or better than the reference (rms 2.9 to 1.1 degrees) but the ATE doubles (0.65 to 1.26) and the score drops within its usual spread (64 to 75 across offsets); the dark walk 4_11 is worse (4.4 vs 1.8) but its runs are chaotic (restarts in 3 of 4 arms; F07 shows why). Verdict on the offset waits for F06 (both cameras) and F07 (restarts).
 
 **Applicability**: a sensor property (Aria image stamps against the IMU clock), not a benchmark fit; the robot's offset is to be measured, not copied.
 
@@ -171,4 +182,84 @@ The drift responds to the offset in the predicted direction and almost linearly 
 
 **Command**: `results/v4-F06-offset-monocams/batch.sh` (unit `lamaria-v4-f06`).
 
+**Result so far** (ATE m; score; recall; restarts; F02 alone and F05 alone in brackets):
+
+| Sequence | both cams, +5 ms | both cams, +10 ms | both cams only (F02) | cam0 only, +10 ms (F05) |
+|---|---|---|---|---|
+| sequence_2_11 | 27.5, 18.0, 46 %, **5 restarts** (39 numerical failures) | 11.8, 8.8, 11 %, heading **-19.5 deg** (rms 9.3) | 12.5, 5.8, 11 %, heading -25 | 6.8, 19.8, 47 %, heading -4.7 |
+| sequence_4_11 (dark) | 130.6, 0, 0 %, 4 restarts (106 failures) | 24.7, 9.5, 22 %, 0 restarts | 5.27, 35.2 | (F21: 1.77, 56.9) |
+| R_08_hard | running (650 numerical failures logged, 3 restarts so far) | **0.340** (F21 1.03, F02 0.75) | 0.75 | |
+| R_04, 3_18 | running | running | | |
+
+**First reading**: the two fixes are **not independent**. With landmarks in both cameras the heading's sensitivity to the offset falls from 5 to about 0.5 degrees per millisecond (-25 at 0 ms, -19.5 at +10 ms), so most of what the IMU shift removed on cam0-only geometry was the one-sided geometry itself, and the residual -20 to -25 degrees on 2_11 is a third thing, not timing. The +5 ms arms are wrecked by restarts that come from a solver numerical failure (NaN landmark increments applied to the state, see F07), which also hit the F02 and reference runs at random: F06 has to be read again on the F07 binary.
+
+## F07: non-finite landmark increments are no longer applied (2026-10-05, pc)
+
+**Observation**: every chaotic restart cluster examined (4_11 reference: 31 "Numerical failure in backsubstitution" lines and 3 restarts; F06 2_11 +5 ms: 39 and 5; 4_11 +5 ms: 106 and 4; R_08 +5 ms: 650; also R_03, R_07, R_10 skip 0 and R_04 skip 100 in the reference set, 6 of the 13 reference runs that restart) logs the sqrt solver's backsubstitution warning first. In `landmark_block_abs_dynamic.hpp` `backSubstitute()` Basalt computes the landmark increment from the landmark's 3x3 R block; when that block is singular (degenerate landmark: no baseline, direction at the parametrisation's pole) the increment is non-finite, upstream only prints the warning and **adds it anyway**, so the landmark's direction becomes NaN, its residuals poison every later linearisation of the window and the estimate diverges a few frames later.
+
+**Change**: a non-finite increment is skipped (the landmark stays where it was; the outlier filter / marginalisation remove it later), counted and logged ("Non-finite landmark increment skipped"). Nothing else touched; snapshot `results/v4-F07-nan-landmark/bin` (libbasalt md5 4e16d4a73f24; `snapshot_basalt.sh` now hashes libbasalt.so too, the executable alone does not change with estimator code).
+
+**Command**: `results/v4-F07-nan-landmark/batch.sh` (unit `lamaria-v4-f07`): v3 reference settings on the reference runs that logged the failure (4_11, R_03, R_10, R_07 at skip 0; R_04 at skip 100; 1_20 at skip 0, which logged 6 failures without a restart) plus R_01 skip 0 and R_04 skip 0 as no-failure controls (must be bit-identical to F21).
+
 **Result**: running.
+
+**Applicability**: general (any sequence, platform or sensor: a solver robustness fix, nothing benchmark-specific). It only acts where a degenerate landmark would have been applied; runs without the warning are unchanged.
+
+## X05: does the heading drift follow the device or the light? (2026-10-05, pc)
+
+**Observation**: the training set comes from two devices (md5 of `aria_calibrations/*.json`): device A (`cc5c2f57`): 2_11, 2_12, 3_17, 3_18, 4_10, 4_11, 5_11, 5_12 and all controlled sequences except R_08; device B (`5f4f20ee`): 1_19, 1_20, R_08. Every walk with the steady heading drift is device A; both device-B walks (1_19, 1_20; daytime, 15 to 17 minutes) and R_08 are clean; the two device-A walks without drift (4_10, 4_11) are the dark ones. Heading error of the reference runs on the whole controlled set (`gyro_yaw_check.py`, pGT frame detected per sequence: R_01 to R_10 are given in the IMU frame, R_11 to R_13 in the cam0 frame like the additional set):
+
+| Sequence | duration | heading end | rms | worst minutes (deg/min) |
+|---|---|---|---|---|
+| R_01 / R_02 / R_03 | 2.5 min | -1.2 / -3.6 / +1.9 | 0.9 / 2.8 / 1.3 | |
+| R_04 / R_05 / R_06 / R_07 | 4 to 7 min | +6.0 / -9.2 / -1.3 / -0.4 | 3.9 / 7.0 / 2.5 / 1.0 | R_05: -3.1 in the first minute |
+| R_08 (device B) | 10 min | +2.0 | 4.4 | |
+| R_09 / R_10 | 13 / 16 min | +15.7 (max 41) / +9.5 | 17.3 / 5.1 | R_09 excursion, not steady |
+| R_11 / R_13 | 8 / 23 min | -7.7 / -6.3 | 4.8 / 2.9 | |
+| **R_12** | 17 min | **-28.7** | 18.3 | **-4.5, -3.8, -2.7**: the walks' steady drift, same sign |
+
+So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drifts exactly like 2_11, and R_12 is the controlled set's largest error (13.9 m of the 2.38 m mean). What distinguishes the devices: intrinsics and extrinsics (different factory values), and the factory IMU terms the ASL export omits: gyro misalignment 0.26 deg (A) vs 0.22 deg (B), similar; accelerometer bias 0.25 / 0.21 / 0.39 m/s^2 (A) against about 0 (B), very different (v1 031 had found this in the .vrs). The light explanation (fast daytime walks) and the device explanation are confounded on this data except through R_12 and the dark walks; a device-B dark walk or a device-A short indoor walk with drift would separate them, and the training set has neither.
+
+**Applicability**: diagnosis only. If the device is the cause, the fix is calibration (self-calibration in the backend, or the full factory IMU model), which carries to any sensor; if it is the light, it is the front end.
+
+## F08: factory IMU rectification applied to the raw IMU (2026-10-05, pc)
+
+**Hypothesis** (X05): the ASL export's IMU is raw; the omitted factory model (per-axis scale, 0.26 deg of gyro misalignment, 0.25 to 0.39 m/s^2 of accelerometer bias on device A) is part of what the estimator absorbs as heading drift on device A.
+
+**Change**: the factory model `raw = M @ rectified + bias` for both devices, recovered exactly (residual 5e-9) from v1's rectified IMU files (`data/training_rect`, built from the .vrs that was deleted afterwards), stored in `data/external/aria_factory_imu/<device>.json`; `scripts/make_rectified_input.py` builds `data/derived/<seq>_rect` (rectified gyro and accelerometer, bias removed; everything else linked). v3 reference settings, F21 binary, on 2_11, 3_18, R_12 (device A, drifting), 4_11 (device A, dark) and 1_19 (device B, control). `results/v4-F08-imu-rectified/`, unit `lamaria-v4-f08`.
+
+**Result** (ATE m; score; recall 5 m; heading at the end; F21 reference in brackets):
+
+| Sequence | rectified IMU | reference |
+|---|---|---|
+| sequence_2_11 | 21.98, 30.8, 53.6 %, heading **-55.7** | 21.51, 21.1, 48.5 %, -57.4 |
+| sequence_3_18 | 58.1, 1.3, 4.4 %, heading -98.2 | 56.1, 1.7, heading -95.2 |
+| R_12_10cp | 12.03, 10.4, 18.7 %, heading -24.6 | 13.9 / 13.95, 9.6, heading -28.7 |
+| sequence_4_11 (dark) | 7.53, 17.4, 20.5 %, no restart, heading -14.8 | 1.77, 56.9 (3 restarts), heading +1.3 |
+| sequence_1_19 (device B) | 0.707, 72.6, 100 %, heading +5.4 | 0.65, 74.8, +5.1 |
+
+**Decision**: not kept. The factory IMU model changes the drift by a few degrees at most on 2_11 and 3_18 (within the per-run spread), helps R_12 a little, and the dark walk ends on another branch of its restart chaos (worse here). The gyro's omitted misalignment (0.26 deg) and scale, and device A's accelerometer bias, are not the heading mechanism; the estimator absorbs them in its bias states as designed. `make_rectified_input.py` and the recovered factory models stay available (they are the right input for any estimator that cannot estimate the bias quickly, e.g. at initialisation).
+
+**Applicability**: general in principle (use the sensor's full factory model), specific to Aria in the numbers; on the robot the IMU intrinsics come from its own calibration.
+
+## X06: the time-reversed run, mapped back to forward time (2026-10-05, pc)
+
+**Question**: is the heading drift anti-symmetric under time reversal (then a forward/backward fusion cancels it) or not? X02's reversed arm had run to completion (23748 poses, no restart, F21 binary, v3 reference settings) but its submission file was empty because the trajectory was in reversed time; here it is mapped back (`t = pivot - t'`), converted and scored. `results/v4-X06-reverse-fusion/sequence_2_11_rev2fwd/`.
+
+**Result** (sequence_2_11; forward reference in brackets): ATE **9.73 m** (21.51), score 17.6 (21.1), recall 5 m 44.9 % (48.5), scale 0.986, heading error at the forward end **-28.7 deg** (-57.4), rms 10.9 (22.8). In its own running time the backward estimator drifts at about +1.4 deg/min, i.e. the opposite sign and half the rate of the forward run's -2.9 deg/min.
+
+**Reading**: not anti-symmetric and not symmetric: the drift has a part that flips with the direction of travel and a part that does not (a 5 ms time offset flips sign under reversal; one-sided camera geometry relative to the direction of walking flips too; whatever does not flip is neither). A plain fusion of the two passes would end around -40 deg on 2_11, so it cannot be the whole answer, but the backward pass alone is 2x better and a time-weighted fusion also removes initialisation transients at both ends: worth having as the first (cheap, general) non-causal tool, `scripts/fuse_bidirectional.py`.
+
+**Fusion tried** (`scripts/fuse_bidirectional.py`: backward pass aligned to the forward one over the first 60 s by yaw and translation, then per-pose blend with a weight running linearly from forward at the start to backward at the end, slerp for the orientation): 2_11 ATE **10.06 m**, score 15.5, recall 25.9 %, heading end -28.4 (rms 12.7). Not better than the backward pass alone (9.73): the two passes disagree by 85 m at the end after the start alignment, and the blend simply follows the better pass. Parked; the two-pass idea only pays once the drift itself is anti-symmetric or small.
+
+**Applicability**: any offline/non-causal use (the benchmark, map building on the robot); not for live navigation.
+
+## F09: cam0 extrinsic-rotation probe (2026-10-05, pc)
+
+**Hypothesis** (X02 d, X05): landmarks hosted in cam0 drift on device A while cam1-hosted ones do not (X02 swap) and device B's cam0 does not either, so device A's cam0 calibration (extrinsic rotation first) is suspect. A time offset and a heading bias were interchangeable at 5 deg/ms (F05b), so a small extrinsic rotation may be too.
+
+**Change**: `make_basalt_calib.py --cam0-rot-deg RX RY RZ` (camera frame rotated about its own axes, `T_i_c0 * Exp(r)`), driver env `CAM0_ROT_DEG` / `CAM1_ROT_DEG`; +-0.3 deg about each cam0 axis on 2_11, v3 reference settings, F21 binary. `results/v4-F09-cam0-extrinsic-probe/`, unit `lamaria-v4-f09`. If one axis moves the heading linearly, the zero crossing is a candidate correction to be validated on the other device-A sequences (3_18, R_12, 2_12, 3_17; 4_11 and device B must not move).
+
+**Result**: running.
+
+**Applicability**: a device calibration refinement (sensor-specific numbers, general procedure); the robot gets its own calibration, so what carries is the method (and, later, its automation in the backend).
