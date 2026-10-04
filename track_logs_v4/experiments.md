@@ -72,4 +72,12 @@ The per-minute heading drift of the estimate on the daytime walks is **steady** 
 
 **Command**: `results/v4-F01-gyro-n2-full/batch.sh` (13 x 2 offsets + 10 additional; unit `lamaria-v4-f01`), `results/v4-F01b-gyro-sweep/batch.sh` (x1 and x5 on 2_11, 4_11, 3_18, R_04, R_08, R_12, R_11; unit `lamaria-v4-f01b`).
 
-**Result**: running.
+**Result so far** (ATE m; score; recall @ 5 m; F21 reference in brackets):
+
+| Seq | gyro x1 | gyro x2 | gyro x5 | heading with x2 |
+|---|---|---|---|---|
+| sequence_2_11 | 5.25, 25.4, 61 % | **2.92, 46.7, 90 %** (21.5, 21.1, 49 %) | 12.09, 7.1, 11 % | ends at -7 deg, no steady drift |
+| sequence_3_17 | | **9.01, 21.8, 42 %** (46.9, 6.0, 6 %) | | wanders within +/-14 deg (minutes 4 to 10: -3 to -4.5; minutes 20 to 29: +6 to +13) |
+| sequence_3_18 | | **22.42, 10.2, 12 %** (56.1, 1.7, 5 %) | | **still a steady drift**: -1.5 deg per minute, -43 deg at the end (was -3.4 per minute, -95) |
+
+The gyro at x2 removes most of the drift but not all of it on 3_18: the visual yaw bias is reduced by the stronger gyro, not gone, which is what X02 (d) predicts (the bias is in the cam0-monocular geometry). Scale after the fix: 0.99 on both long walks (was 0.92 / 1.07), but the 60 s window scales still span 0.89 to 1.05, and on 2_11 the fitted scale is 0.95: with the heading fixed, scale is the next visible error, which is the stereo thread's job.
