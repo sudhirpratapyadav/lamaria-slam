@@ -80,6 +80,11 @@ The per-minute heading drift of the estimate on the daytime walks is **steady** 
 | sequence_3_17 | | **9.01, 21.8, 42 %** (46.9, 6.0, 6 %) | | wanders within +/-14 deg (minutes 4 to 10: -3 to -4.5; minutes 20 to 29: +6 to +13) |
 | sequence_3_18 | | **22.42, 10.2, 12 %** (56.1, 1.7, 5 %) | | **still a steady drift**: -1.5 deg per minute, -43 deg at the end (was -3.4 per minute, -95) |
 
+| sequence_2_12 | | **6.21, 22.7, 62 %** (27.3 in v2; F21: 2_12 score 3.7) | | scale 0.925 |
+| sequence_4_11 (dark) | 8.19, 27.1, 70 % (1 restart) | F01 pending | 6.27, 32.1, 73 % (1 restart) | F21: **1.77, 56.9**, 3 restarts |
+
+**The dark walk goes the other way**: 4_11 is best with the loose gyro (x20: 1.8 m; x5: 6.3; x1: 8.2). In the dark the few landmarks cannot correct a gyro that is trusted too much against its own bias drift (the gyro alone loses 21 degrees on 4_11), while on the daytime walks the same trust is what stops the visual bias. The two cases pull the IMU weighting in opposite directions, which is the usual sign that the fixed noise factor is the wrong knob: the gyro bias walk (how fast vision may re-estimate the bias) is the parameter that separates them, so **F01c** runs gyro x2 with a 5x bias walk, and, since the fitted scales got worse with the gyro trusted (2_11 0.95, 2_12 0.925, 4_11 0.93; the accelerometer still sits at x20), the accelerometer at x5 and x10 with the gyro at x2 (`configs/v4_g2_a5`, `v4_g2_a10`, `v4_g2_w5`; `results/v4-F01c-imu-weights/`, unit `lamaria-v4-f01c`).
+
 The gyro at x2 removes most of the drift but not all of it on 3_18: the visual yaw bias is reduced by the stronger gyro, not gone, which is what X02 (d) predicts (the bias is in the cam0-monocular geometry). Scale after the fix: 0.99 on both long walks (was 0.92 / 1.07), but the 60 s window scales still span 0.89 to 1.05, and on 2_11 the fitted scale is 0.95: with the heading fixed, scale is the next visible error, which is the stereo thread's job.
 
 ## F02: landmarks in both cameras (2026-10-05, pc)
