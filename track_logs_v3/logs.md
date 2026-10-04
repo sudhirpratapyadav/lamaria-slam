@@ -30,3 +30,4 @@ Append-only, timestamped. Add with `scripts/log.sh "..."`.
 - **2026-10-04 17:30** F21 launched: the v3 reference on the repeatable build (fp-contract off + deterministic reductions), full sets, 36 runs; gives bit-reproducible v3 numbers.
 - **2026-10-04 18:40** F21 complete: v3 reference on the repeatable build: controlled 2.38 (reference 2.43), additional 23.7 (16.9); bit-reproducible. v3 numbers of record updated in status, summary, scoreboard, configs/README. Nothing running.
 - **2026-10-04 18:50** F22 launched: v2 reference setting (no filter) on the F21 binary, full sets, for a same-build baseline.
+- **2026-10-04 20:35** F22 complete: same-build baseline 2.41 / 16.2 against the v3 reference 2.38 / 23.7 (up on 15 of 26 controlled runs and 8 of 10 additional sequences). **v3 complete; the owner's standing goal is done** ('consider goal as done yourself after you finish current things'). v4 waits for the owner's decision (docs/v4_plan.md).

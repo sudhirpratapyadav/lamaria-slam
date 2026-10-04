@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-04 12:00 IST. **v3 closed** (owner, 2026-10-04); F17 / F18 tail runs are appended to experiments.md as they land. Edit in place.
+Last updated: 2026-10-04 12:00 IST. **v3 closed and complete** (owner, 2026-10-04; last run F22 at 20:30). Nothing running. Edit in place.
 
 ## What v3 is
 
@@ -22,11 +22,11 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 
 **Reference**: `configs/basalt_v3_ref` = Basalt `basalt_ref1` + robust driver + `BASALT_OUTLIER_PX=3` + `BASALT_OUTLIER_LM_RULE=1` (+ `BASALT_DETERMINISTIC=1`), patched Basalt in `docs/patches/basalt-0f3b2b5.patch`. Full sets, repeatable build (F21; bit-reproducible, `results/v3-F21-ref-repeatable/bin`):
 
-| | v3 reference | v2 reference (Basalt ref1) | v1 reference (OpenVINS) |
-|---|---|---|---|
-| Controlled set, 13 seq x 2 offsets, mean ATE sim3 | **2.38 m** (F21, repeatable build; F16 2.42) | 2.43 m | 2.83 m |
-| Additional set, 10 seq, mean score 2D | **23.7** (F21; F16 21.5) | 16.9 | 22.0 |
-| Dark walks 4_10 / 4_11, score | **20.6 / 56.9** (F21) | 8.4 / 9.9 | 0.9 / 30.2 |
+| | v3 reference | v2 setting, same build (F22) | v2 reference as recorded | v1 reference (OpenVINS) |
+|---|---|---|---|---|
+| Controlled set, 13 seq x 2 offsets, mean ATE sim3 | **2.38 m** (F21, repeatable build; F16 2.42) | 2.41 m | 2.43 m | 2.83 m |
+| Additional set, 10 seq, mean score 2D | **23.7** (F21; F16 21.5) | 16.2 | 16.9 | 22.0 |
+| Dark walks 4_10 / 4_11, score | **20.6 / 56.9** (F21) | 9.7 / 7.3 | 8.4 / 9.9 | 0.9 / 30.2 |
 
 Leaderboard, rough (local training numbers against published test scores): short walks above the open baseline and near rank 2, medium around the baseline, long walks far below (drift; v4), moving platform weak.
 

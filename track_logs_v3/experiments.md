@@ -678,3 +678,34 @@ Additional set (score 2D; F16 / v2 reference in brackets): 1_19 **74.8** (74.8 /
 **Decision**: these are the v3 numbers of record: **controlled 2.38 m, additional 23.7**, reproducible. The differences to F16 (R_04, R_09, R_10, 4_11, 3_17, 5_11) are the restart-chaos branches of X08 landing on the better side this time; the ones that moved are all sequences with restarts, the ones without restarts agree to three digits.
 
 **Applicability**: as F16.
+
+## F22: the v2 reference setting on the same repeatable build (2026-10-04, pc)
+
+**Change**: `basalt_ref1` with the robust driver and no filter (the v2 reference setting), on the F21 binary, full sets; the same-build baseline for the v3 result.
+
+**Command**: `results/v3-F22-baseline-repeatable/batch.sh`.
+
+**Result**, controlled set (ATE sim3 m, offsets 0 / 100):
+
+| Seq | baseline (no filter), same build | v3 reference (filter + rule) |
+|---|---|---|
+| R_01 | 0.151 / 0.157 | **0.132 / 0.137** |
+| R_02 | 0.168 / 0.168 | **0.210 / 0.262** |
+| R_03 | 0.435 / 0.414 | **0.345 / 0.298** |
+| R_04 | 0.783 / 0.933 | **0.697 / 0.665** |
+| R_05 | 1.133 / 1.159 | **1.361 / 1.209** |
+| R_06 | 1.104 / 0.737 | **1.262 / 0.988** |
+| R_07 | 1.217 / 1.233 | **1.201 / 1.313** |
+| R_08 | 1.011 / 0.961 | **1.031 / 0.806** |
+| R_09 | 2.715 / 2.420 | **1.880 / 2.060** |
+| R_10 | 4.188 / 3.718 | **4.469 / 2.954** |
+| R_11 | 2.572 / 2.052 | **2.174 / 1.683** |
+| R_12 | 12.877 / 13.143 | **13.986 / 13.947** |
+| R_13 | 3.485 / 3.818 | **3.421 / 3.367** |
+| **two-offset mean** | 2.414 | **2.379** (better on 15 of 26 runs) |
+
+Additional set (score 2D, baseline -> v3 reference): 1_19 64.6 -> **74.8**; 1_20 39.2 -> **41.2**; 2_11 20.0 -> **21.1**; 2_12 5.9 -> 3.7; 3_17 0.5 -> **6.0**; 3_18 0.0 -> **1.7**; 4_10 9.7 -> **20.6**; 4_11 7.3 -> **56.9**; 5_11 7.4 -> **8.2**; 5_12 7.3 -> 3.0: mean **16.2 -> 23.7**, up on 8 of 10.
+
+**Reading**: on one build, the v3 reference beats the v2 setting by 1.5 % on the controlled mean (a tie within the medium set's losses and the easy/hard set's gains) and by 46 % on the additional set, with the dark walks 2x and 8x. The baseline's own numbers on this build (2.414 / 16.2) match v2's recorded 2.43 / 16.9 within the restart chaos, which closes the loop on X08. Losses remain on 2_12 and the moving platform 5_12.
+
+**Decision**: the v3 result stands as recorded in F21; v3 is complete.
