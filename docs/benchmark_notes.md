@@ -14,6 +14,7 @@ Training sizes in ASL form: R_01_easy 1.3 G, R_02_easy 1.2 G, R_03_easy 1.5 G, R
 - The benchmark uses only `imu-right` (1 kHz); the ASL `imu0` is that IMU, and the calibration body frame is that IMU, so each camera's `T_b_s` is `T_imu_cam`. Noise values in the JSON: acc 7.8e-4, gyro 1.7e-4, acc walk 6.4e-3, gyro walk 2.4e-4 (Kalibr units). Experiment 001 found the densities need inflating (x10) for OpenVINS.
 - Pose recall is 2D (xy) error after the control-point Sim3 alignment, counted over all pseudo-GT keyframes; a keyframe without a submitted pose is a miss. The ATE evaluator rejects estimates spanning less than half the ground-truth duration.
 - Controlled-set pseudo-GT files have one pose per image; comparing our IMU-frame poses directly scores better than converting to the left-camera frame, so submit `world_from_imu` as documented.
+- Pseudo-GT body frames differ between the two sets (v4 X01, detected from angular rates): the controlled set's pGT is `world_from_imu`; the additional set's pGT is in the **left camera (cam0) frame**, 105.5 degrees from the IMU. The ATE evaluator uses positions only, so the 13 cm lever arm is noise against the metre-level ATE, and the control-point evaluator projects through the device calibration (`corresponding_sensor=imu`), so scores are frame-correct. The calibration `qvec` fields are xyzw, not COLMAP's wxyz. Any orientation comparison against the additional-set pGT must apply that frame first (`scripts/gyro_yaw_check.py` does).
 
 ## Open questions
 

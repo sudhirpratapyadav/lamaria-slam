@@ -1,0 +1,6 @@
+# v4 log (append-only, timestamped)
+
+- 2026-10-05 00:00 — v4 opened by the owner: "start v4, stereo quality gate as well as non causal backend, let's see how far we can go." Starting point: the v3 reference (`configs/basalt_v3_ref`, 2.38 m / 23.7). Plan draft in `docs/v4_plan.md`.
+- 2026-10-05 00:05 — X01 (analysis): the long walks have **no revisits**, so loop closure has nothing to close there; the pGT of the additional set is in the left-camera frame (the controlled set's in the IMU frame), detected from angular rates; the first heading numbers assumed the IMU frame and were discarded.
+- 2026-10-05 00:10 — X01 result: what the long walks lose is a steady heading drift of 2 to 3.5 degrees per minute, same sign on all five daytime walks, absent on the dark walks and on 1_19 / 1_20, 2 to 4 times the gyro's own drift. Visual bias, not IMU weakness. Backend design postponed until the mechanism is known (a global BA with the same visual bias would reproduce it).
+- 2026-10-05 00:12 — X02 launched (`lamaria-v4-x02`): gyro noise x2, gyro bias walk x0.1, time-reversed input, all on 2_11 with the F21 binary. New options `GYRO_NOISE_SCALE` / `GYRO_WALK_SCALE`.

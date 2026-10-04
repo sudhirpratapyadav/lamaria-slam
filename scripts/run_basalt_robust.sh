@@ -8,16 +8,17 @@ CONFIG_DIR="$(cd "$1" && pwd)"; SEQ_DIR="$(cd "$2" && pwd)"; OUT_DIR="$3"
 PY="${PY:-$ROOT/.venv/bin/python}"
 SEQ="$(basename "$SEQ_DIR")"
 mkdir -p "$OUT_DIR"; OUT_DIR="$(cd "$OUT_DIR" && pwd)"
-NOISE_SCALE=1.0; WALK_SCALE=1.0; THREADS=3
+NOISE_SCALE=1.0; WALK_SCALE=1.0; THREADS=3; GYRO_NOISE_SCALE=""; GYRO_WALK_SCALE=""
 [ -f "$CONFIG_DIR/options.sh" ] && . "$CONFIG_DIR/options.sh"
 CALIB="$(ls "$SEQ_DIR"/pinhole_calibrations/*.json | head -1)"
-"$PY" "$ROOT/scripts/make_basalt_calib.py" "$CALIB" "$OUT_DIR/calib.json" --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE" > /dev/null
+"$PY" "$ROOT/scripts/make_basalt_calib.py" "$CALIB" "$OUT_DIR/calib.json" --noise-scale "$NOISE_SCALE" --walk-scale "$WALK_SCALE" \
+  ${GYRO_NOISE_SCALE:+--gyro-noise-scale "$GYRO_NOISE_SCALE"} ${GYRO_WALK_SCALE:+--gyro-walk-scale "$GYRO_WALK_SCALE"} > /dev/null
 cp "$CONFIG_DIR/config.json" "$OUT_DIR/config.json"
 {
   echo "sequence: $SEQ"; echo "config: $CONFIG_DIR (robust segments)"; echo "host: $(hostname)"
   echo "commit: $(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet || echo '-dirty')"
   echo "binary: ${BASALT_VIO:-~/.local/bin/basalt_vio} BASALT_CLAHE=${BASALT_CLAHE:-}"
-  echo "command: basalt_segments.py $SEQ_DIR $OUT_DIR --skip-frames ${SKIP_FRAMES:-0} --max-speed ${MAX_SPEED:-6} --max-jump ${MAX_JUMP:-1} --back ${BACK:-20} (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE THREADS=$THREADS)"
+  echo "command: basalt_segments.py $SEQ_DIR $OUT_DIR --skip-frames ${SKIP_FRAMES:-0} --max-speed ${MAX_SPEED:-6} --max-jump ${MAX_JUMP:-1} --back ${BACK:-20} (NOISE_SCALE=$NOISE_SCALE WALK_SCALE=$WALK_SCALE GYRO_NOISE_SCALE=${GYRO_NOISE_SCALE:-=noise} GYRO_WALK_SCALE=${GYRO_WALK_SCALE:-=walk} THREADS=$THREADS)"
   echo "started: $(date -Is)"
 } > "$OUT_DIR/run_info.txt"
 /usr/bin/time -f "wall_s=%e max_rss_kb=%M cpu_pct=%P" -o "$OUT_DIR/time.txt" \

@@ -6,7 +6,7 @@ T_imu_cam in Basalt = T_b_s in the LaMAria JSON (body = right IMU). Basalt's IMU
 noise fields are per-axis std values in continuous-time units; the LaMAria JSON
 gives Kalibr-style densities, which are the same quantities.
 
-Usage: make_basalt_calib.py CALIB_JSON OUT_JSON [--noise-scale 1] [--walk-scale 1]
+Usage: make_basalt_calib.py CALIB_JSON OUT_JSON [--noise-scale 1] [--walk-scale 1] [--gyro-noise-scale S] [--gyro-walk-scale W]
 """
 import argparse
 import json
@@ -19,6 +19,8 @@ def main():
     ap.add_argument("out_json", type=Path)
     ap.add_argument("--noise-scale", type=float, default=1.0)
     ap.add_argument("--walk-scale", type=float, default=1.0)
+    ap.add_argument("--gyro-noise-scale", type=float, help="gyro noise factor (default: --noise-scale)")
+    ap.add_argument("--gyro-walk-scale", type=float, help="gyro bias walk factor (default: --walk-scale)")
     args = ap.parse_args()
     c = json.loads(args.calib_json.read_text())
     T, intr, res = [], [], []
@@ -37,6 +39,8 @@ def main():
         res.append([cam["resolution"]["width"], cam["resolution"]["height"]])
     imu = c["imu0"]
     s, w = args.noise_scale, args.walk_scale
+    gs = s if args.gyro_noise_scale is None else args.gyro_noise_scale
+    gw = w if args.gyro_walk_scale is None else args.gyro_walk_scale
     # vignette and bias blocks have fixed lengths that cereal checks: copy them from Basalt's own template
     tmpl = json.loads(Path.home().joinpath(".local/etc/basalt/euroc_eucm_calib.json").read_text())["value0"]
     out = {"value0": {
@@ -45,16 +49,16 @@ def main():
         "calib_accel_bias": [0.0] * len(tmpl["calib_accel_bias"]), "calib_gyro_bias": [0.0] * len(tmpl["calib_gyro_bias"]),
         "imu_update_rate": float(imu["imu_rate"]),
         "accel_noise_std": [imu["acc_noise_density"] * s] * 3,
-        "gyro_noise_std": [imu["gyro_noise_density"] * s] * 3,
+        "gyro_noise_std": [imu["gyro_noise_density"] * gs] * 3,
         "accel_bias_std": [imu["acc_bias_random_walk_sigma"] * w] * 3,
-        "gyro_bias_std": [imu["gyro_bias_random_walk_sigma"] * w] * 3,
+        "gyro_bias_std": [imu["gyro_bias_random_walk_sigma"] * gw] * 3,
         "T_mocap_world": {"px": 0.0, "py": 0.0, "pz": 0.0, "qx": 0.0, "qy": 0.0, "qz": 0.0, "qw": 1.0},
         "T_imu_marker": {"px": 0.0, "py": 0.0, "pz": 0.0, "qx": 0.0, "qy": 0.0, "qz": 0.0, "qw": 1.0},
         "mocap_time_offset_ns": 0, "mocap_to_imu_offset_ns": 0, "cam_time_offset_ns": 0,
     }}
     args.out_json.parent.mkdir(parents=True, exist_ok=True)
     args.out_json.write_text(json.dumps(out, indent=4) + "\n")
-    print(f"wrote {args.out_json} ({intr[0]['camera_type']}, noise x{s}, walk x{w})")
+    print(f"wrote {args.out_json} ({intr[0]['camera_type']}, noise x{s}, walk x{w}, gyro noise x{gs}, gyro walk x{gw})")
 
 
 if __name__ == "__main__":
