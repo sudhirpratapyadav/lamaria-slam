@@ -387,7 +387,14 @@ What is left to separate them is *where in time* the large residuals sit. The su
 
 **First pass, void**: the first track files had 0.6 stereo matches per frame. Cause: the calibration puts the two SLAM cameras **75 degrees apart**, so only a strip of cam0's view exists in cam1 and the corresponding pixel is hundreds of pixels away; a KLT search started at the same pixel (what the first version did, and what the XFeat stereo "matches" of F11 mostly were: 2 to 3 % of false pairs with small displacement) cannot find it. Fix: the cam1 search starts from the infinite-homography prediction `K1 R_c1_c0 K0^-1 p0`; on 4_11 that converges for 90 of 102 predicted-visible corners at frame 8000 and 122 to 162 of 241 at frame 15000 (forward-backward error below 1 px), and for none in the dark start where the overlap strip holds no corners. Whether Basalt's own stereo step gets more than that is being measured (X06d: cam1 observations per frame in the landmark database).
 
-**Result**: pending (tracks regenerating with the stereo initialisation).
+**Result** (ATE m; score / recall; back end filter 3 px + per-landmark rule; Basalt's own tracker with the same back end in brackets):
+
+| Seq | plain KLT + FAST (ablation) | hybrid (KLT + descriptor re-association) |
+|---|---|---|
+| sequence_4_11 | 5.58, 30.3 / 65.6 (2.26, 45.7 / 99.5) | 6.52, 23.1 / 42.4 |
+| R_08 | running | running |
+
+Two readings. First, the external cv2 KLT front end is far below Basalt's own patch tracker with the same back end (5.6 against 2.3 m on the dark walk), even with 20 stereo matches per frame that Basalt did not have: Basalt's inverse-compositional 52-pixel-pattern tracker with its 0.2 px forward-backward bound is the better KLT. Second, the descriptor re-association makes the hybrid *worse* than its own ablation: 49362 revivals over 22541 frames, and enough of them wrong (a descriptor match within 60 px and 60 frames of a lost track is not a strong test in a dark, repetitive scene) to feed the back end inconsistent observations under one id, which is the worst kind of error for a landmark. **Decision**: parked. The lesson across F10, F11 and F13 is consistent: on this sensor and at 20 Hz, nothing learned has beaten Basalt's patch tracker as the source of observations; the gains of v3 came from what the back end does with them. If re-association is tried again it belongs inside Basalt's tracker (revive only when the KLT patch at the revived position also matches the stored patch) rather than in an external pipeline.
 
 **Applicability**: the mechanism is general and cheap (one descriptor pass every 5 frames); it can only help where tracks are lost and found again (occlusions, people, momentary darkness); it does nothing for a stretch where nothing is trackable; the matcher's thresholds are descriptor-specific.
 
