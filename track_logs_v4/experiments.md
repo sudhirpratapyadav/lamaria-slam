@@ -139,7 +139,7 @@ First reading of 2_11: the heading bias halves (-57 to -25 degrees) and the ATE 
 | 1_19 cam0 | **4 ms** | | 240 |
 | R_08 cam0 | **4 ms** | | 285 |
 
-Both devices and both cameras agree on a camera-IMU time offset of 4 to 5 ms (v1 010 had found 4.3 ms for OpenVINS and discarded it as a setting; nobody checked its effect on heading). Basalt's VIO ignores `cam_time_offset_ns` (the line is commented out upstream), so the offset is applied to the input instead (`scripts/make_timeshift_input.py`: IMU stamps shifted).
+Refined with a 0.5 ms residual curve and a parabola through its minimum (`*_fine.json`): 2_11 cam0 **5.1 ms**, 2_11 cam1 **4.9 ms**, 3_18 cam0 **4.75 ms**; the minimum is sharp (median residual 0.215 deg per frame at 5 ms against 0.245 at 0 and 0.250 at 10 ms). Both devices and both cameras agree on a camera-IMU time offset of 4 to 5 ms (v1 010 had found 4.3 ms for OpenVINS and discarded it as a setting; nobody checked its effect on heading). Basalt's VIO ignores `cam_time_offset_ns` (the line is commented out upstream), so the offset is applied to the input instead (`scripts/make_timeshift_input.py`: IMU stamps shifted).
 
 **Applicability**: general, and the kind of check to run first on any new sensor (lesson 6 of AGENTS.md); the robot's camera-IMU offset must be measured the same way.
 
@@ -156,9 +156,19 @@ Both devices and both cameras agree on a camera-IMU time offset of 4 to 5 ms (v1
 | -4.5 ms | 29.70 | 25.9 | 51 % | -78.9 deg |
 | 0 (reference) | 21.51 | 21.1 | 49 % | -57.4 deg |
 | **+4.5 ms** | **14.32** | 5.7 | 11 % | **-34.9 deg** |
-| **+10 ms** | **6.81** | 19.8 | 47 % | pending |
+| **+10 ms** | **6.81** | 19.8 | 47 % | **-4.7 deg** (max 12, rms 4) |
 | +7 / +15 ms | running | | | |
 
 The drift responds to the offset in the predicted direction and almost linearly (-79, -57, -35 degrees for -4.5, 0, +4.5 ms), so the time offset is a real part of the mechanism; +4.5 ms removes about 40 % of it. The control-point score falls again while the ATE improves (same pattern as F02: the score is judged after the control-point alignment and does not reward a smaller but reshaped error the same way). F05b tells whether a larger offset removes the rest or whether the remainder is the cam0 geometry (X02 d).
 
 **Applicability**: a sensor property (Aria image stamps against the IMU clock), not a benchmark fit; the robot's offset is to be measured, not copied.
+
+## F06: both visual fixes together, offset + landmarks in both cameras (2026-10-05, pc)
+
+**Hypothesis**: the time offset (F05) and the cam0-only geometry (F02) are two independent parts of the daytime heading bias; together they should remove most of it without touching the IMU weights, and F02's indoor gains should carry.
+
+**Change**: `BASALT_MONO_CAMS=1` on the F02 snapshot (build 17) with the IMU shifted by +5 ms (the measured offset) or +10 ms (2_11's optimum in F05b), v3 reference settings; 2_11, 3_18, 4_11, R_08, R_04. The +5 ms arm is the general one (a measured sensor constant); +10 ms is kept only to see whether the second 5 ms still buys anything once the geometry is symmetrised.
+
+**Command**: `results/v4-F06-offset-monocams/batch.sh` (unit `lamaria-v4-f06`).
+
+**Result**: running.

@@ -103,6 +103,20 @@ def main():
             best = (dt_ms, med, g)
     dt_ms, med, g = best
     out["time_offset_ms"] = float(dt_ms)
+    # the residual curve around the minimum (how sharp the optimum is), 0.5 ms steps
+    curve = []
+    for d_ms in np.arange(dt_ms - 6, dt_ms + 6.1, 0.5):
+        d = d_ms / 1000
+        gg = np.array([R_i_c.inv().apply(gyro_rotvec(t0 + d, t1 + d)) for t0, t1 in times])
+        curve.append([float(d_ms), round(float(np.degrees(np.median(np.linalg.norm(r_cam - gg, axis=1)))), 5)])
+    out["residual_curve_ms_deg"] = curve
+    # parabola through the three best points of the curve
+    c = np.array(curve); k = int(np.argmin(c[:, 1]))
+    if 0 < k < len(c) - 1:
+        x, y = c[k - 1:k + 2, 0], c[k - 1:k + 2, 1]
+        A = np.vstack([x ** 2, x, np.ones(3)]).T
+        a2, a1, _ = np.linalg.solve(A, y)
+        out["time_offset_parabola_ms"] = round(float(-a1 / (2 * a2)), 2) if a2 > 0 else None
     out["median_residual_deg_per_frame"] = float(np.degrees(med))
     # extrinsic rotation implied by the data (Wahba between gyro rotvecs in the IMU frame and visual ones in the camera frame)
     gi = np.array([gyro_rotvec(t0 + dt_ms / 1000, t1 + dt_ms / 1000) for t0, t1 in times])
