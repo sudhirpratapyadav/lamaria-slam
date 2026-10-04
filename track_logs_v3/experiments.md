@@ -605,6 +605,17 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 
 **Command**: `results/v3-F19-stereo-check/build_and_run.sh` (tolerances 0.3 and 0.15; six event sequences; 18 runs).
 
-**Result so far**: control (filter + rule, no stereo) on this deterministic build: sequence_4_11 **4.50 m, 30.4 / 72.3**, where the same setting gave 1.64 (F15 snapshot) and 2.92 (F16, same snapshot as F15): a third build, a third branch of the dark walk's restart chaos (X08). So the v3 reference's 4_11 figure is honestly "1.6 to 4.5 m, score 30 to 53, against 15 to 16 m and score 10 to 16 without the filter"; the gain is not in doubt, its size on that one walk is. Stereo with the geometric check at 0.3: 13.7, 7.9: the gate does not rescue the dark walk. Remaining runs pending.
+**Result so far**: control (filter + rule, no stereo) on this deterministic build: sequence_4_11 **4.50 m, 30.4 / 72.3**, where the same setting gave 1.64 (F15 snapshot) and 2.92 (F16, same snapshot as F15): a third build, a third branch of the dark walk's restart chaos (X08). So the v3 reference's 4_11 figure is honestly "1.6 to 4.5 m, score 30 to 53, against 15 to 16 m and score 10 to 16 without the filter"; the gain is not in doubt, its size on that one walk is. Complete (ATE m; score; deterministic build 14 snapshot, all three arms on it):
+
+| Seq | control (filter + rule) | stereo, geometric check 0.3 | stereo, geometric check 0.15 |
+|---|---|---|---|
+| sequence_4_11 | 4.503, 30.4 | 13.67, 7.9 | 15.47, 11.0 |
+| R_08_hard | 1.028 | 0.929 | 0.914 |
+| sequence_2_11 | 20.90, 24.3 | 22.75, 19.8 | 23.31, 17.9 |
+| R_12_10cp | 13.88, 9.6 | 14.34, 11.1 | 14.40, 11.0 |
+| R_11_5cp | 2.172, 76.5 | 2.074, 77.3 | 2.059, 76.8 |
+| sequence_3_18 | 55.94, 1.7 | 55.69, 1.7 | 55.90, 1.7 |
+
+**Decision**: parked, as F14 / F17. The geometric gate keeps the whole indoor gain (R_08 0.91 to 0.93 against 1.03, the best R_08 of any setting) and a little on R_11, is neutral on R_12 and 3_18, costs 2_11 about 2 m, and does not rescue the dark walk (13.7 and 15.5 against 4.5): the wrong stereo matches there are consistent with a wrong temporal depth too, because the temporal triangulation in the dark is itself poor. So the gate is a correct idea for rich texture and no help where the problem was. Stereo stays an option (`BASALT_STEREO_INIT=1 BASALT_STEREO_CHECK=0.3`) for indoor and parallel-pair use; off in the v3 reference.
 
 **Applicability**: general for any stereo rig where matches can be wrong (wide baseline, low texture); costs one extra triangulation per new landmark; it cannot help a landmark that never gets temporal parallax (pure rotation), where the stereo observation is simply not used.
