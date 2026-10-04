@@ -17,6 +17,7 @@ Writes OUT_DIR/trajectory.tum (seconds, IMU pose) and OUT_DIR/segments.json.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -47,6 +48,13 @@ def run_basalt(seq_dir, out, skip, calib, config, threads):
                             "--cam-calib", str(calib), "--config-path", str(config), "--save-trajectory", "tum", "--show-gui", "false",
                             "--num-threads", str(threads), "--use-imu", "true"], cwd=seg, env=env, stdout=log, stderr=subprocess.STDOUT)
     traj = seg / "trajectory.txt"
+    # clean-up: Basalt's statistics dumps (unused, 100+ MB per segment) and the per-restart input
+    # folders (one per divergence, 144 MB each; offsets 0 and 100 are shared across experiments and kept)
+    for f in seg.glob("stats_*.ubjson"):
+        f.unlink(missing_ok=True)
+    if skip not in (0, 100):
+        shutil.rmtree(okin, ignore_errors=True)
+        shutil.rmtree(bin_dir, ignore_errors=True)
     if r.returncode != 0 or not traj.exists():
         return None
     a = np.loadtxt(traj, comments="#")
