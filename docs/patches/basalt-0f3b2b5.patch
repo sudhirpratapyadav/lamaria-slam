@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..d216fa6 100644
+index d16e708..44f3465 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -212,11 +212,12 @@ index d16e708..d216fa6 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -223,7 +335,13 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,8 +335,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                              transform_1_recovered.translation())
                                 .squaredNorm();
  
 -            if (dist2 < config.optical_flow_max_recovered_dist2) {
+-              result[id] = transform_2;
 +            // BASALT_STEREO_RECOVERED_DIST2: a looser forward-backward bound for the stereo pass
 +            // (the patch appearance changes across a wide baseline); default = the config value
 +            static const Scalar stereo_dist2 = [this] {
@@ -224,10 +225,28 @@ index d16e708..d216fa6 100644
 +              return Scalar((e && *e) ? std::atof(e) : config.optical_flow_max_recovered_dist2);
 +            }();
 +            if (dist2 < (has_init ? stereo_dist2 : Scalar(config.optical_flow_max_recovered_dist2))) {
-               result[id] = transform_2;
++              // BASALT_STEREO_MAX_RES (F17): a stereo match is kept only if the photometric residual of
++              // the cam0 patch at the converged cam1 position (normalised intensities, RMS over the
++              // pattern) is below this; wrong matches across a wide baseline converge on the wrong
++              // texture and show it here
++              static const Scalar stereo_max_res = [] {
++                const char* e = std::getenv("BASALT_STEREO_MAX_RES");
++                return Scalar((e && *e) ? std::atof(e) : 1e9);
++              }();
++              bool keep = true;
++              if (has_init && stereo_max_res < Scalar(1e8)) {
++                PatchT p(pyr_1.lvl(0), transform_1.translation());
++                typename PatchT::VectorP res;
++                typename PatchT::Matrix2P pat = transform_2.linear().matrix() * PatchT::pattern2;
++                pat.colwise() += transform_2.translation();
++                if (!p.valid || !p.residual(pyr_2.lvl(0), pat, res)) keep = false;
++                else if (res.norm() / std::sqrt(Scalar(res.size())) > stereo_max_res) keep = false;
++              }
++              if (keep) result[id] = transform_2;
              }
            }
-@@ -308,6 +426,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+         }
+@@ -308,6 +443,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -286,7 +305,7 @@ index d16e708..d216fa6 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +487,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +504,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -327,7 +346,7 @@ index d16e708..d216fa6 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +530,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +547,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {
@@ -437,7 +456,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..e509196 100644
+index 2960dad..bceabee 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -474,7 +493,7 @@ index 2960dad..e509196 100644
  template <class Scalar_>
  void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
                                                     int min_num_obs) {
-@@ -273,42 +293,147 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -273,42 +293,153 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
    computeError(error, &outliers, outlier_threshold);
  
@@ -593,7 +612,13 @@ index 2960dad..e509196 100644
 +    if (lm_rule && !invalid && !es.empty()) {
 +      const size_t m = es.size() / 2;
 +      std::nth_element(es.begin(), es.begin() + m, es.end());
-+      if (es[m] > thr / 2) continue;  // the landmark itself is off: keep its observations, let the solve move it
++      // BASALT_OUTLIER_LM_MED (px, F18): bound on the landmark's median residual below which its odd
++      // observations are removed; default half the threshold
++      static const Scalar lm_med = [thr] {
++        const char* e = std::getenv("BASALT_OUTLIER_LM_MED");
++        return Scalar((e && *e) ? std::atof(e) : thr / 2);
++      }();
++      if (es[m] > lm_med) continue;  // the landmark itself is off: keep its observations, let the solve move it
 +    }
 +    const int num_obs = lmdb.numObservations(kv.first);
 +    if (num_obs - int(bad.size()) < min_num_obs) {
