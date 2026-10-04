@@ -894,7 +894,7 @@ index 2960dad..ce1138f 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..2fddd9c 100644
+index 55984fc..9604ffc 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -931,7 +931,53 @@ index 55984fc..2fddd9c 100644
  
  template <class Scalar_>
  SqrtKeypointVioEstimator<Scalar_>::SqrtKeypointVioEstimator(
-@@ -309,6 +329,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -183,19 +203,43 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
+       // curr_frame->t_ns += calib.cam_time_offset_ns;
+ 
+       if (!initialized) {
++        // lamaria-slam (v4 F11): BASALT_INIT_WINDOW_S=w: the first state is created w seconds after the first
++        // frame, with gravity taken from the mean accelerometer over that window instead of one sample
++        // (upstream used the single sample at the first frame, which on a walking wearer carries the
++        // stride acceleration and starts the filter with a wrong attitude; the first seconds then blow up).
++        static const int64_t init_window_ns = [] {
++          const char* e = std::getenv("BASALT_INIT_WINDOW_S");
++          double v = e ? std::atof(e) : 0.0;
++          std::cerr << "BASALT_INIT_WINDOW_S: " << v << std::endl;
++          return int64_t(v * 1e9);
++        }();
++        static int64_t first_frame_t_ns = -1;
++        static Vec3 init_accel_sum = Vec3::Zero();
++        static long init_accel_n = 0;
++        if (first_frame_t_ns < 0) first_frame_t_ns = curr_frame->t_ns;
++
+         while (data->t_ns < curr_frame->t_ns) {
+           data = popFromImuDataQueue();
+           if (!data) break;
+           data->accel = calib.calib_accel_bias.getCalibrated(data->accel);
+           data->gyro = calib.calib_gyro_bias.getCalibrated(data->gyro);
+-          // std::cout << "Skipping IMU data.." << std::endl;
++          init_accel_sum += data->accel;
++          init_accel_n++;
++        }
++        if (init_window_ns > 0 && curr_frame->t_ns < first_frame_t_ns + init_window_ns) {
++          prev_frame = nullptr;
++          continue;
+         }
+ 
+         Vec3 vel_w_i_init;
+         vel_w_i_init.setZero();
+ 
++        Vec3 g_meas = (init_window_ns > 0 && init_accel_n > 0) ? Vec3(init_accel_sum / Scalar(init_accel_n)) : data->accel;
++        if (init_window_ns > 0)
++          std::cerr << "init window: " << init_accel_n << " IMU samples, mean accel " << g_meas.transpose()
++                    << " (|a| " << g_meas.norm() << "), first state at +" << (curr_frame->t_ns - first_frame_t_ns) * 1e-9 << " s" << std::endl;
+         T_w_i_init.setQuaternion(Eigen::Quaternion<Scalar>::FromTwoVectors(
+-            data->accel, Vec3::UnitZ()));
++            g_meas, Vec3::UnitZ()));
+ 
+         last_state_t_ns = curr_frame->t_ns;
+         imu_meas[last_state_t_ns] =
+@@ -309,6 +353,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    stats_sums_.add("frame_id", opt_flow_meas->t_ns).format("none");
    Timer t_total;
  
@@ -953,7 +999,7 @@ index 55984fc..2fddd9c 100644
    if (meas.get()) {
      BASALT_ASSERT(frame_states[last_state_t_ns].getState().t_ns ==
                    meas->get_start_t_ns());
-@@ -333,12 +368,40 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -333,12 +392,40 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    // save results
    prev_opt_flow_res[opt_flow_meas->t_ns] = opt_flow_meas;
  
@@ -995,7 +1041,7 @@ index 55984fc..2fddd9c 100644
  
      for (const auto& kv_obs : opt_flow_meas->observations[i]) {
        int kpt_id = kv_obs.first;
-@@ -350,6 +413,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -350,6 +437,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          kobs.kpt_id = kpt_id;
          kobs.pos = kv_obs.second.translation().cast<Scalar>();
  
@@ -1031,7 +1077,7 @@ index 55984fc..2fddd9c 100644
          lmdb.addObservation(tcid_target, kobs);
          // obs[tcid_host][tcid_target].push_back(kobs);
  
-@@ -360,8 +452,8 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -360,8 +476,8 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
          if (i == 0) connected0++;
        } else {
@@ -1042,7 +1088,7 @@ index 55984fc..2fddd9c 100644
          }
        }
      }
-@@ -377,6 +469,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -377,6 +493,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
                << unconnected_obs0.size() << std::endl;
    }
  
@@ -1050,7 +1096,7 @@ index 55984fc..2fddd9c 100644
    if (take_kf) {
      // Triangulate new points from one of the observations (with sufficient
      // baseline) and make keyframe for camera 0
-@@ -384,10 +477,12 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -384,10 +501,12 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
      frames_after_kf = 0;
      kf_ids.emplace(last_state_t_ns);
  
@@ -1066,7 +1112,7 @@ index 55984fc..2fddd9c 100644
        // Find all observations
        std::map<TimeCamId, KeypointObservation<Scalar>> kp_obs;
  
-@@ -407,16 +502,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,16 +526,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          }
        }
  
@@ -1121,7 +1167,7 @@ index 55984fc..2fddd9c 100644
                              .at(lm_id)
                              .translation()
                              .cast<Scalar>();
-@@ -427,22 +558,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -427,22 +582,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
                              .template cast<Scalar>();
  
          Vec4 p0_3d, p1_3d;
@@ -1177,7 +1223,7 @@ index 55984fc..2fddd9c 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -452,15 +613,44 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -452,15 +637,44 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
            num_points_added++;
            valid_kp = true;
@@ -1222,7 +1268,7 @@ index 55984fc..2fddd9c 100644
  
      num_points_kf[opt_flow_meas->t_ns] = num_points_added;
    } else {
-@@ -468,6 +658,18 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -468,6 +682,18 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    }
  
    std::unordered_set<KeypointId> lost_landmaks;
@@ -1241,7 +1287,7 @@ index 55984fc..2fddd9c 100644
    if (config.vio_marg_lost_landmarks) {
      for (const auto& kv : lmdb.getLandmarks()) {
        bool connected = false;
-@@ -475,8 +677,14 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -475,8 +701,14 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          if (opt_flow_meas->observations[i].count(kv.first) > 0)
            connected = true;
        }
@@ -1257,7 +1303,7 @@ index 55984fc..2fddd9c 100644
        }
      }
    }
-@@ -1014,6 +1222,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -1014,6 +1246,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -1302,7 +1348,7 @@ index 55984fc..2fddd9c 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1677,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1701,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();

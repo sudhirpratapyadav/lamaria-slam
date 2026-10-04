@@ -278,3 +278,15 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 **Decision**: closed. The heading moves 10 to 20 degrees per degree of cam0 rotation, so a calibration error of 3 to 5 degrees would be needed to explain the drift; factory extrinsics are not off by that much, and the probes at 0.3 deg stay within the per-run spread in ATE. The cam0 extrinsic rotation is not the mechanism.
 
 **Applicability**: a device calibration refinement (sensor-specific numbers, general procedure); the robot gets its own calibration, so what carries is the method (and, later, its automation in the backend).
+
+## F11: initialisation window, gravity from the mean accelerometer (2026-10-05, pc)
+
+**Hypothesis** (F07 reading): the reference restarts are initialisation blow-ups. Upstream Basalt creates the first state from a single accelerometer sample at the first frame (attitude from that one sample, velocity zero). On a wearer who is already walking the sample carries up to 3 m/s^2 of stride acceleration, i.e. an attitude error of up to 17 degrees, and the first seconds run away (4_11: 0 to 6 m/s within 3.5 s, 8 m of travel; R_03: 8.5 m/s at 3 s). F06's R_08 +5 ms arm with both-camera landmarks restarted twelve times in its first 43 s for the same reason (138 m).
+
+**Change**: `BASALT_INIT_WINDOW_S=w` (`sqrt_keypoint_vio.cpp`, first-state block): frames are consumed without a state for the first w seconds while the accelerometer is averaged; the first state is created at the first frame after the window with gravity from the mean. Off by default (w = 0 reproduces upstream bit for bit). w = 1 here. Velocity still starts at zero (it is unobservable from the IMU alone; the optimiser recovers it from the first landmarks). Snapshot `results/v4-F11-init-window/bin` (libbasalt 90095f3d98b0).
+
+**Command**: `results/v4-F11-init-window/batch.sh` (unit `lamaria-v4-f11`): v3 reference settings on the reference runs that restart (4_11, R_03, R_04 at both offsets, R_07, R_10, R_08 skip 100, R_12 skip 100) plus R_01 skip 0 and R_02 skip 100 as controls.
+
+**Result**: running.
+
+**Applicability**: general (any platform that may start while moving: a robot pushed, a handheld device, glasses); it costs w seconds of poses at the start of a run (the submission fills them from the first estimate); on a stationary start it is a no-op in effect.

@@ -32,3 +32,7 @@ Source: arXiv 2509.26639 Table 2 (read from the HTML version on 2026-10-02; it d
 | OKVIS2 | 0.02 | 0.72 | 0.03 | 1.36 | 0.80 | 3.78 | fail | 6.81 | 5.32 | 7.06 | 1.85 | 16.55 | 6.65 |
 
 The same metric is what the leaderboard reports for the controlled set, so our local ATE numbers are directly comparable to these rows. The main-set and additional-set metrics (score 2D, CP recall @ 1 m, pose recall @ 5 m) can only be computed locally on training sequences that observe control points (R_11, R_12, R_13 and the `sequence_*` additional set), none of which are downloaded yet. The website also evaluates uploaded training-set results with the official pipeline.
+
+## Two devices in the training set (v4 X05, 2026-10-05)
+
+The training sequences come from two Aria units, told apart by the md5 of `aria_calibrations/*.json`: device A (`cc5c2f57`) recorded 2_11, 2_12, 3_17, 3_18, 4_10, 4_11, 5_11, 5_12 and R_01 to R_07 and R_09 to R_13; device B (`5f4f20ee`) recorded 1_19, 1_20 and R_08. Their undistorted image sizes differ (758x572 / 757x569 against 780x584 / 776x590). The steady heading drift of the long walks occurs only on device A with landmarks hosted in cam0 (see `track_logs_v4/status.md`); device A's sim3 scale is 1 to 3 % low on every sequence, device B's is 1.00. The factory IMU models of both devices (scale, misalignment, bias; the ASL export ships raw IMU) are in `configs/aria_factory_imu/`.
