@@ -420,10 +420,16 @@ Two readings. First, the external cv2 KLT front end is far below Basalt's own pa
 
 **Result so far** (ATE m; score / recall; same settings without stereo from F12 or F09 in brackets):
 
-| Seq | stereo init | stereo, loose bound (F14b) | stereo as constraint only (F14c) |
+| Seq | stereo init (sim3 scale) | stereo, loose bound (F14b) | stereo as constraint only (F14c) |
 |---|---|---|---|
-| R_08 | **0.953** (1.036) | running | queued |
+| R_08 | **0.953** (0.986) (1.036) | running | queued |
+| R_11 | 2.228, 77.9 (0.944) (2.176, 78.1) | running | |
+| R_12 | 15.16, 9.3 (0.924) (13.26, 10.3) | running | queued |
+| sequence_2_11 | 21.79, 17.2 (1.007) (20.12, 24.9) | running | queued |
+| sequence_3_18 | **50.02, 2.1** (1.094) (54.46, 1.8) | running | |
 | sequence_4_11 | 14.76, 7.2 / 14.3, **scale 0.77**, no restart (2.26, 45.7 / 99.5) | running | queued |
+
+Plain stereo init, complete: gains on R_08 and 3_18, losses on R_11, R_12, 2_11 and a collapse on 4_11; and the fitted scales got *worse* where it lost (R_11 0.944, R_12 0.924 against 0.97 to 0.99 without stereo), which is the signature of wrong stereo depths entering the map.
 
 First reading: R_08 gains 8 % from the stereo observations. The dark walk collapses: it gets about one new stereo match per two frames (11657 over 22000 frames) and its map is tiny (20 to 30 landmarks), so a landmark triangulated from a wrong stereo match (a patch that converged on repeated texture across the 75 degree view, within the 0.2 px backward bound) fixes a wrong depth from the start and the scale drifts to 0.77; with the filter removing only 761 landmarks instead of 19321 the wrong ones stay. On R_08 the same mistakes are outvoted by a dense map. F14c separates the two roles of a stereo match (initialiser of depth versus one more constraint): with the stereo pair excluded from triangulation, a wrong match becomes an outlier observation the filter can remove.
 
