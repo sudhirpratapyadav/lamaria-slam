@@ -11,6 +11,8 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 | F03 epipolar gate 0.005 | event set, 4 re-running | 21.1 / 57.4 / 10.5 / ? / 1.14 / ? m; best 2_11 (30.3) and 3_18 (4.7) scores | | | general, IMU-prediction dependent, indoor tax | combine with filter (F09) |
 | F05 gate 5 + masks | event set done | 24.2 / 52.7 / 3.3 / 14.6 / 1.29 / 2.10 m | | | people and own body; 15-30 % tax where nothing to remove | option |
 | F04 untrusted-image rule | stopped | R_08 142 m | | | | discarded |
+| **F15 filter 3 px + per-landmark rule** (one binary) | event set done, F16 full sets running | **21.3 / 56.1 / 1.64 / 12.56 / 1.03 / 2.18 m**; 4_11 score 53.1, recall 99.6 % | F16 | F16 | general (robust estimation); fails in one fast turn on R_04 | **reference candidate** |
+| F15 reference, same binary | | 31.2 / 80.6 / 16.1 / 13.0 / 1.00 / 2.58 m | | | | for comparison |
 
 ## F01: IMU-consistency gate and the dormant outlier filter in Basalt (2026-10-03, pc)
 
@@ -477,3 +479,26 @@ Additional set (score 2D; flat / reference in brackets; restarts): 1_19 74.1 (74
 **Reading**: on the controlled set the combination equals the flat filter (2.50) and loses to the reference on the medium set as before; on the additional set it loses everything the flat filter had gained, through the two dark walks (4_10 and 4_11 fall into restart storms). That contradicts the event-set results of the same parts (4_11: 2.26 with the rule, 3.51 with the gate), and X08 shows the same setting giving 3.51 and 8.85 m on two builds of identical logic. **Decision**: no reference change from F12. F15 re-measures every setting on one frozen binary; that result, not this one, decides. If the dark walks still fail there, the gate + rule interaction on sparse maps is real and the per-landmark rule alone (or the flat filter) is the candidate.
 
 **Applicability**: as F01 / F03 / F08d; the lesson about chaos is in X08.
+
+## F15: every filter setting on one frozen binary (2026-10-04, pc)
+
+**Change**: none; the settings of F01 to F14 re-measured on a single snapshot (`results/v3-F15-same-binary/bin`, md5 in `bin/md5.txt`), six event sequences, offset 0, robust driver. This is the table that decides.
+
+**Command**: `results/v3-F15-same-binary/batch.sh`.
+
+**Result** (ATE m; score 2D / recall @ 5 m where control points exist; restarts in brackets):
+
+| Seq | reference (no filter) | flat 3 px | 3 px + per-landmark rule | 3 px + epipolar gate | 3 px + gate + rule | 3 px + rule + stereo (constraint) |
+|---|---|---|---|---|---|---|
+| sequence_4_11 | 16.08, 16.2 / 33.9 (1 r) | 3.124, 38.4 / 98.4 | **1.642, 53.1 / 99.6** (3 r) | 15.59, 14.2 / 26.3 (2 r) | 6.072, 23.2 / 47.0 (8 r) | 23.53, 19.2 / 46.3 (10 r) |
+| R_08 | **0.999** | 1.076 | 1.034 | 1.130 | 1.051 | 0.960 |
+| sequence_2_11 | 31.17, 21.0 / 46.6 | 22.66, 21.1 / 44.6 | 21.29, 23.9 / 52.9 | **20.39, 24.9 / 53.0** | 21.27, 20.6 / 45.3 | 22.84, 19.8 / 43.5 |
+| R_12 | 13.01, 11.0 / 18.0 | 13.96, 10.2 / 18.0 | **12.56, 11.2 / 18.1** | 13.07, 11.0 / 17.9 (1 r) | 13.45, 10.2 / 17.8 (1 r) | 14.09, 9.2 / 17.6 |
+| R_11 | 2.578, 72.7 / 96.6 | **2.055, 78.6 / 97.7** | 2.178, 76.6 / 97.4 | 2.076, 78.7 / 97.6 | 2.178, 77.9 / 97.4 | 2.201, 79.0 / 97.2 |
+| sequence_3_18 | 80.58, 2.3 / 4.2 | 54.26, 1.1 / 2.5 | 56.07, 1.6 / 4.9 | 54.55, 1.4 / 4.5 | 53.92, 1.1 / 1.4 | 52.99, 1.2 / 3.7 |
+
+**Reading, on one binary**: the flat filter is a large, repeatable gain on every walk (4_11 by 5x, 2_11 and 3_18 by a quarter to a third) and a 3 to 8 % tax on R_08 / R_12. The per-landmark rule on top halves the dark walk again (1.64 m, score 53, recall 99.6 %), removes the R_12 loss (12.56 against 13.01 reference), halves the R_08 tax, keeps 2_11's gain, and gives back 6 % on R_11. The epipolar gate's earlier results do not survive on one binary except on 2_11; with the rule it is harmful on the dark walk (8 restarts). The stereo arm wins R_08 (0.960) and 3_18 and loses the rest, as F14 said.
+
+**Decision**: **filter 3 px + per-landmark rule is the v3 reference candidate** (`BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1`); F16 (full sets, same snapshot) running. Gate, burst skip, keep-host, stereo initialisation stay available as options with their applicability notes (gate and burst skip: people-heavy outdoor walks and indoor respectively; stereo: parallel pairs).
+
+**Applicability**: the filter + rule is standard robust estimation (reject an observation whose landmark is otherwise consistent); thresholds in pixels scale with resolution; its known failure is R_04's single divergence in a fast turn (F08 series), which the robust driver absorbs.
