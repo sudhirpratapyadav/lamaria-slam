@@ -414,6 +414,67 @@ index 61707a7..17cbfb2 100644
  
    void optimize_single_frame_pose(
        PoseStateWithLin<Scalar>& state_t,
+diff --git a/src/linearization/linearization_abs_qr.cpp b/src/linearization/linearization_abs_qr.cpp
+index e41bcea..333177d 100644
+--- a/src/linearization/linearization_abs_qr.cpp
++++ b/src/linearization/linearization_abs_qr.cpp
+@@ -38,6 +38,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <tbb/blocked_range.h>
+ #include <tbb/parallel_for.h>
+ #include <tbb/parallel_reduce.h>
++#include <cstdlib>
++#include <utility>
++// lamaria-slam (X09): tbb::parallel_reduce sums the landmark blocks in a thread-dependent order, so two
++// runs of one binary differ (10 % on a long walk); BASALT_DETERMINISTIC=0 restores the fast version
++template <typename... Args>
++static auto basalt_reduce(Args&&... args) {
++  static const bool deterministic = [] {
++    const char* e = std::getenv("BASALT_DETERMINISTIC");
++    return !(e && *e && *e == '0');
++  }();
++  if (deterministic) return tbb::parallel_deterministic_reduce(std::forward<Args>(args)...);
++  return tbb::parallel_reduce(std::forward<Args>(args)...);
++}
++
+ 
+ #include <basalt/utils/ba_utils.h>
+ #include <basalt/linearization/imu_block.hpp>
+@@ -248,7 +262,7 @@ Scalar LinearizationAbsQR<Scalar, POSE_SIZE>::linearizeProblem(
+   };
+ 
+   tbb::blocked_range<size_t> range(0, num_landmarks);
+-  auto reduction_res = tbb::parallel_reduce(range, initial_value, body, join);
++  auto reduction_res = basalt_reduce(range, initial_value, body, join);
+ 
+   if (numerically_valid) *numerically_valid = reduction_res.second;
+ 
+@@ -302,7 +316,7 @@ Scalar LinearizationAbsQR<Scalar, POSE_SIZE>::backSubstitute(
+ 
+   tbb::blocked_range<size_t> range(0, landmark_block_idx.size());
+   Scalar l_diff =
+-      tbb::parallel_reduce(range, Scalar(0), body, std::plus<Scalar>());
++      basalt_reduce(range, Scalar(0), body, std::plus<Scalar>());
+ 
+   if (imu_lin_data) {
+     for (auto& imu_block : imu_blocks) {
+@@ -355,7 +369,7 @@ LinearizationAbsQR<Scalar, POSE_SIZE>::getJp_diag2() const {
+   Reductor r(aom.total_size, landmark_blocks);
+ 
+   tbb::blocked_range<size_t> range(0, landmark_block_idx.size());
+-  tbb::parallel_reduce(range, r);
++  basalt_reduce(range, r);
+   // r(range);
+ 
+   if (imu_lin_data) {
+@@ -575,7 +589,7 @@ void LinearizationAbsQR<Scalar, POSE_SIZE>::get_dense_H_b(MatX& H,
+ 
+   // go over all host frames
+   tbb::blocked_range<size_t> range(0, landmark_block_idx.size());
+-  tbb::parallel_reduce(range, r);
++  basalt_reduce(range, r);
+ 
+   // Add imu
+   add_dense_H_b_imu(r.H_, r.b_);
 diff --git a/src/mapper.cpp b/src/mapper.cpp
 index ff9df90..c7b8902 100644
 --- a/src/mapper.cpp
@@ -456,7 +517,7 @@ index d7c11cb..a5d241c 100644
          cv::FAST(subImg, points, threshold);
  
 diff --git a/src/vi_estimator/ba_base.cpp b/src/vi_estimator/ba_base.cpp
-index 2960dad..bceabee 100644
+index 2960dad..ce1138f 100644
 --- a/src/vi_estimator/ba_base.cpp
 +++ b/src/vi_estimator/ba_base.cpp
 @@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -468,7 +529,17 @@ index 2960dad..bceabee 100644
  
  #include <tbb/blocked_range.h>
  #include <tbb/parallel_for.h>
-@@ -266,6 +268,24 @@ void BundleAdjustmentBase<Scalar_>::get_current_points(
+@@ -215,7 +217,8 @@ void BundleAdjustmentBase<Scalar_>::computeError(
+   tbb::blocked_range<size_t> range(0, host_frames.size());
+   Scalar init = 0;
+   auto join = std::plus<Scalar>();
+-  error = tbb::parallel_reduce(range, init, body, join);
++  static const bool deterministic = [] { const char* e = std::getenv("BASALT_DETERMINISTIC"); return !(e && *e && *e == '0'); }();
++  error = deterministic ? tbb::parallel_deterministic_reduce(range, init, body, join) : tbb::parallel_reduce(range, init, body, join);
+ 
+   if (outliers) {
+     outliers->clear();
+@@ -266,6 +269,24 @@ void BundleAdjustmentBase<Scalar_>::get_current_points(
    }
  }
  
@@ -493,7 +564,7 @@ index 2960dad..bceabee 100644
  template <class Scalar_>
  void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
                                                     int min_num_obs) {
-@@ -273,42 +293,153 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
+@@ -273,42 +294,153 @@ void BundleAdjustmentBase<Scalar_>::filterOutliers(Scalar outlier_threshold,
    std::map<int, std::vector<std::pair<TimeCamId, Scalar>>> outliers;
    computeError(error, &outliers, outlier_threshold);
  
