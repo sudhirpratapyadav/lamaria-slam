@@ -20,13 +20,13 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 
 ## v3 result
 
-**Reference**: `configs/basalt_v3_ref` = Basalt `basalt_ref1` + robust driver + `BASALT_OUTLIER_PX=3` + `BASALT_OUTLIER_LM_RULE=1` (+ `BASALT_DETERMINISTIC=1`), patched Basalt in `docs/patches/basalt-0f3b2b5.patch`. Full sets, one frozen binary (F16):
+**Reference**: `configs/basalt_v3_ref` = Basalt `basalt_ref1` + robust driver + `BASALT_OUTLIER_PX=3` + `BASALT_OUTLIER_LM_RULE=1` (+ `BASALT_DETERMINISTIC=1`), patched Basalt in `docs/patches/basalt-0f3b2b5.patch`. Full sets, repeatable build (F21; bit-reproducible, `results/v3-F21-ref-repeatable/bin`):
 
 | | v3 reference | v2 reference (Basalt ref1) | v1 reference (OpenVINS) |
 |---|---|---|---|
-| Controlled set, 13 seq x 2 offsets, mean ATE sim3 | **2.42 m** | 2.43 m | 2.83 m |
-| Additional set, 10 seq, mean score 2D | **21.5** | 16.9 | 22.0 |
-| Dark walks 4_10 / 4_11, score | **20.9 / 41.2** | 8.4 / 9.9 | 0.9 / 30.2 |
+| Controlled set, 13 seq x 2 offsets, mean ATE sim3 | **2.38 m** (F21, repeatable build; F16 2.42) | 2.43 m | 2.83 m |
+| Additional set, 10 seq, mean score 2D | **23.7** (F21; F16 21.5) | 16.9 | 22.0 |
+| Dark walks 4_10 / 4_11, score | **20.6 / 56.9** (F21) | 8.4 / 9.9 | 0.9 / 30.2 |
 
 Leaderboard, rough (local training numbers against published test scores): short walks above the open baseline and near rank 2, medium around the baseline, long walks far below (drift; v4), moving platform weak.
 

@@ -2,7 +2,7 @@
 
 ## v3 summary (closed 2026-10-04; details in the sections below)
 
-**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **controlled two-offset mean 2.42 m (v2 reference 2.43), additional-set mean score 21.5 (reference 16.9)**, with the dark walks 4_10 and 4_11 at scores 20.9 and 41.2 (reference 8.4 and 9.9); 4_11's single-run figure varies across builds between 1.6 and 4.5 m (score 30 to 53) through restart chaos, see X08 / F19. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
+**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on the repeatable build (F21; bit-reproducible): **controlled two-offset mean 2.38 m (v2 reference 2.43), additional-set mean score 23.7 (reference 16.9, v1 OpenVINS 22.0)**, dark walks 4_10 and 4_11 at scores 20.6 and 56.9 (reference 8.4 and 9.9). On the earlier, non-repeatable binary (F16) the same setting gave 2.42 / 21.5; sequences with restarts move between builds (X08), those without agree to three digits. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
 
 **What worked and why**: the long walks were lost to observations with large reprojection error that the Huber loss only damped; removing them after the solve (filter) and keeping the ones that belong to otherwise consistent landmarks (per-landmark rule) fixes most of it. Both are standard robust estimation, general, and cost nothing.
 
@@ -26,7 +26,7 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 | F03 epipolar gate 0.005 | event set, 4 re-running | 21.1 / 57.4 / 10.5 / ? / 1.14 / ? m; best 2_11 (30.3) and 3_18 (4.7) scores | | | general, IMU-prediction dependent, indoor tax | combine with filter (F09) |
 | F05 gate 5 + masks | event set done | 24.2 / 52.7 / 3.3 / 14.6 / 1.29 / 2.10 m | | | people and own body; 15-30 % tax where nothing to remove | option |
 | F04 untrusted-image rule | stopped | R_08 142 m | | | | discarded |
-| **v3 reference: filter 3 px + per-landmark rule** (F15 / F16, one binary) | **done** | 21.3 / 56.1 / 1.64 (2.92 in F16) / 13.9 / 1.03 / 2.18 m; 4_11 score 41 to 53, recall 94 to 99.6 % | **2.42** (reference 2.43) | **21.5** (reference 16.9) | general (robust estimation); fails in one fast turn on R_04 and on vehicle interiors | **adopted** |
+| **v3 reference: filter 3 px + per-landmark rule** (F15 / F16 / F21) | **done** | 21.3 / 56.1 / 1.64 to 4.5 / 13.9 / 1.03 / 2.18 m; 4_11 score 30 to 57, recall 72 to 99.6 % | **2.38** repeatable build (F16 2.42; reference 2.43) | **23.7** repeatable build (F16 21.5; reference 16.9) | general (robust estimation); fails in one fast turn on R_04 and on vehicle interiors | **adopted** |
 | F15 reference, same binary | | 31.2 / 80.6 / 16.1 / 13.0 / 1.00 / 2.58 m | | | | for comparison |
 
 ## F01: IMU-consistency gate and the dormant outlier filter in Basalt (2026-10-03, pc)
@@ -647,3 +647,34 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: adopted. The dev tree is reconfigured with `-ffp-contract=off` (build 17, installed); every future binary of this project is built that way, at no measurable speed cost on this CPU. The v3 reference numbers (F16) were taken on a build without it and stand as recorded; a re-measurement on the repeatable build is the first thing a v4 run on the same sequences will produce for free.
 
 **Applicability**: method; on the robot the fast build may be used for speed if ever needed, but nothing here suggests it is.
+
+## F21: the v3 reference on the repeatable build (2026-10-04, pc)
+
+**Change**: none in settings (filter 3 px + per-landmark rule, `basalt_ref1`, robust driver); binary = build 17 (`-ffp-contract=off`, deterministic reductions), snapshot in `results/v3-F21-ref-repeatable/bin`. These numbers repeat bit for bit on any rebuild of the same source (X10).
+
+**Command**: `results/v3-F21-ref-repeatable/batch.sh`.
+
+**Result**, controlled set (ATE sim3 m, offsets 0 / 100; restarts; F16 on the earlier binary; v2 reference):
+
+| Seq | v3 reference, repeatable build | F16 (earlier build) | v2 reference |
+|---|---|---|---|
+| R_01 | **0.132 / 0.137** | 0.132 / 0.137 | 0.151 / 0.156 |
+| R_02 | **0.210 / 0.262** | 0.208 / 0.261 | 0.173 / 0.215 |
+| R_03 | **0.345 / 0.298** (1 / 0 r) | 0.340 / 0.301 | 0.434 / 0.415 |
+| R_04 | **0.697 / 0.665** (1 / 3 r) | 0.772 / 1.428 | 0.781 / 0.935 |
+| R_05 | **1.361 / 1.209** | 1.371 / 1.217 | 1.139 / 1.153 |
+| R_06 | **1.262 / 0.988** | 1.262 / 1.000 | 1.124 / 0.764 |
+| R_07 | **1.201 / 1.313** (1 / 0 r) | 1.215 / 1.315 | 1.236 / 1.220 |
+| R_08 | **1.031 / 0.806** (0 / 1 r) | 1.011 / 0.812 | 1.006 / 1.368 |
+| R_09 | **1.880 / 2.060** | 2.173 / 2.042 | 2.762 / 2.414 |
+| R_10 | **4.469 / 2.954** (1 / 0 r) | 4.658 / 3.167 | 4.412 / 3.877 |
+| R_11 | **2.174 / 1.683** (score 76.7 / 79.3) | 2.159 / 1.675 | 2.605 / 2.078 |
+| R_12 | **13.986 / 13.947** (score 9.6 / 9.6) (0 / 1 r) | 13.881 / 13.970 | 12.860 / 12.940 |
+| R_13 | **3.421 / 3.367** (score 40.7 / 41.2) | 3.312 / 3.212 | 3.349 / 3.544 |
+| **two-offset mean** | **2.379** (better than the v2 reference on 14 of 26 runs) | 2.424 | 2.43 |
+
+Additional set (score 2D; F16 / v2 reference in brackets): 1_19 **74.8** (74.8 / 64.1), 1_20 **41.2** (41.0 / 39.6), 2_11 **21.1** (21.4 / 20.7), 2_12 3.7 (3.9 / 5.3), 3_17 **6.0** (1.8 / 4.3), 3_18 1.7 (1.6 / 2.4), **4_10 20.6** (20.9 / 8.4), **4_11 56.9** (41.2 / 9.9; 3 restarts), **5_11 8.2** (6.2 / 6.9), 5_12 3.0 (1.6 / 7.6): mean **23.7** (F16 21.5, v2 16.9, v1 OpenVINS 22.0); up on 7 of 10 against the v2 reference.
+
+**Decision**: these are the v3 numbers of record: **controlled 2.38 m, additional 23.7**, reproducible. The differences to F16 (R_04, R_09, R_10, 4_11, 3_17, 5_11) are the restart-chaos branches of X08 landing on the better side this time; the ones that moved are all sequences with restarts, the ones without restarts agree to three digits.
+
+**Applicability**: as F16.

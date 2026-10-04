@@ -12,4 +12,4 @@ values). The camera and IMU yaml files are generated per sequence by
 
 ## basalt_v3_ref (v3 reference, 2026-10-04)
 
-`basalt_ref1` files unchanged plus `env.sh`: `BASALT_OUTLIER_PX=3`, `BASALT_OUTLIER_LM_RULE=1`, `BASALT_DETERMINISTIC=1` (track_logs_v3 F15/F16). Controlled two-offset mean 2.42 m, additional-set mean score 21.5. Needs the patched Basalt (`docs/patches/basalt-0f3b2b5.patch`).
+`basalt_ref1` files unchanged plus `env.sh`: `BASALT_OUTLIER_PX=3`, `BASALT_OUTLIER_LM_RULE=1`, `BASALT_DETERMINISTIC=1` (track_logs_v3 F15/F16). Controlled two-offset mean 2.38 m, additional-set mean score 23.7 (F21, repeatable build). Needs the patched Basalt (`docs/patches/basalt-0f3b2b5.patch`).
