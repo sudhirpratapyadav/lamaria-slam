@@ -29,3 +29,4 @@ Append-only, timestamped. Add with `scripts/log.sh "..."`.
 - **2026-10-04 17:15** X10/X10b: -ffp-contract=off + deterministic reductions give bit-identical trajectories across builds (4_11, R_08) at no speed cost; adopted for the dev tree (build 17, installing). Appendix closed; no further experiments planned without the owner.
 - **2026-10-04 17:30** F21 launched: the v3 reference on the repeatable build (fp-contract off + deterministic reductions), full sets, 36 runs; gives bit-reproducible v3 numbers.
 - **2026-10-04 18:40** F21 complete: v3 reference on the repeatable build: controlled 2.38 (reference 2.43), additional 23.7 (16.9); bit-reproducible. v3 numbers of record updated in status, summary, scoreboard, configs/README. Nothing running.
+- **2026-10-04 18:50** F22 launched: v2 reference setting (no filter) on the F21 binary, full sets, for a same-build baseline.
