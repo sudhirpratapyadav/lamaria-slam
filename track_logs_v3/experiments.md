@@ -502,3 +502,15 @@ Additional set (score 2D; flat / reference in brackets; restarts): 1_19 74.1 (74
 **Decision**: **filter 3 px + per-landmark rule is the v3 reference candidate** (`BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1`); F16 (full sets, same snapshot) running. Gate, burst skip, keep-host, stereo initialisation stay available as options with their applicability notes (gate and burst skip: people-heavy outdoor walks and indoor respectively; stereo: parallel pairs).
 
 **Applicability**: the filter + rule is standard robust estimation (reject an observation whose landmark is otherwise consistent); thresholds in pixels scale with resolution; its known failure is R_04's single divergence in a fast turn (F08 series), which the robust driver absorbs.
+
+## X09: run-to-run spread on a long walk, and deterministic reductions (2026-10-04, pc)
+
+**Trigger**: F16's R_12 run (filter + rule, offset 0) gave 13.88 m where F15's run of the identical setting on the identical binary (md5 checked) gave 12.56 m, both without a restart. X07's 0.5 % repeatability was measured on a short sequence with restarts; on a 1000 s walk the thread-dependent summation order of TBB's `parallel_reduce` accumulates to about 10 %. That is the floor for single-run comparisons on R_12 / R_13 / the long additional walks, and it covers several differences read tonight (R_12 12.56 against the 13.0 reference, for one).
+
+**Change**: `linearization_abs_qr.cpp` (four reductions: landmark-block accumulation into the dense system, back-substitution, error sums) and `ba_base.cpp` (`computeError`) use `tbb::parallel_deterministic_reduce` unless `BASALT_DETERMINISTIC=0`. Same arithmetic, fixed order, a small speed cost.
+
+**Command**: `results/v3-X09-repeat/batch.sh` (two more repeats on the F15 snapshot: the spread), `build_det.sh` (build 13, two repeats on the deterministic binary: bit-exactness check).
+
+**Result**: pending.
+
+**Applicability**: method and tooling; determinism matters for every comparison in this project and costs nothing on the robot (it can run with the fast reduction).
