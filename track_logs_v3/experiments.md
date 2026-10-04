@@ -579,3 +579,20 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: the default stays. 1 px is a tie everywhere; 2 and 3 px lose the dark walk (5.4 and 4.4 against 1.6) and 2 px loses 3_18 (69 against 56); the rest is within the run spread. The bound is doing real work at the sparse end and is not sensitive elsewhere.
 
 **Applicability**: as F08d; the bound scales with the threshold.
+
+## F17: photometric quality gate on stereo matches (2026-10-04, pc)
+
+**Change**: `BASALT_STEREO_MAX_RES` = 0.15 / 0.3 (RMS of the normalised-intensity residual of the cam0 patch at the converged cam1 position; a match above it is dropped), with `BASALT_STEREO_INIT=1`, filter 3 px + per-landmark rule, own snapshot (build 12).
+
+**Result** (ATE m; score; no-stereo setting from F15 for comparison):
+
+| Seq | no stereo (F15) | stereo, gate 0.15 | stereo, gate 0.3 |
+|---|---|---|---|
+| sequence_4_11 | 1.642, 53.1 | 7.547, 14.2 | 14.35, 10.8 |
+| R_08_hard | 1.034 | 0.969 | 0.968 |
+| sequence_2_11 | 21.29, 23.9 | 21.98, 19.8 | 21.94, 19.8 |
+| R_12_10cp | 12.56, 11.2 | 15.15, 10.1 | 15.27, 10.0 |
+
+**Decision**: parked, as F14. The gate keeps the indoor gain (R_08 0.97 against 1.03) and halves the dark-walk damage (7.5 against 14.8 ungated) but does not remove it: the wrong stereo matches on the dark walk also pass a photometric check, because in the dark the patches are low-contrast and alike. A gate that works there would need geometry (depth agreement between the stereo match and the temporal triangulation a few frames later), which is a v4-size item. Stereo initialisation stays in the patch as the right default for a parallel pair.
+
+**Applicability**: the photometric gate is general and cheap; its limit is low-contrast scenes, which is where it was needed here.
