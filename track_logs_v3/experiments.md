@@ -619,3 +619,15 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: parked, as F14 / F17. The geometric gate keeps the whole indoor gain (R_08 0.91 to 0.93 against 1.03, the best R_08 of any setting) and a little on R_11, is neutral on R_12 and 3_18, costs 2_11 about 2 m, and does not rescue the dark walk (13.7 and 15.5 against 4.5): the wrong stereo matches there are consistent with a wrong temporal depth too, because the temporal triangulation in the dark is itself poor. So the gate is a correct idea for rich texture and no help where the problem was. Stereo stays an option (`BASALT_STEREO_INIT=1 BASALT_STEREO_CHECK=0.3`) for indoor and parallel-pair use; off in the v3 reference.
 
 **Applicability**: general for any stereo rig where matches can be wrong (wide baseline, low texture); costs one extra triangulation per new landmark; it cannot help a landmark that never gets temporal parallax (pure rotation), where the stereo observation is simply not used.
+
+## F20 (appendix after the v3 close): patch-based track revival inside Basalt's tracker (2026-10-04, pc)
+
+**Hypothesis** (F13's lesson, owner's "robustness with precision"): re-association belongs inside the patch tracker, not in an external descriptor pipeline. When KLT loses a track (blur, brief occlusion, a passer-by, a dark patch), keep its patches and try to track them again from the last position for a few frames; a revived track keeps its id, so the back end keeps the landmark instead of starting a new one.
+
+**Change**: `frame_to_frame_optical_flow.h`, `revivePoints()`: `BASALT_REVIVE_FRAMES=K` (0 = off) stores, for each cam0 track lost in a frame, its position and its patches at all pyramid levels from the image where it was last seen; on each new frame the stored patches are tracked coarse-to-fine into the new image from the stored position, accepted if the photometric residual at level 0 is below `BASALT_REVIVE_MAX_RES` (0.2) and the point is in bounds; after K frames a lost track is forgotten. `sqrt_keypoint_vio.cpp`: `BASALT_LOST_GRACE=N` keeps a landmark not observed in the current frame alive for N frames (upstream marginalises it at once), so the revived id meets its landmark. Counters every 1000 frames. Filter 3 px + per-landmark rule, deterministic build 15 snapshot.
+
+**Command**: `results/v3-F20-revive/build_and_run.sh` (ctrl / 10 frames / 30 frames, six event sequences, 18 runs).
+
+**Result**: pending.
+
+**Applicability**: general for any patch tracker (cheap: a few extra patch alignments per frame); it helps where tracks drop out briefly and the scene is unchanged behind the interruption; it can hurt if a patch re-locks on similar texture nearby (the residual bound is the guard) or if the grace keeps stale landmarks in the window too long.

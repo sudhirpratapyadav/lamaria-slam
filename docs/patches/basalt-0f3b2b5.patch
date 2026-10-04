@@ -44,7 +44,7 @@ index 862011c..564f2ec 100644
            res[i].img.reset(new ManagedImage<uint16_t>(img.cols, img.rows));
  
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..44f3465 100644
+index d16e708..b13ae5a 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -117,7 +117,12 @@ index d16e708..44f3465 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -167,10 +222,13 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -164,13 +219,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+                     new_transforms->observations[i]);
+       }
+ 
++      revivePoints(new_transforms);
++
        transforms = new_transforms;
        transforms->input_images = new_img_vec;
  
@@ -131,7 +136,7 @@ index d16e708..44f3465 100644
      if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
        output_queue->push(transforms);
      }
-@@ -178,12 +236,59 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -178,12 +238,59 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      frame_counter++;
    }
  
@@ -192,7 +197,7 @@ index d16e708..44f3465 100644
      size_t num_points = transform_map_1.size();
  
      std::vector<KeypointId> ids;
-@@ -210,11 +315,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -210,11 +317,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
          const Eigen::AffineCompact2f& transform_1 = init_vec[r];
          Eigen::AffineCompact2f transform_2 = transform_1;
@@ -212,7 +217,7 @@ index d16e708..44f3465 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -223,8 +335,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,8 +337,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                              transform_1_recovered.translation())
                                 .squaredNorm();
  
@@ -246,7 +251,7 @@ index d16e708..44f3465 100644
              }
            }
          }
-@@ -308,6 +443,58 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +445,129 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -302,10 +307,81 @@ index d16e708..44f3465 100644
 +                << kp_added << " external points added, " << kp_fast_added << " FAST points added" << std::endl;
 +  }
 +
++  // lamaria-slam (v3 appendix F20): patch-based re-association inside the tracker. When KLT loses a cam0
++  // track, its patches (all pyramid levels, from the frame it was last seen in) and position are kept for
++  // BASALT_REVIVE_FRAMES frames; on each new frame the stored patches are tracked into the new image from
++  // the last position, and if the photometric residual at level 0 is below BASALT_REVIVE_MAX_RES the track
++  // comes back under its old id, so the back end keeps the landmark (with BASALT_LOST_GRACE on its side).
++  struct LostTrack {
++    Eigen::AffineCompact2f t;
++    long frame;
++    std::vector<PatchT> patches;
++  };
++  std::map<KeypointId, LostTrack, std::less<KeypointId>, Eigen::aligned_allocator<std::pair<const KeypointId, LostTrack>>> lost_tracks;
++  long revive_lost = 0, revive_ok = 0, revive_frames_seen = 0;
++  void revivePoints(OpticalFlowResult::Ptr& new_transforms) {
++    static const int revive_frames = [] {
++      const char* e = std::getenv("BASALT_REVIVE_FRAMES");
++      const int v = (e && *e) ? std::atoi(e) : 0;
++      std::cerr << "BASALT_REVIVE_FRAMES: " << v << std::endl;
++      return v;
++    }();
++    static const Scalar max_res = [] {
++      const char* e = std::getenv("BASALT_REVIVE_MAX_RES");
++      return Scalar((e && *e) ? std::atof(e) : 0.2);
++    }();
++    if (revive_frames <= 0 || !old_pyramid) return;
++    auto& obs_new = new_transforms->observations.at(0);
++    // 1. try to revive tracks lost in earlier frames
++    for (auto it = lost_tracks.begin(); it != lost_tracks.end();) {
++      const long age = frame_counter - it->second.frame;
++      if (age > revive_frames || obs_new.count(it->first)) { it = lost_tracks.erase(it); continue; }
++      Eigen::AffineCompact2f tr = it->second.t;
++      bool valid = true;
++      for (int level = config.optical_flow_levels; level >= 0 && valid; level--) {
++        const Scalar scale = 1 << level;
++        tr.translation() /= scale;
++        valid &= it->second.patches[level].valid && trackPointAtLevel(pyramid->at(0).lvl(level), it->second.patches[level], tr);
++        tr.translation() *= scale;
++      }
++      if (valid) {
++        typename PatchT::VectorP res;
++        typename PatchT::Matrix2P pat = tr.linear().matrix() * PatchT::pattern2;
++        pat.colwise() += tr.translation();
++        valid = it->second.patches[0].residual(pyramid->at(0).lvl(0), pat, res) &&
++                res.norm() / std::sqrt(Scalar(res.size())) < max_res &&
++                pyramid->at(0).lvl(0).InBounds(tr.translation()[0], tr.translation()[1], 19);
++      }
++      if (valid) {
++        obs_new[it->first] = tr;
++        revive_ok++;
++        it = lost_tracks.erase(it);
++      } else {
++        ++it;
++      }
++    }
++    // 2. record the tracks lost in this frame (patches from the previous image, where they were last seen)
++    for (const auto& kv : transforms->observations.at(0)) {
++      if (obs_new.count(kv.first) || lost_tracks.count(kv.first)) continue;
++      LostTrack lt;
++      lt.t = kv.second;
++      lt.frame = frame_counter;
++      bool ok = true;
++      for (int level = 0; level <= config.optical_flow_levels; level++) {
++        lt.patches.emplace_back(old_pyramid->at(0).lvl(level), kv.second.translation() / Scalar(1 << level));
++        ok &= lt.patches.back().valid;
++      }
++      if (ok) { lost_tracks[kv.first] = lt; revive_lost++; }
++    }
++    if (++revive_frames_seen % 1000 == 0)
++      std::cerr << "revive: " << revive_frames_seen << " frames, " << revive_lost << " tracks lost, " << revive_ok << " revived, "
++                << lost_tracks.size() << " pending" << std::endl;
++  }
++
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +504,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +577,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -346,7 +422,7 @@ index d16e708..44f3465 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +547,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +620,45 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {
@@ -741,7 +817,7 @@ index 2960dad..ce1138f 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..5ebbc9c 100644
+index 55984fc..605d04e 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -1014,7 +1090,42 @@ index 55984fc..5ebbc9c 100644
        }
      }
  
-@@ -1014,6 +1194,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -468,6 +648,18 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+   }
+ 
+   std::unordered_set<KeypointId> lost_landmaks;
++  // lamaria-slam (v3 appendix F20): BASALT_LOST_GRACE=N keeps a landmark that is not observed in this frame
++  // alive for N frames (upstream marginalises it at once), so a track the optical flow revives under its old
++  // id continues the same landmark
++  static const int lost_grace = [] {
++    const char* e = std::getenv("BASALT_LOST_GRACE");
++    const int v = (e && *e) ? std::atoi(e) : 0;
++    std::cerr << "BASALT_LOST_GRACE: " << v << std::endl;
++    return v;
++  }();
++  static long meas_frame = 0;
++  static std::unordered_map<KeypointId, long> last_seen;
++  meas_frame++;
+   if (config.vio_marg_lost_landmarks) {
+     for (const auto& kv : lmdb.getLandmarks()) {
+       bool connected = false;
+@@ -475,8 +667,14 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+         if (opt_flow_meas->observations[i].count(kv.first) > 0)
+           connected = true;
+       }
++      if (connected) last_seen[kv.first] = meas_frame;
+       if (!connected) {
+-        lost_landmaks.emplace(kv.first);
++        auto ls = last_seen.find(kv.first);
++        const long since = ls == last_seen.end() ? lost_grace + 1 : meas_frame - ls->second;
++        if (lost_grace <= 0 || since > lost_grace) {
++          lost_landmaks.emplace(kv.first);
++          last_seen.erase(kv.first);
++        }
+       }
+     }
+   }
+@@ -1014,6 +1212,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -1059,7 +1170,7 @@ index 55984fc..5ebbc9c 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1649,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1667,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
