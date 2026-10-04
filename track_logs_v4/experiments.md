@@ -201,7 +201,7 @@ The drift responds to the offset in the predicted direction and almost linearly 
 
 **Command**: `results/v4-F07-nan-landmark/batch.sh` (unit `lamaria-v4-f07`): v3 reference settings on the reference runs that logged the failure (4_11, R_03, R_10, R_07 at skip 0; R_04 at skip 100; 1_20 at skip 0, which logged 6 failures without a restart) plus R_01 skip 0 and R_04 skip 0 as no-failure controls (must be bit-identical to F21).
 
-**Result** (ATE m; reference in brackets): R_01 0.132 (0.132), R_03 0.345 (0.345, restart at 1.6 s in both), R_04 0.697 / 0.665 (0.697 / 0.665), R_07 1.201 (1.201), R_10 4.371 (4.371), 1_20 2.77, score 41.1 (41.0), 4_11 1.770, 3 restarts at 3 / 5 / 7 s (identical): **bit-identical to the reference on every run**, although 10 to 30 non-finite increments were skipped in each. Basalt's `use_valid_projections_only` already drops the observations of a NaN landmark at the next linearisation, so the applied NaN was in effect a removal; the guard only makes that explicit. F07b (the F06 +5 ms arms, both-camera landmarks): 2_11 **14.7 m**, 3 restarts at 87 / 1094 / 1106 s (F06: 27.5, 5 restarts at 87 / 527 / 528 / 552 / 801), i.e. a different branch of the same chaos, not a cure; 4_11 pending.
+**Result** (ATE m; reference in brackets): R_01 0.132 (0.132), R_03 0.345 (0.345, restart at 1.6 s in both), R_04 0.697 / 0.665 (0.697 / 0.665), R_07 1.201 (1.201), R_10 4.371 (4.371), 1_20 2.77, score 41.1 (41.0), 4_11 1.770, 3 restarts at 3 / 5 / 7 s (identical): **bit-identical to the reference on every run**, although 10 to 30 non-finite increments were skipped in each. Basalt's `use_valid_projections_only` already drops the observations of a NaN landmark at the next linearisation, so the applied NaN was in effect a removal; the guard only makes that explicit. F07b (the F06 +5 ms arms, both-camera landmarks): 2_11 **14.7 m**, 3 restarts at 87 / 1094 / 1106 s (F06: 27.5, 5 restarts at 87 / 527 / 528 / 552 / 801), i.e. a different branch of the same chaos, not a cure; 4_11 +5 ms: 153 m, 4 restarts at 5 / 17 / 22 / 27 s (F06: 131 m, the same four restart times), the initialisation blow-up again.
 
 **Decision**: kept as a harmless guard (no run changes unless a NaN would have been applied), **not** a fix for the restarts. The restarts of the reference set are initialisation blow-ups: in 4_11 and R_03 the speed ramps from 0 to 6 to 8 m/s within the first 3 s of a segment (monocular front end without scale, velocity started at zero while the wearer is already walking); the driver's restart absorbs them at the cost of a few poses and of the chaotic branch. A proper visual-inertial initialisation (velocity and gravity from the first second, or stereo depth at start) is the general fix; listed as a v4 item.
 
@@ -307,3 +307,13 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 | x1.02 | 18.7 | 26.9 | 52 % | -58.5 | 0.979 |
 
 **Decision**: closed. Two percent of focal length moves the heading by 3 degrees and the sim3 scale by 1 % (as expected: the focal sets the visual scale against the IMU's), so no plausible intrinsic error produces a 57-degree drift. The score's jump from 21 to 30 at +-1 % is the control-point alignment's usual sensitivity, not a signal. **The mechanism hunt stops here** (X01 to X07, F01, F04, F05, F08, F09, F10): the drift is specific to device A's cam0-hosted landmarks and is not explained by any calibration or timing term we can probe; what we keep is the general defence, landmarks in both cameras (F02), plus per-sequence self-calibration in the backend later.
+
+## F13: the time-reversed pass on more sequences (2026-10-05, pc)
+
+**Question** (X06): the backward pass of 2_11 scored 9.7 m against 21.5 forward. Is the backward pass generally better (a cheap non-causal gain, and a clue about the mechanism), or was that 2_11 alone?
+
+**Change**: whole-sequence reversed inputs (`make_reversed_input.py --window 100000`: images in reverse order, gyro negated, accelerometer unchanged) for 3_18, 2_12, R_12 (device A, drifting), 1_19 (device B) and 4_11 (dark); v3 reference settings, F21 binary; scored in forward time by the new `scripts/eval_reversed_run.sh`. `results/v4-F13-reversed/`, unit `lamaria-v4-f13`.
+
+**Result**: running.
+
+**Applicability**: offline use only (benchmark, map building); the robot's live estimate is causal.
