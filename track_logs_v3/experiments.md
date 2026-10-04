@@ -1,5 +1,20 @@
 # Experiments (v3: front end)
 
+## v3 summary (closed 2026-10-04; details in the sections below)
+
+**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **[F16 PENDING]**. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_12 13.0 to 12.6, R_11 2.58 to 2.18, R_08 1.00 to 1.03.
+
+**What worked and why**: the long walks were lost to observations with large reprojection error that the Huber loss only damped; removing them after the solve (filter) and keeping the ones that belong to otherwise consistent landmarks (per-landmark rule) fixes most of it. Both are standard robust estimation, general, and cost nothing.
+
+**What did not, with the reason** (all measured, all kept as options in the patch): IMU-consistency gate and person masks (F01/F02/F05: gains where liars exist, a 15 to 30 % tax indoors); epipolar gate on new landmarks (F03/F09/F15: its one good number was build luck, and with the rule it starves sparse maps); untrusted-image rule (F04: catastrophic); filter warm-up, MAD-adaptive threshold, keep-host, burst skip, median-gated burst skip, newest-frames rule (F08 series: each trades R_04's one fast-turn divergence against the dark walk; the burst skip is an indoor specialist); learned keypoints seeding KLT (F10: a detector's repeatability is not a tracker's trackability; the weak FAST corners carry the dark walk); XFeat descriptor-matching front end (F11: 152 m) and KLT + descriptor re-association (F13: worse than its own KLT ablation; an external cv2 KLT is far below Basalt's patch tracker); calibration-initialised stereo (F14/F17: Basalt had **zero** stereo observations on this 75-degree pair; real matches help indoors and poison the dark walk; right default for the robot's parallel pair, parked here pending a quality gate).
+
+**Method findings**: Basalt's crash was a float self-pair triangulation after a divergence (X05, fixed). Runs of one binary repeat to 0.5 % on short sequences but to about 10 % on 1000 s walks because of TBB's summation order (X07/X09; deterministic reductions added, `BASALT_DETERMINISTIC`), and builds of identical logic differ on sequences with divergences through floating-point contraction (X08), so binaries are frozen per experiment (`scripts/snapshot_basalt.sh`). The residual dump (X06) showed the dark walk's solve is globally off without a filter (median 1.4 to 4.8 px on 20 landmarks) and clean with it (0.22 px).
+
+**Where this leaves the leaderboard** (rough, local training numbers against the published test scores): short walks well above the open baseline and near rank 2; medium around the baseline; long walks (3_17, 3_18, scores 1 to 5) far below the baseline's 12.8, which is drift that only non-causal optimisation removes: the v4 phase. Moving-platform sequences stay weak.
+
+**Open ideas with evidence behind them** (for v4 or a v3 follow-up): a stereo match-quality gate that holds in the dark (depth consistency over two frames); re-association of lost tracks inside Basalt's own tracker; `-ffp-contract=off` for a fully repeatable build.
+
+
 One section per experiment, newest first, same fields as before (hypothesis, change, exact command, per-sequence result, cost, decision) plus an **applicability** line for every kept change: where it applies (indoor, outdoor, tunnel, platform, this sensor, this benchmark), how general it is, where it can fail. Scoreboard at the top. Reference: Basalt `basalt_ref1` with the robust driver (v2 B07/B08): controlled two-offset mean 2.43 m, additional-set mean score 16.9; Huber 0.5 and the 1.5 m near cap as per-sequence options (19.7 / 21.6).
 
 ## Scoreboard
