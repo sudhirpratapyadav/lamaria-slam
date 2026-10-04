@@ -596,3 +596,15 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 **Decision**: parked, as F14. The gate keeps the indoor gain (R_08 0.97 against 1.03) and halves the dark-walk damage (7.5 against 14.8 ungated) but does not remove it: the wrong stereo matches on the dark walk also pass a photometric check, because in the dark the patches are low-contrast and alike. A gate that works there would need geometry (depth agreement between the stereo match and the temporal triangulation a few frames later), which is a v4-size item. Stereo initialisation stays in the patch as the right default for a parallel pair.
 
 **Applicability**: the photometric gate is general and cheap; its limit is low-contrast scenes, which is where it was needed here.
+
+## F19 (appendix after the v3 close): geometric quality gate on stereo observations (2026-10-04, pc)
+
+**Hypothesis** (F14/F17): the stereo matches that poison the dark walk are wrong in depth, and a photometric gate cannot see that in low contrast; a geometric one can: keep a stereo observation only if the depth it implies agrees with the landmark's depth from temporal parallax.
+
+**Change**: `BASALT_STEREO_CHECK=tol` (`sqrt_keypoint_vio.cpp`): the same-frame stereo pair never triangulates a landmark; once a temporal pair has, each same-frame cam1 observation is triangulated against the cam0 observation using the extrinsics alone and kept only if its inverse distance is within `tol` (relative, floor 0.05 /m) of the landmark's; otherwise dropped before it is added. Counters every 500 checks. With `BASALT_STEREO_INIT=1`, filter 3 px + per-landmark rule; control = the same without stereo, on the same snapshot (build 14, deterministic).
+
+**Command**: `results/v3-F19-stereo-check/build_and_run.sh` (tolerances 0.3 and 0.15; six event sequences; 18 runs).
+
+**Result**: pending.
+
+**Applicability**: general for any stereo rig where matches can be wrong (wide baseline, low texture); costs one extra triangulation per new landmark; it cannot help a landmark that never gets temporal parallax (pure rotation), where the stereo observation is simply not used.

@@ -741,7 +741,7 @@ index 2960dad..ce1138f 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..26131b5 100644
+index 55984fc..fb37835 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -759,7 +759,15 @@ index 55984fc..26131b5 100644
  #include <basalt/vi_estimator/sqrt_keypoint_vio.h>
  
  #include <basalt/optimization/accumulator.h>
-@@ -309,6 +317,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -55,6 +63,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <chrono>
+ 
+ namespace basalt {
++static long stereo_check_kept = 0, stereo_check_dropped = 0;
+ 
+ template <class Scalar_>
+ SqrtKeypointVioEstimator<Scalar_>::SqrtKeypointVioEstimator(
+@@ -309,6 +318,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    stats_sums_.add("frame_id", opt_flow_meas->t_ns).format("none");
    Timer t_total;
  
@@ -781,7 +789,7 @@ index 55984fc..26131b5 100644
    if (meas.get()) {
      BASALT_ASSERT(frame_states[last_state_t_ns].getState().t_ns ==
                    meas->get_start_t_ns());
-@@ -333,12 +356,33 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -333,12 +357,33 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    // save results
    prev_opt_flow_res[opt_flow_meas->t_ns] = opt_flow_meas;
  
@@ -815,7 +823,7 @@ index 55984fc..26131b5 100644
  
      for (const auto& kv_obs : opt_flow_meas->observations[i]) {
        int kpt_id = kv_obs.first;
-@@ -350,6 +394,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -350,6 +395,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          kobs.kpt_id = kpt_id;
          kobs.pos = kv_obs.second.translation().cast<Scalar>();
  
@@ -851,7 +859,7 @@ index 55984fc..26131b5 100644
          lmdb.addObservation(tcid_target, kobs);
          // obs[tcid_host][tcid_target].push_back(kobs);
  
-@@ -377,6 +450,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -377,6 +451,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
                << unconnected_obs0.size() << std::endl;
    }
  
@@ -859,7 +867,7 @@ index 55984fc..26131b5 100644
    if (take_kf) {
      // Triangulate new points from one of the observations (with sufficient
      // baseline) and make keyframe for camera 0
-@@ -407,14 +481,46 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,14 +482,56 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          }
        }
  
@@ -903,10 +911,20 @@ index 55984fc..26131b5 100644
 +          return e && *e && *e != '0';
 +        }();
 +        if (stereo_no_triang && tcido.frame_id == tcidl.frame_id) continue;
++        // lamaria-slam (v3 appendix F19): BASALT_STEREO_CHECK=tol: the same-frame stereo pair is not used
++        // for triangulation; once a temporal pair has triangulated the landmark, the stereo observation is
++        // kept only if the stereo triangulation agrees in inverse distance within tol (relative), else dropped
++        static const Scalar stereo_check = [] {
++          const char* e = std::getenv("BASALT_STEREO_CHECK");
++          const double v = (e && *e) ? std::atof(e) : 0.0;
++          std::cerr << "BASALT_STEREO_CHECK: " << v << std::endl;
++          return Scalar(v);
++        }();
++        if (stereo_check > 0 && tcido.frame_id == tcidl.frame_id) continue;
  
          const Vec2 p0 = opt_flow_meas->observations.at(0)
                              .at(lm_id)
-@@ -438,11 +544,41 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -438,11 +555,41 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
          if (T_0_1.translation().squaredNorm() < min_triang_distance2) continue;
  
@@ -949,7 +967,7 @@ index 55984fc..26131b5 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -452,6 +588,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -452,13 +599,41 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
            num_points_added++;
            valid_kp = true;
@@ -957,7 +975,27 @@ index 55984fc..26131b5 100644
          }
        }
  
-@@ -459,6 +596,13 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
++      if (valid_kp && stereo_check > 0) {
++        // geometric check of the same-frame stereo observations against the temporal depth
++        const Keypoint<Scalar>& lm = lmdb.getLandmark(lm_id);
++        for (auto it = kp_obs.begin(); it != kp_obs.end();) {
++          const TimeCamId tcs = it->first;
++          if (tcs.frame_id != tcidl.frame_id || tcs.cam_id == 0) { ++it; continue; }
++          Vec4 q0, q1;
++          bool ok = calib.intrinsics[0].unproject(opt_flow_meas->observations.at(0).at(lm_id).translation().cast<Scalar>(), q0) &&
++                    calib.intrinsics[tcs.cam_id].unproject(it->second.pos, q1);
++          if (ok) {
++            SE3 T_0_s = calib.T_i_c[0].inverse() * calib.T_i_c[tcs.cam_id];
++            Vec4 ps = triangulate(q0.template head<3>(), q1.template head<3>(), T_0_s);
++            ok = ps.array().isFinite().all() && ps[3] > 0 &&
++                 std::abs(ps[3] - lm.inv_dist) <= stereo_check * std::max(lm.inv_dist, Scalar(0.05));
++          }
++          if (ok) { stereo_check_kept++; ++it; } else { stereo_check_dropped++; it = kp_obs.erase(it); }
++        }
++        if ((stereo_check_kept + stereo_check_dropped) % 500 == 0)
++          std::cerr << "stereo check: " << stereo_check_kept << " stereo observations kept, " << stereo_check_dropped << " dropped" << std::endl;
++      }
+       if (valid_kp) {
          for (const auto& kv_obs : kp_obs) {
            lmdb.addObservation(kv_obs.first, kv_obs.second);
          }
@@ -971,7 +1009,7 @@ index 55984fc..26131b5 100644
        }
      }
  
-@@ -1014,6 +1158,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -1014,6 +1189,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -1016,7 +1054,7 @@ index 55984fc..26131b5 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1613,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1644,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();
