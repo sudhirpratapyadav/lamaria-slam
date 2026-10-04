@@ -2,7 +2,7 @@
 
 ## v3 summary (closed 2026-10-04; details in the sections below)
 
-**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **[F16 PENDING]**. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
+**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **controlled two-offset mean 2.42 m (v2 reference 2.43), additional-set mean score 21.5 (reference 16.9)**, with the dark walks 4_10 and 4_11 at scores 20.9 and 41.2 (reference 8.4 and 9.9). On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
 
 **What worked and why**: the long walks were lost to observations with large reprojection error that the Huber loss only damped; removing them after the solve (filter) and keeping the ones that belong to otherwise consistent landmarks (per-landmark rule) fixes most of it. Both are standard robust estimation, general, and cost nothing.
 
@@ -26,7 +26,7 @@ One section per experiment, newest first, same fields as before (hypothesis, cha
 | F03 epipolar gate 0.005 | event set, 4 re-running | 21.1 / 57.4 / 10.5 / ? / 1.14 / ? m; best 2_11 (30.3) and 3_18 (4.7) scores | | | general, IMU-prediction dependent, indoor tax | combine with filter (F09) |
 | F05 gate 5 + masks | event set done | 24.2 / 52.7 / 3.3 / 14.6 / 1.29 / 2.10 m | | | people and own body; 15-30 % tax where nothing to remove | option |
 | F04 untrusted-image rule | stopped | R_08 142 m | | | | discarded |
-| **F15 filter 3 px + per-landmark rule** (one binary) | event set done, F16 full sets running | **21.3 / 56.1 / 1.64 / 12.56 / 1.03 / 2.18 m**; 4_11 score 53.1, recall 99.6 % | F16 | F16 | general (robust estimation); fails in one fast turn on R_04 | **reference candidate** |
+| **v3 reference: filter 3 px + per-landmark rule** (F15 / F16, one binary) | **done** | 21.3 / 56.1 / 1.64 (2.92 in F16) / 13.9 / 1.03 / 2.18 m; 4_11 score 41 to 53, recall 94 to 99.6 % | **2.42** (reference 2.43) | **21.5** (reference 16.9) | general (robust estimation); fails in one fast turn on R_04 and on vehicle interiors | **adopted** |
 | F15 reference, same binary | | 31.2 / 80.6 / 16.1 / 13.0 / 1.00 / 2.58 m | | | | for comparison |
 
 ## F01: IMU-consistency gate and the dormant outlier filter in Basalt (2026-10-03, pc)
@@ -529,3 +529,34 @@ Additional set (score 2D; flat / reference in brackets; restarts): 1_19 74.1 (74
 **Result**: R_12, filter + rule, F15 snapshot binary, four runs: 12.557 (F15), 13.881 (F16), 13.937, 13.895. Three of four sit within 0.4 % of each other and the F15 run is the odd draw 10 % away, so the usual spread is small and the rare branch is large. Deterministic binary (build 13), two runs: **13.978 and 13.978, bit-identical trajectories** (same md5), wall time 416 s against 433 s for the fast version, i.e. no cost. Consequences: (1) `BASALT_DETERMINISTIC` stays on by default from here; (2) the per-landmark rule's R_12 figure in F15 (12.56) was the lucky draw, its honest level is about 13.9 against the reference's 13.0 single sample, so on R_12 the rule is a small loss or a tie, not a gain; the dark-walk, 2_11 and 3_18 gains are far outside this spread and stand.
 
 **Applicability**: method and tooling; determinism matters for every comparison in this project and costs nothing on the robot (it can run with the fast reduction).
+
+## F16: v3 reference on the full sets, one frozen binary (2026-10-04, pc)
+
+**Change**: `BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1`, `basalt_ref1` otherwise, robust driver, binary `results/v3-F15-same-binary/bin` (pre-deterministic build; single runs, so R_12-class sequences carry the X09 spread).
+
+**Command**: `results/v3-F16-ref-lmrule/batch.sh`.
+
+**Result**, controlled set (ATE sim3 m, offsets 0 / 100; restarts; flat 3 px from F07; reference v2 B07):
+
+| Seq | filter 3 px + per-landmark rule | flat 3 px | reference |
+|---|---|---|---|
+| R_01 | **0.132 / 0.137** | 0.119 / 0.124 | 0.151 / 0.156 |
+| R_02 | **0.208 / 0.261** | 0.190 / 0.233 | 0.173 / 0.215 |
+| R_03 | **0.340 / 0.301** (1 / 0 r) | 0.247 / 0.207 | 0.434 / 0.415 |
+| R_04 | **0.772 / 1.428** (2 / 4 r) | 1.220 / 2.952 | 0.781 / 0.935 |
+| R_05 | **1.371 / 1.217** | 1.291 / 1.328 | 1.139 / 1.153 |
+| R_06 | **1.262 / 1.000** | 1.245 / 0.935 | 1.124 / 0.764 |
+| R_07 | **1.215 / 1.315** (1 / 0 r) | 1.356 / 1.362 | 1.236 / 1.220 |
+| R_08 | **1.011 / 0.812** (0 / 1 r) | 1.067 / 0.947 | 1.006 / 1.368 |
+| R_09 | **2.173 / 2.042** (1 / 0 r) | 1.957 / 1.640 | 2.762 / 2.414 |
+| R_10 | **4.658 / 3.167** (1 / 0 r) | 3.098 / 3.128 | 4.412 / 3.877 |
+| R_11 | **2.159 / 1.675** (score 76.6 / 79.3) | 2.053 / 1.638 | 2.605 / 2.078 (73.3 / 77.0) |
+| R_12 | **13.88 / 13.97** (score 9.6 / 9.7) (0 / 1 r) | 13.96 / 15.66 | 12.86 / 12.94 (12.0 / 14.0) |
+| R_13 | **3.312 / 3.212** (score 41.7 / 42.7) | 3.584 / 3.449 | 3.349 / 3.544 (45.2 / 44.3) |
+| **two-offset mean** | **2.424** (better than the reference on 14 of 26 runs) | 2.50 | 2.43 |
+
+Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 64.1), 1_20 **41.0** (44.3 / 39.6), 2_11 **21.4** (21.0 / 20.7), 2_12 **3.9** (8.2 / 5.3), 3_17 **1.8** (5.7 / 4.3), 3_18 **1.6** (2.0 / 2.4), **4_10 20.9** (12.1 / 8.4), **4_11 41.2** (34.2 / 9.9; 1 restart), 5_11 **6.2** (5.7 / 6.9), 5_12 **1.6** (4.5 / 7.6; 1 restart): mean **21.45** (flat 21.2, reference 16.9); up on 5 of 10 against the reference, the two dark walks by 2.5x and 4x, down on 2_12, 3_17 and the moving platform 5_12.
+
+**Decision**: **adopted as the v3 reference**: the controlled set is a tie with v2's reference (2.42 against 2.43, where the flat filter had lost to 2.50), and the additional set is up by a quarter (21.5 against 16.9), carried by the dark walks. The losses are the long outdoor walks' scores (already near zero for every setting; v4 territory) and the moving platform (vehicle interiors: near structure with large honest residuals; mark `BASALT_OUTLIER_PX` off or at 5 px for that case).
+
+**Applicability**: general robust estimation; thresholds (3 px, median bound 1.5 px) are in pixels of this 758x572 undistorted image and scale with resolution; known failures: one fast-turn divergence on R_04 (absorbed by the robust driver), vehicle interiors.
