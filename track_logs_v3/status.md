@@ -38,7 +38,7 @@ Leaderboard, rough (local training numbers against published test scores): short
 - Crash root-caused and fixed; run-to-run and cross-build chaos understood, deterministic reductions and per-experiment binary snapshots in place.
 - Tooling: systemd batches, dev build tree, atomic install, snapshots, residual dump, summariser.
 
-## Next (owner's call)
+## Next (owner's call; draft plan in `docs/v4_plan.md`)
 
 v4: the non-causal finishing stage (global BA, loop closure) for the long walks, where the leaderboard gap is; or a v3 follow-up on the stereo quality gate and in-tracker re-association. Tail runs still going: F17 (stereo photometric gate) and F18's last bound (3 px), appended when they land.
 
