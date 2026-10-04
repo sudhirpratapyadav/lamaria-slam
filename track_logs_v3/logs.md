@@ -27,3 +27,4 @@ Append-only, timestamped. Add with `scripts/log.sh "..."`.
 - **2026-10-04 14:45** F20 (unconfirmed revival) stopped: 174 / 177 m on 4_11; F20b (revival confirmed by the next frame's strict KLT) starts now on its own snapshot.
 - **2026-10-04 16:05** F20b stopped: strict in-tracker revival negative on 4_11 (27.5 m) and R_08 (2.05 against 1.03). Re-association parked in both forms. No units running. v3 stays closed; the standing goal awaits the owner's word.
 - **2026-10-04 17:15** X10/X10b: -ffp-contract=off + deterministic reductions give bit-identical trajectories across builds (4_11, R_08) at no speed cost; adopted for the dev tree (build 17, installing). Appendix closed; no further experiments planned without the owner.
+- **2026-10-04 17:30** F21 launched: the v3 reference on the repeatable build (fp-contract off + deterministic reductions), full sets, 36 runs; gives bit-reproducible v3 numbers.
