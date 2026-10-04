@@ -2,7 +2,7 @@
 
 ## v3 summary (closed 2026-10-04; details in the sections below)
 
-**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **controlled two-offset mean 2.42 m (v2 reference 2.43), additional-set mean score 21.5 (reference 16.9)**, with the dark walks 4_10 and 4_11 at scores 20.9 and 41.2 (reference 8.4 and 9.9). On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
+**Result**: the v3 reference is Basalt `basalt_ref1` with the robust driver plus two back-end rules, `BASALT_OUTLIER_PX=3` (the post-solve reprojection filter upstream never calls) and `BASALT_OUTLIER_LM_RULE=1` (an observation above the threshold is removed only if its landmark is otherwise well fitted). Full-set numbers on one frozen binary (F16): **controlled two-offset mean 2.42 m (v2 reference 2.43), additional-set mean score 21.5 (reference 16.9)**, with the dark walks 4_10 and 4_11 at scores 20.9 and 41.2 (reference 8.4 and 9.9); 4_11's single-run figure varies across builds between 1.6 and 4.5 m (score 30 to 53) through restart chaos, see X08 / F19. On the six event sequences, same binary (F15): dark walk 4_11 16.1 m to **1.64 m** (score 16 to 53, recall 34 to 99.6 %), 2_11 31.2 to 21.3, 3_18 80.6 to 56.1, R_11 2.58 to 2.18, R_08 1.00 to 1.03, R_12 13.0 to about 13.9 (X09: the 12.6 of F15 was a rare run-to-run draw).
 
 **What worked and why**: the long walks were lost to observations with large reprojection error that the Huber loss only damped; removing them after the solve (filter) and keeping the ones that belong to otherwise consistent landmarks (per-landmark rule) fixes most of it. Both are standard robust estimation, general, and cost nothing.
 
@@ -605,6 +605,6 @@ Additional set (score 2D; flat / reference in brackets): 1_19 **74.8** (74.1 / 6
 
 **Command**: `results/v3-F19-stereo-check/build_and_run.sh` (tolerances 0.3 and 0.15; six event sequences; 18 runs).
 
-**Result**: pending.
+**Result so far**: control (filter + rule, no stereo) on this deterministic build: sequence_4_11 **4.50 m, 30.4 / 72.3**, where the same setting gave 1.64 (F15 snapshot) and 2.92 (F16, same snapshot as F15): a third build, a third branch of the dark walk's restart chaos (X08). So the v3 reference's 4_11 figure is honestly "1.6 to 4.5 m, score 30 to 53, against 15 to 16 m and score 10 to 16 without the filter"; the gain is not in doubt, its size on that one walk is. Stereo with the geometric check at 0.3: 13.7, 7.9: the gate does not rescue the dark walk. Remaining runs pending.
 
 **Applicability**: general for any stereo rig where matches can be wrong (wide baseline, low texture); costs one extra triangulation per new landmark; it cannot help a landmark that never gets temporal parallax (pure rotation), where the stereo observation is simply not used.
