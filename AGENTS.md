@@ -4,7 +4,7 @@ Read this first. It is the full context for any agent (or person) starting work 
 
 ## Mission
 
-Climb the **LaMAria benchmark, Stereo + IMU track** (https://lamaria.ethz.ch/leaderboard) with our own visual-inertial SLAM. Work loop: try a change, measure on the training sequences, keep it if it helps, record it, repeat. Details of the benchmark, targets and plan are in `README.md`, `purpose.md` and `docs/benchmark_notes.md`; do not duplicate them here, read them. Current state and numbers: `track_logs_v3/status.md` (archives: `track_logs_v1/` OpenVINS tuning, `track_logs_v2/` exploration of estimator classes). The owner's own key points: `thoughts.md`.
+Climb the **LaMAria benchmark, Stereo + IMU track** (https://lamaria.ethz.ch/leaderboard) with our own visual-inertial SLAM. Work loop: try a change, measure on the training sequences, keep it if it helps, record it, repeat. Details of the benchmark, targets and plan are in `README.md`, `purpose.md` and `docs/benchmark_notes.md`; do not duplicate them here, read them. Current state and numbers: `track_logs_v3/status.md` (v3, front end, closed 2026-10-04 with the reference `configs/basalt_v3_ref`; archives: `track_logs_v1/` OpenVINS tuning, `track_logs_v2/` exploration of estimator classes). The owner opens v4 (non-causal finishing) when they decide. The owner's own key points: `thoughts.md`.
 
 Hosts, in order: **this PC first**, then the A100 server, then the Jetson Nano. The owner (Harish, user of this machine; the git author is Sudhir Pratap Yadav) decides when to move to the next host. Do not start on another host unprompted.
 

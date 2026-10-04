@@ -1,6 +1,6 @@
 # Current status (v3: front end)
 
-Last updated: 2026-10-04 08:00 IST. Edit in place.
+Last updated: 2026-10-04 12:00 IST. **v3 closed** (owner, 2026-10-04); F17 / F18 tail runs are appended to experiments.md as they land. Edit in place.
 
 ## What v3 is
 
@@ -18,21 +18,29 @@ v2 showed that the long walks are lost to a few heading events (wrong features o
 - Measure: each candidate on the six event sequences (2_11, 3_18, 4_11, R_12, R_08, R_11) with the drift decomposition (`scripts/drift_analysis.py`, `scripts/sequence_timeline.py`) as the diagnostic (count and size of heading events), then the full two sets at two offsets. Applicability recorded per candidate from the start.
 - Hosts: this PC (16 cores, 2 GB Quadro P620) for geometry and small nets; the A100 for heavier learned components when the owner moves there.
 
-## Where things stand
+## v3 result
 
-- **The filter (F01/F06/F07)**: Basalt never called its own post-solve reprojection filter; at 3 px it is the first clear general win (dark walk 4_11 14.9 m to 3.8 m; additional-set mean score 16.9 to 21.2; controlled two-offset mean 2.50 against 2.43, losing the medium set).
-- **Per-landmark rule (F08d, X08)**: an observation above 3 px is removed only if its landmark is otherwise well fitted; the dark walk goes to **1.66 m / score 56.7 / recall 99.6 %** (reproduced across builds: 2.26 then 1.66 with the same divergence structure), R_12, R_08, 2_11 at or better than the reference. **Candidate reference: filter 3 px + per-landmark rule.** The epipolar gate (F03/F09) helped on its own but gate + rule together break the dark walk on every build (16 to 23 m): a real interaction on sparse maps, so no gate in the candidate.
-- **Method finding (X07/X08)**: runs repeat to 0.5 % on one binary, but builds of identical logic differ on sequences with divergences (floating-point contraction), so cross-build comparisons on 4_11 / R_04 are unreliable. Binaries are now frozen per experiment (`scripts/snapshot_basalt.sh`). **F15** (running next) re-measures reference, flat filter, rule, gate, gate + rule and stereo-as-constraint on one snapshot over the six event sequences; **F16** validates the candidate on the full sets on the same snapshot. These two decide v3's reference.
-- **Stereo (X06d/F14)**: Basalt had **zero** stereo observations on this sensor (cameras 75 degrees apart; the same-pixel search never converges), so every Basalt result so far is monocular + IMU. Starting the stereo search from the calibration gives real stereo observations; they help R_08 (0.95) and 3_18, but on the dark walk most matches are wrong and the map collapses (14.8 m as initialiser, 102 m as constraint). Parked for this sensor pending a match-quality gate; right default for a parallel pair like the robot's camera.
-- **Filter variants not kept** (all measured): warm-up, MAD-adaptive threshold, keep-host, burst skip (indoor win, outdoor loss), median-gated burst skip, newest-frames rule. R_04's divergence at frame 393 with any filter stays the one known cost.
-- **Learned candidates, all parked with reasons**: XFeat seeding of KLT (F10: negative when dominant, neutral when sparse; weak FAST corners carry the dark walk), XFeat descriptor-matching front end (F11: 152 m), hybrid KLT + descriptor re-association (F13: worse than its own KLT ablation, and the external cv2 KLT is far below Basalt's patch tracker). Person masks (F02/F05): option for people-heavy scenes. The external-tracks interface stays for later learned trackers.
-- X05 crash solved (self-pair triangulation in float after a divergence). Infrastructure: systemd units, dev build tree, atomic install, per-experiment snapshots.
+**Reference**: `configs/basalt_v3_ref` = Basalt `basalt_ref1` + robust driver + `BASALT_OUTLIER_PX=3` + `BASALT_OUTLIER_LM_RULE=1` (+ `BASALT_DETERMINISTIC=1`), patched Basalt in `docs/patches/basalt-0f3b2b5.patch`. Full sets, one frozen binary (F16):
 
-## Next
+| | v3 reference | v2 reference (Basalt ref1) | v1 reference (OpenVINS) |
+|---|---|---|---|
+| Controlled set, 13 seq x 2 offsets, mean ATE sim3 | **2.42 m** | 2.43 m | 2.83 m |
+| Additional set, 10 seq, mean score 2D | **21.5** | 16.9 | 22.0 |
+| Dark walks 4_10 / 4_11, score | **20.9 / 41.2** | 8.4 / 9.9 | 0.9 / 30.2 |
 
-1. F15 (same-binary comparison) then F16 (full sets with filter + rule): set the v3 reference from those two.
-2. If F16 holds: the additional-set mean and controlled mean become the v3 numbers; then decide with the owner between finishing v3 and opening v4 (non-causal).
-3. Open ideas with evidence behind them: a stereo match-quality gate (depth consistency over two frames) to switch stereo on; re-association inside Basalt's tracker rather than outside.
+Leaderboard, rough (local training numbers against published test scores): short walks above the open baseline and near rank 2, medium around the baseline, long walks far below (drift; v4), moving platform weak.
+
+## What v3 established (details and applicability in experiments.md)
+
+- Basalt's own post-solve outlier filter, never called upstream, plus a per-landmark rule for which observations to remove: the two general changes that carried v3. Every other filter variant and every pre-solve rejection (IMU gate, epipolar gate, masks, burst skip, warm-up, adaptive threshold, keep-host, newest-frames) measured; kept as options with applicability notes, none as default.
+- Basalt had zero stereo observations on the Aria pair (75 degrees apart); calibration-initialised stereo exists in the patch, helps indoors, poisons the dark walk without a quality gate; parked here, right default for the robot's parallel pair.
+- Learned front ends (XFeat seeding, XFeat matching, KLT + descriptor re-association) all below Basalt's patch tracker; the external-tracks interface and the scripts stay.
+- Crash root-caused and fixed; run-to-run and cross-build chaos understood, deterministic reductions and per-experiment binary snapshots in place.
+- Tooling: systemd batches, dev build tree, atomic install, snapshots, residual dump, summariser.
+
+## Next (owner's call)
+
+v4: the non-causal finishing stage (global BA, loop closure) for the long walks, where the leaderboard gap is; or a v3 follow-up on the stereo quality gate and in-tracker re-association. Tail runs still going: F17 (stereo photometric gate) and F18's last bound (3 px), appended when they land.
 
 ## Blockers
 
