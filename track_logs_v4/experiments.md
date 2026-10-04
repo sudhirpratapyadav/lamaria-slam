@@ -226,7 +226,7 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Hypothesis** (X05): the ASL export's IMU is raw; the omitted factory model (per-axis scale, 0.26 deg of gyro misalignment, 0.25 to 0.39 m/s^2 of accelerometer bias on device A) is part of what the estimator absorbs as heading drift on device A.
 
-**Change**: the factory model `raw = M @ rectified + bias` for both devices, recovered exactly (residual 5e-9) from v1's rectified IMU files (`data/training_rect`, built from the .vrs that was deleted afterwards), stored in `data/external/aria_factory_imu/<device>.json`; `scripts/make_rectified_input.py` builds `data/derived/<seq>_rect` (rectified gyro and accelerometer, bias removed; everything else linked). v3 reference settings, F21 binary, on 2_11, 3_18, R_12 (device A, drifting), 4_11 (device A, dark) and 1_19 (device B, control). `results/v4-F08-imu-rectified/`, unit `lamaria-v4-f08`.
+**Change**: the factory model `raw = M @ rectified + bias` for both devices, recovered exactly (residual 5e-9) from v1's rectified IMU files (`data/training_rect`, built from the .vrs that was deleted afterwards), stored in `configs/aria_factory_imu/<device>.json`; `scripts/make_rectified_input.py` builds `data/derived/<seq>_rect` (rectified gyro and accelerometer, bias removed; everything else linked). v3 reference settings, F21 binary, on 2_11, 3_18, R_12 (device A, drifting), 4_11 (device A, dark) and 1_19 (device B, control). `results/v4-F08-imu-rectified/`, unit `lamaria-v4-f08`.
 
 **Result** (ATE m; score; recall 5 m; heading at the end; F21 reference in brackets):
 

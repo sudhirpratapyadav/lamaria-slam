@@ -6,7 +6,7 @@ The device is identified by the md5 prefix of its aria_calibrations json; the fa
 model (raw = M @ rectified + bias, projectaria_tools ImuCalibration, imu-right) is read
 from <factory_dir>/<device>.json, as recovered in v4 F08 from the v1 .vrs rectification.
 
-Usage: make_rectified_input.py <seq_dir> <out_dir> [factory_dir=data/external/aria_factory_imu] [--gyro-only|--no-bias]
+Usage: make_rectified_input.py <seq_dir> <out_dir> [factory_dir=configs/aria_factory_imu] [--gyro-only|--no-bias]
 """
 import hashlib
 import json
@@ -21,7 +21,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
     seq, out = Path(args[0]).resolve(), Path(args[1])
-    fdir = Path(args[2]) if len(args) > 2 else Path("data/external/aria_factory_imu")
+    fdir = Path(args[2]) if len(args) > 2 else Path("configs/aria_factory_imu")
     dev = hashlib.md5(open(next(seq.glob("aria_calibrations/*.json")), "rb").read()).hexdigest()[:8]
     fac = json.load(open(fdir / f"{dev}.json"))
     out.mkdir(parents=True)
