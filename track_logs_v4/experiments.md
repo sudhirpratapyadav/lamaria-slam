@@ -938,3 +938,17 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision** (corrected 22:25): reference unchanged, **with the shift**: the shift is right (backend 4 ms on all 36 runs); a per-recording offset would return about 4 ms everywhere, so the two-pass estimate adds nothing here beyond confirming the constant; taking the no-shift setting for the walks would bank an error cancellation. The problem the walks expose is the remaining negative heading drift of device A's walks under the correct timing (vision not correcting the gyro's wandering bias in the direction of travel, X06 / X08): that is the next target, and it is the same drift the no-shift runs cancel by accident.
 
 **Applicability**: the finding is about this dataset's two recording sessions; the lesson is general: a camera-IMU offset measured on one session must not be assumed for another, and a per-recording self-calibration is the robust form.
+
+## G02: the backend's camera-IMU offset on every F22 run (2026-10-05, pc)
+
+**Question** (F21 / F22): does the effective offset differ between recordings?
+
+**Method**: `configs/vi_ba_td` (offset free, everything else fixed) on the 36 dumped F22 runs (reference setting, unshifted factory-model inputs), `results/v4-G02-td-estimates/batch.sh`, unit `lamaria-v4-g02`, 21:47 to 22:33; `td.csv` has run, offset, causal ATE, backend ATE.
+
+**Result**: offset **4.22 ms mean, 3.55 to 4.98 ms** over 36 runs; controlled 4.19 +- 0.35, walks 4.27 +- 0.50; the two start offsets of each controlled sequence agree to 0.01 ms; dark walks 3.55 / 3.61, 1_19 3.88, 3_17 4.56, 2_12 4.98; every solve converged. X08's 0.1 ms on 4_11 came from an unconverged solve on the F15-setting dump and is superseded. The backend's trajectory beats the causal pass on the unshifted controlled runs (R_01 0.357 to 0.116, R_05 3.40 to 1.94) and reproduces it on the walks (3_17 4.04 to 4.06, 4_11 3.19 to 3.23).
+
+**Conclusion**: one constant, 4.2 ms, images later than the IMU (Aria's IMU data-ready latency plus half a sample). The per-recording two-pass (`scripts/two_pass_td.sh`) is built and works but has nothing to add on this data. The walks' preference for no shift (F22) is the error cancellation of X10, not a calibration.
+
+**Decision**: the reference's shift should be the measured 4.2 ms rather than the round 5 ms (G02 probe: R_12 2.68 / 2.93 at 4.5 ms against 3.14 / 3.30 at 5 ms, R_01 equal): **F23** (full sets at 4.2 ms) launched.
+
+**Applicability**: the measured constant is this device's; the method (batch estimate with the offset free over many recordings, check the spread) is the general way to set it for the robot's rig.
