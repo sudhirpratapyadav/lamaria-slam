@@ -11,7 +11,8 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | v3 reference (F21) | 2.379 | 23.7 | entering v4 |
 | F01: gyro noise x2 | not kept | not kept | 2_11 alone: 21.5 to 2.9 m, score 21 to 47 (X02); breaks the rest (F01) |
 | F12: both-camera landmarks + 1 s window | **2.074** | **24.9** | 14 restarts; long-walk ATE -1/3, scores flat |
-| F15: F12 + F14d initialisation + gauge prior 1e2 | 2.08 (26 runs) | running | 0 restarts on the controlled set |
+| F15: F12 + F14d initialisation + gauge prior 1e2 | 2.134 | 23.6 | **1 restart** in 36 runs; robustness baseline |
+| F16: F15 + gyro x2 (partial) | R_12 9.6 to 2.5 | 2_11 5.7 to 44 | dark walk 4_11 loses (7.6, scale 0.94); F16b balances the accelerometer |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -491,3 +492,54 @@ Nothing moves (keyframes 0.1 to 0.4 m median from the VIO). With the gyro truste
 **Reading**: controlled two-offset mean **2.074 m against 2.379** (better on R_04, R_06, R_08, R_10, R_11, R_12 by 0.1 to 4 m, worse on R_01 to R_03, R_05, R_07, R_09 by 0.03 to 0.5 m), additional mean score **24.9 against 23.7**. The long walks lose a third of their ATE (3_17 47 to 35, 3_18 56 to 34, 2_12 32 to 21, 2_11 21.5 to 12.3) but their scores barely move (the control points sit at the far ends: 2_11 21 to 6.6, 3_17 6.0 to 4.0, 3_18 1.7 to 6.5, 2_12 3.7 to 9.8); device B (1_19 0.65 to 0.96, 1_20 2.77 to 1.22) and the dark walks (4_10 6.1 to 4.8, 4_11 1.8 to 2.4 with a restart) are mixed. Restarts 14 against 12: the plain window alone does not remove them (F14d does). Cost 2x.
 
 **Decision**: both-camera landmarks are kept (general: a second camera with its own landmarks on the same IMU, no benchmark-specific element); the full-set numbers for the complete F15 setting (with the F14d initialisation and the gauge prior) decide the v4 causal reference. **Applicability**: any multi-camera rig with little overlap (the robot's HJY1A pair has a 60 mm baseline and large overlap, where the stereo matches will exist and this change matters less); indoor and outdoor alike; the 2x cost is the price.
+
+## F15: the full candidate on the full sets (2026-10-05, pc)
+
+**Hypothesis**: F12's both-camera landmarks plus the F14d initialisation (1 s window, gravity from the gyro-rotated accelerometer mean, velocity from the first tracks) and the weak gauge prior (1e2) give F12's accuracy without its restarts.
+
+**Change**: `BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1 BASALT_INIT_VEL=2` on `configs/v4_initpw1e2`, F14d snapshot (basalt_vio 4542b534a81f, libbasalt 32abc56db776). **Command**: `results/v4-F15-candidate-full/batch.sh` (unit `lamaria-v4-f15`, 07:10 to 10:05).
+
+**Result** (ATE m / score / restarts):
+
+| run | reference (F21) ate/score/rs | F12 ate/score/rs | F15 ate/score/rs |
+|---|---|---|---|
+| R_01_easy_skip0 | 0.13 / - / 0 | 0.17 / - / 0 | 0.17 / - / 0 |
+| R_01_easy_skip100 | 0.14 / - / 0 | 0.18 / - / 0 | 0.17 / - / 0 |
+| R_02_easy_skip0 | 0.21 / - / 0 | 0.21 / - / 0 | 0.18 / - / 0 |
+| R_02_easy_skip100 | 0.26 / - / 0 | 0.26 / - / 1 | 0.22 / - / 0 |
+| R_03_easy_skip0 | 0.35 / - / 1 | 0.46 / - / 0 | 0.46 / - / 0 |
+| R_03_easy_skip100 | 0.30 / - / 0 | 0.43 / - / 0 | 0.42 / - / 0 |
+| R_04_medium_skip0 | 0.70 / - / 1 | 0.92 / - / 1 | 0.76 / - / 0 |
+| R_04_medium_skip100 | 0.66 / - / 3 | 0.55 / - / 3 | 0.73 / - / 0 |
+| R_05_medium_skip0 | 1.36 / - / 0 | 1.43 / - / 0 | 1.46 / - / 0 |
+| R_05_medium_skip100 | 1.21 / - / 0 | 1.18 / - / 0 | 1.33 / - / 0 |
+| R_06_medium_skip0 | 1.26 / - / 0 | 1.05 / - / 0 | 1.00 / - / 0 |
+| R_06_medium_skip100 | 0.99 / - / 0 | 1.11 / - / 0 | 1.05 / - / 0 |
+| R_07_medium_skip0 | 1.20 / - / 1 | 1.31 / - / 0 | 1.63 / - / 0 |
+| R_07_medium_skip100 | 1.31 / - / 0 | 1.25 / - / 0 | 1.45 / - / 0 |
+| R_08_hard_skip0 | 1.03 / - / 0 | 0.64 / - / 0 | 0.67 / - / 0 |
+| R_08_hard_skip100 | 0.81 / - / 1 | 0.87 / - / 0 | 0.93 / - / 0 |
+| R_09_hard_skip0 | 1.88 / - / 0 | 2.19 / - / 1 | 2.37 / - / 0 |
+| R_09_hard_skip100 | 2.06 / - / 0 | 2.57 / - / 2 | 2.47 / - / 0 |
+| R_10_hard_skip0 | 4.47 / - / 1 | 3.50 / - / 0 | 3.67 / - / 0 |
+| R_10_hard_skip100 | 2.95 / - / 0 | 3.72 / - / 0 | 4.01 / - / 0 |
+| R_11_5cp_skip0 | 2.17 / 76.7 / 0 | 1.34 / 83.6 / 0 | 1.29 / 85.2 / 0 |
+| R_11_5cp_skip100 | 1.68 / 79.3 / 0 | 2.56 / 72.9 / 0 | 2.57 / 73.7 / 0 |
+| R_12_10cp_skip0 | 13.99 / 9.6 / 0 | 9.34 / 14.7 / 0 | 9.62 / 13.8 / 0 |
+| R_12_10cp_skip100 | 13.95 / 9.6 / 1 | 10.98 / 9.6 / 0 | 11.29 / 8.9 / 0 |
+| R_13_15cp_skip0 | 3.42 / 40.7 / 0 | 2.85 / 49.7 / 0 | 2.82 / 48.4 / 0 |
+| R_13_15cp_skip100 | 3.37 / 41.2 / 0 | 2.84 / 50.1 / 2 | 2.75 / 49.0 / 0 |
+| sequence_1_19_skip0 | 0.65 / 74.8 / 0 | 0.96 / 69.3 / 0 | 1.21 / 62.8 / 0 |
+| sequence_1_20_skip0 | 2.77 / 41.2 / 0 | 1.22 / 60.0 / 0 | 1.41 / 56.7 / 0 |
+| sequence_2_11_skip0 | 21.51 / 21.1 / 0 | 12.27 / 6.6 / 0 | 12.62 / 5.7 / 0 |
+| sequence_2_12_skip0 | 31.69 / 3.7 / 0 | 21.12 / 9.8 / 0 | 20.96 / 5.8 / 0 |
+| sequence_3_17_skip0 | 46.94 / 6.0 / 0 | 34.91 / 4.0 / 0 | 34.99 / 4.5 / 0 |
+| sequence_3_18_skip0 | 56.12 / 1.7 / 0 | 34.44 / 6.5 / 3 | 34.64 / 6.6 / 0 |
+| sequence_4_10_skip0 | 6.12 / 20.6 / 0 | 4.83 / 26.5 / 0 | 3.52 / 35.0 / 0 |
+| sequence_4_11_skip0 | 1.77 / 56.9 / 3 | 2.43 / 53.7 / 1 | 4.26 / 48.0 / 1 |
+| sequence_5_11_skip0 | - / 8.2 / 0 | - / 7.6 / 0 | - / 7.5 / 0 |
+| sequence_5_12_skip0 | - / 3.0 / 0 | - / 5.3 / 0 | - / 3.3 / 0 |
+
+**Reading**: controlled two-offset mean **2.134 m** (F12 2.074, reference 2.379), additional mean score **23.6** (F12 24.9, reference 23.7), **1 restart in 36 runs** (F12 14, reference 12). Against F12 the initialisation costs 0.06 m on the controlled mean (R_05, R_07, R_09, R_10 by 0.1 to 0.3 m; gains on R_02, R_04, R_13) and 1.3 score points on the additional set (4_11 2.43 to 4.26 with the one restart; 1_19 0.96 to 1.21; 4_10 better, 4.8 to 3.5). The long walks are the same as F12 (35 / 35 / 21 / 12.6 m).
+
+**Decision**: F15 is the robustness baseline of v4 (one restart on the two sets) but not the final causal reference: F16 (gyro trusted at x2 on top of it) removes the device-A heading drift (R_12 2.5, 2_11 4.7) and the accelerometer balance for the dark walk is being settled in F16b before the full-set run (F17). **Applicability**: as F12 and F14d (general; initialisation platform-independent, both-camera landmarks for low-overlap rigs).
