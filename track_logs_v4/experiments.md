@@ -362,6 +362,12 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Command**: `results/v4-F14-vi-init/batch.sh` (unit `lamaria-v4-f14`): the F11 runs.
 
-**Result**: running.
+**Result, F14 (joint solve, window 1 s, default prior)**: the solver accepts its solution (|g| 9.6 to 9.9, |v| 0.4 to 0.6 m/s, 24 to 32 features) but one second of walking does not separate gravity from velocity: on R_02 skip 100 its gravity direction is 19 deg off the pGT against 2 deg for the rotated accelerometer mean, and the run still restarts; R_03 0.408 (F11b 0.343), R_04 1.13 / 1.04 with 2 restarts each, 4_11 2.65, score 41.4, 2 restarts. Not kept as such.
+
+**F14b, gravity fixed from the rotated mean, velocity and depths solved, with the weak gauge prior (1e2)** (`results/v4-F14b-vi-init-gfixed/`, libbasalt 69b47db6a12d): **no restart on 7 of 8 runs** (R_01, R_02 skip 100, R_03, R_04 skip 100, R_05, R_08, R_12 skip 100), 4_11 one at 7.2 s; velocities 0.06 (R_03, standing) to 1.42 m/s (R_02), plausible. ATE (reference in brackets): R_01 0.183 (0.132), R_02 0.260 (0.262), R_03 0.351 (0.345), R_04 skip 100 0.690 (0.665, 3 restarts), R_05 1.467 (1.361), R_08 1.118 (1.031), R_12 14.27 (13.95), 4_11 4.21 (1.77). Robustness won, accuracy slightly lost on the short sequences (R_01 +0.05 m, R_05 +0.1): the first second has no poses and the gauge prior at 1e2 lets the start settle differently. On the skip-0 runs the solver found **no features in the first frame** (recordings start over-exposed) and fell back to the window mean; F14c moves the reference frame to the first frame with features.
+
+Note on the prior: Basalt's `vio_init_pose_weight` acts on position and yaw only (roll and pitch are free from the start), so the 1e2 setting loosens the gauge, not the attitude; why that removes restarts is not understood (a stiff gauge on a first pose that the first optimisations want to move?), and it is kept on evidence only.
+
+**F14c** (`results/v4-F14c-vi-init-rebase/`, libbasalt cad41a67d91f, unit `lamaria-v4-f14c`): F14b with the reference frame moved past an over-exposed start; the skip-0 runs plus two repeats. Result: running.
 
 **Applicability**: general (any platform that starts while moving); the classic closed-form VI initialisation, here with Basalt's own tracks; it needs a few hundred milliseconds of accelerometer excitation to separate scale from gravity, which walking provides.
