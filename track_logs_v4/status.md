@@ -15,7 +15,7 @@
 ## Running
 
 - F20 done 19:19: **reference** (above). Open costs: R_09 / R_10 +0.3 to 0.8 m, device-B walks +0.1 to 0.2 m, dark walks still 6.7 / 6.8.
-- F22 (`lamaria-v4-f22`, since 19:50): full sets without the 5 ms shift at walk 0.1x; gives the per-sequence shift choice to test against the backend's free-offset estimates.
+- F22 (`lamaria-v4-f22`, since 19:47): full sets without the 5 ms shift at walk 0.1x; gives the per-sequence shift choice to test against the backend's free-offset estimates.
 - F21 done: without the shift the dark walks reach 3.19 / 2.42 (reference 6.70 / 6.80) and 1_19 1.08 (2.35): the effective offset is sequence-dependent; a per-recording offset (two-pass, backend-estimated) is the next candidate.
 - F20b (`lamaria-v4-f20b`, since 17:34): full sets at 0.03x (F18c: a little better again on the drifting sequences, 1_19 worse; gains flattening).
 - F18 / F18b done: the bias walk is the lever (3x loses everywhere; 0.3x / 0.1x: R_12 4.41 to 3.14, 4_11 12.9 to 6.7, 2_12 5.0 to 4.1, R_08 1.60 to 1.32; R_04 +0.07, 1_19 +0.13).
