@@ -402,3 +402,14 @@ Final reprojection residuals: median 0.46 px, rms 0.82 px in every arm. No cross
 **Reading so far**: the backend reproduces the VIO when the calibration is fixed (0.151 vs 0.166) and nearly halves the error of this easy sequence when the time offset is free. Whether it touches the heading drift of device A is the real question: R_12 and 2_11 are being dumped (`lamaria-v4-g01-r12`, `lamaria-v4-g01-211`).
 
 **Applicability**: general: any VIO run with per-frame tracks and raw IMU; nothing in it is Aria- or benchmark-specific (pinhole model only, for now; the kb4 fisheye model is a small addition). The self-calibration is the part that transfers most directly to the robot (the HJY1A camera and ICM-42688-P will have their own time offset). Where it can fail: sequences with restarts (the segments are linked by IMU only), long sequences (memory and time scale with observations; untested beyond 2.5 min so far), and an under-modelled time offset (above).
+
+**G01b, time offset sweep on R_01** (backend with the offset fixed at each value, calibration otherwise fixed; ATE m, final Ceres cost):
+
+| td fixed (ms) | 0 | 2 | 3.36 | 5 | 6.5 | 8 |
+|---|---|---|---|---|---|---|
+| ATE | 0.151 | 0.109 | 0.090 | **0.087** | 0.097 | 0.154 |
+| cost | 15138 | 14671 | **14557** | 14698 | 15042 | 15630 |
+
+The cost minimum (3.4 ms, what the free parameter finds) and the ATE minimum (about 5 ms, X04's image-based value) differ by 1.5 ms inside a flat valley (0.087 to 0.090); the fixed-td runs on the +4.5 ms-shifted problem put the cost minimum at +0.5 ms, so the under-response of G01's shift test is a property of the pixel-velocity model (cost), not of the solver. For the ATE the difference does not matter here; the free estimate is kept as the general option, the measured 5 ms as the sensor constant to compare against.
+
+**Front-end stereo, measured from the dumps**: the cam0-only front end (the v3 reference setting) produces **no cam1 observation at all** on R_01 (0 of 55 k ids in a 1-in-10 frame sample): Basalt's cam0-to-cam1 patch tracking of new points fails on Aria's 75-degree pair with the pinhole input, so the "stereo" system of v1 to v3 was monocular-inertial on cam0, and `BASALT_MONO_CAMS=1` (F02) is what makes cam1 contribute at all (as a second monocular camera on the same IMU). Stereo matches exist only with `BASALT_STEREO_INIT=1` (v3 F19, cam1 search started at the rotated bearing); the stereo gate of the v4 goal therefore needs that option on, and its first measurement is the backend's cross-camera residual statistics (G01c, dumps with `BASALT_STEREO_INIT=1 BASALT_MONO_CAMS=1` on R_01 and the dark walk 4_11).
