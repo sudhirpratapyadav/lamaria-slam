@@ -17,7 +17,7 @@
 - F20 done 19:19: **reference** (above). Open costs: R_09 / R_10 +0.3 to 0.8 m, device-B walks +0.1 to 0.2 m, dark walks still 6.7 / 6.8.
 - F22 done 21:47, corrected 22:25: without the shift the walks score 35.6 (reference 27.0) but the controlled set loses (2.282 vs 1.229). **Not a session property**: the backend finds the same 4 ms offset on all 36 runs (G02). The walks' gain is an error cancellation (X10): a -4 ms timing error drifts the heading +0.5 to +1 deg/min, device A's walks still drift about -1 deg/min under the correct timing, and the two cancel. Not kept. The real target is that remaining negative drift of the device-A walks under correct timing.
 - G02 done 22:33: backend offset 4.22 ms (3.55 to 4.98) on all 36 runs, one constant (`results/v4-G02-td-estimates/td.csv`); `scripts/two_pass_td.sh` works (R_01 0.357 to 0.142) but adds nothing here.
-- F23 (`lamaria-v4-f23`, since 22:37): full sets at the measured 4.2 ms instead of 5 ms (candidate reference).
+- F23 (`lamaria-v4-f23`, since 22:35): full sets at the measured 4.2 ms instead of 5 ms (candidate reference).
 - G03 (running): backend with a right-camera time offset free on five dumps (is the host-camera-dependent drift a left-right sync difference?).
 - F21 done: without the shift the dark walks reach 3.19 / 2.42 (reference 6.70 / 6.80) and 1_19 1.08 (2.35): the effective offset is sequence-dependent; a per-recording offset (two-pass, backend-estimated) is the next candidate.
 - F20b done 19:58: 0.03x gives 1.224 / 27.5, within spread of 0.1x; reference stays 0.1x (flat optimum between 0.03x and 0.1x).

@@ -50,11 +50,12 @@ using Vec2 = Eigen::Vector2d;
 
 namespace {
 
-constexpr int kCalibSize = 23;  // T_i_c0 (7), T_i_c1 (7), intr0 (4), intr1 (4), td (1)
-constexpr int kCalibLocal = 21;  // 6 + 6 + 4 + 4 + 1
+constexpr int kCalibSize = 24;  // T_i_c0 (7), T_i_c1 (7), intr0 (4), intr1 (4), td (1), td1 (1: cam1 relative to cam0)
+constexpr int kCalibLocal = 22;  // 6 + 6 + 4 + 4 + 1 + 1
 inline int calibPoseOff(int cam) { return 7 * cam; }
 inline int calibIntrOff(int cam) { return 14 + 4 * cam; }
 constexpr int kCalibTdOff = 22;
+constexpr int kCalibTd1Off = 23;
 
 struct Config {
   int min_obs_kfs = 2;
@@ -64,7 +65,7 @@ struct Config {
   double gyro_noise_scale = 1.0, accel_noise_scale = 1.0, gyro_walk_scale = 1.0, accel_walk_scale = 1.0, g = 9.81;
   double bias_prior_bg = 0.01, bias_prior_ba = 0.1;
   bool stereo_in_host = true;
-  bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false;
+  bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false, calib_td1 = false;
   double far_depth_m = 50.0;
   double td_init_ms = 0.0;  // starting (or, when time_offset is false, fixed) camera time offset
 };
@@ -99,6 +100,7 @@ Config loadConfig(const std::string& path) {
     c.calib_extr_rot_only = k.value("extr_rotation_only", true);
     c.calib_intr = k.value("intrinsics", false);
     c.calib_td = k.value("time_offset", false);
+    c.calib_td1 = k.value("time_offset_cam1", false);  // right camera's offset relative to the left
   }
   return c;
 }
@@ -137,7 +139,7 @@ struct SE3Plus {
 };
 
 struct CalibPlus {
-  bool extr, rot_only, intr, td;
+  bool extr, rot_only, intr, td, td1;
   template <class T>
   bool operator()(const T* x, const T* d, T* y) const {
     for (int i = 0; i < kCalibSize; i++) y[i] = x[i];
@@ -153,6 +155,7 @@ struct CalibPlus {
       for (int c = 0; c < 2; c++)
         for (int i = 0; i < 4; i++) y[calibIntrOff(c) + i] = x[calibIntrOff(c) + i] + d[12 + 4 * c + i];
     if (td) y[kCalibTdOff] = x[kCalibTdOff] + d[20];
+    if (td1) y[kCalibTd1Off] = x[kCalibTd1Off] + d[21];
     return true;
   }
 };
@@ -172,10 +175,11 @@ struct Reproj {
   bool operator()(const T* pose_h, const T* pose_o, const T* rho, const T* calib, T* res) const {
     Eigen::Map<const Sophus::SE3<T>> T_w_h(pose_h), T_w_o(pose_o);
     Eigen::Map<const Sophus::SE3<T>> T_i_ch(calib + calibPoseOff(h_cam)), T_i_co(calib + calibPoseOff(o_cam));
-    const T td = calib[kCalibTdOff];
+    const T td_h = calib[kCalibTdOff] + (h_cam == 1 ? calib[kCalibTd1Off] : T(0));
+    const T td = calib[kCalibTdOff] + (o_cam == 1 ? calib[kCalibTd1Off] : T(0));
     const T* in_h = calib + calibIntrOff(h_cam);
     const T* in_o = calib + calibIntrOff(o_cam);
-    Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td * T(h_v.x()), T(h_px.y()) - td * T(h_v.y()));
+    Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td_h * T(h_v.x()), T(h_px.y()) - td_h * T(h_v.y()));
     Sophus::SE3<T> T_co_ch = T_i_co.inverse() * T_w_o.inverse() * T_w_h * T_i_ch;
     Eigen::Matrix<T, 3, 1> p = T_co_ch.so3() * f_h + rho[0] * T_co_ch.translation();
     T z = p.z() > T(1e-6) ? p.z() : T(1e-6);
@@ -193,10 +197,11 @@ struct ReprojStereo {
   template <class T>
   bool operator()(const T* rho, const T* calib, T* res) const {
     Eigen::Map<const Sophus::SE3<T>> T_i_ch(calib + calibPoseOff(h_cam)), T_i_co(calib + calibPoseOff(o_cam));
-    const T td = calib[kCalibTdOff];
+    const T td_h = calib[kCalibTdOff] + (h_cam == 1 ? calib[kCalibTd1Off] : T(0));
+    const T td = calib[kCalibTdOff] + (o_cam == 1 ? calib[kCalibTd1Off] : T(0));
     const T* in_h = calib + calibIntrOff(h_cam);
     const T* in_o = calib + calibIntrOff(o_cam);
-    Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td * T(h_v.x()), T(h_px.y()) - td * T(h_v.y()));
+    Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td_h * T(h_v.x()), T(h_px.y()) - td_h * T(h_v.y()));
     Sophus::SE3<T> T_co_ch = T_i_co.inverse() * T_i_ch;
     Eigen::Matrix<T, 3, 1> p = T_co_ch.so3() * f_h + rho[0] * T_co_ch.translation();
     T z = p.z() > T(1e-6) ? p.z() : T(1e-6);
@@ -462,10 +467,10 @@ SolveResult solveOnce(Problem& P, bool verbose) {
   ceres::Problem problem;
   const double inv_sigma = 1.0 / P.cfg.pixel_sigma;
   auto* se3_param = new ceres::AutoDiffLocalParameterization<SE3Plus, 7, 6>();
-  bool calib_free = P.cfg.calib_extr || P.cfg.calib_intr || P.cfg.calib_td;
+  bool calib_free = P.cfg.calib_extr || P.cfg.calib_intr || P.cfg.calib_td || P.cfg.calib_td1;
   ceres::LocalParameterization* calib_param = nullptr;
   if (calib_free) calib_param = new ceres::AutoDiffLocalParameterization<CalibPlus, kCalibSize, kCalibLocal>(
-                                    new CalibPlus{P.cfg.calib_extr, P.cfg.calib_extr_rot_only, P.cfg.calib_intr, P.cfg.calib_td});
+                                    new CalibPlus{P.cfg.calib_extr, P.cfg.calib_extr_rot_only, P.cfg.calib_intr, P.cfg.calib_td, P.cfg.calib_td1});
   problem.AddParameterBlock(P.calib.data(), kCalibSize, calib_param);
   if (!calib_free) problem.SetParameterBlockConstant(P.calib.data());
   for (auto& k : P.kfs) {
@@ -572,6 +577,7 @@ json calibReport(const Problem& P) {
     r["cam" + std::to_string(c)] = cj;
   }
   r["td_ms"] = P.calib[kCalibTdOff] * 1e3;
+  r["td1_ms"] = P.calib[kCalibTd1Off] * 1e3;
   return r;
 }
 
