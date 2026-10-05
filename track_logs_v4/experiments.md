@@ -829,3 +829,23 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Cost**: none (a noise parameter).
 
 **Applicability**: as F18: the gyro bias walk should be set from the gyro's measured drift rather than the datasheet (procedure general, value specific to this IMU); risk on gyros whose bias really wanders (thermal transients, vibration on the robot). Dark scenes are now at 6.5 to 6.8 m against v3's 1.77 / 6.12, still the weakest point; R_09 / R_10 regress by 0.3 to 0.8 m.
+
+## F21: the F20 setting without the 5 ms shift on the dark walks and 1_19 (2026-10-05, pc)
+
+**Hypothesis** (F19, X08): the effective camera-IMU offset is near zero on the dark walks and about 2.7 ms on device B's 1_19 (backend estimates), so the reference's 5 ms shift is wrong there; with the tight bias walk the no-shift runs show the ceiling those sequences can reach.
+
+**Change**: `configs/v4_g2_w01_pw1e2` (gyro x2, bias walk 0.1x) on `data/derived/<seq>_rect` (factory IMU model, no time shift), F15 environment, binary `results/v4-G01-vi-ba/bin`; 4_11, 4_10, 1_19 at skip 0. `results/v4-F21-dark-noshift-w01/`, unit `lamaria-v4-f21`, 19:21 to 19:46.
+
+**Result** (ATE m / scale / score / recall at 5 m):
+
+| Seq | F17d (no shift, walk 1x) | F20 = reference (5 ms, walk 0.1x) | **F21** (no shift, walk 0.1x) |
+|---|---|---|---|
+| sequence_4_11 (dark) | 3.83 / 0.926 / 33.1 / 77 | 6.70 / 1.030 / 30.3 / 73 | **3.19** / 0.930 / **43.0** / 92 |
+| sequence_4_10 (dark) | 2.76 / 0.936 / 48.3 / 94 | 6.80 / 1.002 / 16.3 / 35 | **2.42** / 0.930 / 46.4 / 95 |
+| sequence_1_19 (device B) | 1.03 / 0.968 / 68.5 / 100 | 2.35 / 0.994 / 45.7 / 100 | 1.08 / 0.970 / 66.1 / 100 |
+
+**Reading**: on these three sequences the shift costs 1.3 to 4.4 m and 20 to 30 score points, and the tight walk's gain carries over without it (4_11 3.83 to 3.19, 4_10 2.76 to 2.42). The scale without the shift sits at 0.93 on the dark walks (the shift fixes scale, X08) and the ATE is still far better: the heading dominates. Together with F17 (the shift wins the whole daytime device-A controlled set and 2_12, 1_20) the offset is **sequence-dependent in effect**: about 4 ms on daytime device-A recordings, near 0 on the dark walks, uncertain on device B (1_19 prefers 0 or 2.7, 1_20 preferred the shift under walk 1x). No restarts.
+
+**Decision**: reference unchanged (the scoreboard needs the shift on the controlled set). F22 (full sets, no shift, walk 0.1x) launched to get the per-sequence choice on every sequence; the per-sequence rule is then tested against the backend's free-offset estimate (X08: 4_11 0.1 ms, 1_19 2.7, R_01 / R_12 / 2_11 3.4 to 4.5), which would make it a non-causal self-calibration pass rather than a benchmark heuristic.
+
+**Applicability**: the finding is that one fixed camera-IMU offset is not enough on this data; a per-recording offset estimate (first pass, backend, second pass) is general to any rig whose timestamping varies with conditions. A brightness rule would be benchmark-specific and is not planned.
