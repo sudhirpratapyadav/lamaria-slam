@@ -586,3 +586,14 @@ No restarts in any run. The backend on the F16 dumps (G01, time offset free or f
 No restarts. The offset gives R_01 and R_04 back and more (R_04 0.52 is the best R_04 of the project), halves R_08's loss without removing it, takes half of R_12's gain back, and collapses the dark walk. R_08 under F16 (drift analysis): heading fine (-4.4 deg end, F15 +3.5), but the 60 s window scale wanders 0.98 to 1.06 (F15 0.99 to 1.03) and the window RMSE doubles (0.185 vs 0.073 m): the trusted gyro degrades the *local* solution on this fast indoor sequence, which is a short-term model mismatch (timing, or a gyro model) rather than drift. **F16d** (`lamaria-v4-f16d`) runs the F16 setting on the factory-rectified IMU inputs (F08 model) for R_12, 2_11, 4_11, 1_19: with the IMU trusted, the IMU model may matter where it was neutral under x20.
 
 **F16b, first wave (gyro x2 with the accelerometer at x5)**: R_01 0.249, R_12 5.21 / 25.1 (scale 0.943), 2_11 5.13 / 29.2 (scale 0.940): trusting the accelerometer more makes the scale *worse* on device A (F16: 0.988 / 0.967), the signature of the accelerometer's own systematic error (device A's factory accelerometer bias is 0.25 to 0.39 m/s^2, F08), which is the other reason to look at F16d.
+
+**F16d, the trusted gyro with the factory IMU model** (F16 setting on the `_rect` inputs of F08: gyro and accelerometer scale, misalignment and bias from the device's factory calibration; ATE m / score; F16 and F15 in brackets):
+
+| Sequence | F16d (gyro x2 + factory IMU) | F16 | F15 |
+|---|---|---|---|
+| R_12_10cp | 2.95 / 35.6 | **2.51 / 40.1** | 9.62 / 13.8 |
+| sequence_2_11 | 5.89 / 25.4 | **4.74 / 44.4** | 12.6 / 5.7 |
+| sequence_1_19 | **1.03 / 68.5** | 1.29 / 64.1 | 1.21 / 62.8 |
+| sequence_4_11 (dark) | **3.83 / 33.1** (scale 0.926) | 7.63 / 34.4 | 4.26 / 48.0 |
+
+No restarts. The factory IMU model, neutral under the loose IMU weights of F08, now matters: it gives the dark walk back (7.6 to 3.8, the best 4_11 ATE since the v3 reference's 1.77) and improves device B's 1_19, at a cost of 0.4 to 1.1 m on R_12 and 2_11. **F16b** second and third waves: accelerometer x10 with gyro x2 on R_01 0.211; accelerometer x5 on the dark walk **48.6 m with 12 restarts**: the accelerometer must stay loose (device A's accelerometer carries a 0.25 to 0.39 m/s^2 factory bias that the online bias estimate absorbs only when the accelerometer is weak). **F16e** (`lamaria-v4-f16e`) completes the grid: factory IMU model on R_08, R_04, R_01, and factory IMU model + 5 ms offset on all seven sequences.
