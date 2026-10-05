@@ -333,6 +333,19 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Change**: whole-sequence reversed inputs (`make_reversed_input.py --window 100000`: images in reverse order, gyro negated, accelerometer unchanged) for 3_18, 2_12, R_12 (device A, drifting), 1_19 (device B) and 4_11 (dark); v3 reference settings, F21 binary; scored in forward time by the new `scripts/eval_reversed_run.sh`. `results/v4-F13-reversed/`, unit `lamaria-v4-f13`.
 
-**Result**: running.
+**Result** (ATE m; score; recall 5 m; heading at the forward end; forward reference / backward pass / linear fusion of the two):
+
+| Sequence | forward (F21) | backward pass | fused |
+|---|---|---|---|
+| sequence_2_11 (X06) | 21.5, 21.1, 49 %, -57 | **9.7**, 17.6, 45 %, -29 | 10.1, 15.5, 26 % |
+| sequence_3_18 | 56.1, 1.7, 5 %, -95 | **39.5**, 3.4, 5 %, -71 | 35.5, 11.0, 18 % |
+| sequence_2_12 | 31.7, 3.7, 8 %, -50 | **10.0**, 10.2, 9 %, -16 | 14.1, 9.7, 24 % |
+| R_12_10cp | 14.0, 9.6, 18 %, -29 | **4.1**, 32.2, 85 %, -4 | 5.6, 18.9, 40 % |
+| sequence_1_19 (device B) | **0.65**, 74.8, 100 %, +5 | 3.3, 38.0, 88 %, +10 | 3.4, 37.2, 88 % |
+| sequence_4_11 (dark) | **1.77**, 56.9, 99.6 %, +1 | 7.4, 28.0, 46 %, +16 | 6.0, 37.1, 86 % |
+
+**Reading**: the backward pass is **2 to 3.5x better on every drifting device-A sequence** (its heading drift is 2 to 7x smaller) and 2 to 5x worse on the clean ones (1_19, 4_11), where the reversal costs the usual initialisation and bias convergence at what is now the start. The linear fusion lands near the backward pass each time (it cannot do better than the two inputs' heading errors allow), so as a blind procedure neither the backward pass nor the fusion is a gain over the whole set. What it does establish: the drift depends on the direction of travel relative to the camera (forward -2.9, backward +1.4 deg/min in running time on 2_11), which is a strong constraint on the mechanism and the reason a one-sided camera geometry fix (both cameras, F02) halves it.
+
+**Decision**: no blind use. Kept as an analysis tool and as the basis for a later non-causal estimator that models a direction-dependent heading-rate bias (the two passes then give two equations for one trajectory).
 
 **Applicability**: offline use only (benchmark, map building); the robot's live estimate is causal.
