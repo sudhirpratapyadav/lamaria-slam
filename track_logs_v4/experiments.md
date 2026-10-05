@@ -952,3 +952,23 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: the reference's shift should be the measured 4.2 ms rather than the round 5 ms (G02 probe: R_12 2.68 / 2.93 at 4.5 ms against 3.14 / 3.30 at 5 ms, R_01 equal): **F23** (full sets at 4.2 ms) launched.
 
 **Applicability**: the measured constant is this device's; the method (batch estimate with the offset free over many recordings, check the spread) is the general way to set it for the robot's rig.
+
+## G03: a right-camera time offset in the backend (2026-10-05, pc)
+
+**Hypothesis**: the device-A heading drift depends on which camera hosts the landmarks (X02) and behaves like a timing error (X10); the ASL export stamps both images with the left camera's timestamp (`vrs_to_asl_folder.py` matches right to left within a tolerance and writes one name), so a left-right capture offset would be invisible in the data and would act exactly like that.
+
+**Change**: `tools/vi_ba/vi_ba.cpp`: calibration block gets `td1` (right camera's offset relative to the left, index 23, local 21; config key `calib.time_offset_cam1`, default off, so existing configs are unchanged); `configs/vi_ba_td2` = `vi_ba_td` + `time_offset_cam1`. Run on five F22 dumps (reference setting, unshifted inputs). `results/v4-G03-td-cam1/`.
+
+**Result** (offset / right-camera offset, ms; backend ATE m):
+
+| Run | td | td1 | ATE backend |
+|---|---|---|---|
+| sequence_3_17 (device A, drifts) | 4.40 | +0.32 | 4.06 |
+| sequence_2_11 (device A, drifts) | 4.20 | +0.31 | 3.93 |
+| R_12_10cp (device A, drifts) | 4.50 | -0.10 | 3.59 |
+| R_07_medium (device A) | 4.59 | +0.41 | 3.99 |
+| sequence_1_19 (device B) | 3.92 | -0.06 | 1.09 |
+
+**Conclusion**: the two cameras are synchronised to within half a millisecond (consistent with Aria's common trigger); a 0.3 ms difference cannot carry a degree per minute of heading, and the drifting R_12 shows none. **Not the mechanism.** Nothing kept except the parameter, which stays off.
+
+**Applicability**: the parameter is a general calibration term (inter-camera sync) worth having for the robot's rig, where the two sensors are separate devices.
