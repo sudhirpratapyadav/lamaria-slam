@@ -597,3 +597,16 @@ No restarts. The offset gives R_01 and R_04 back and more (R_04 0.52 is the best
 | sequence_4_11 (dark) | **3.83 / 33.1** (scale 0.926) | 7.63 / 34.4 | 4.26 / 48.0 |
 
 No restarts. The factory IMU model, neutral under the loose IMU weights of F08, now matters: it gives the dark walk back (7.6 to 3.8, the best 4_11 ATE since the v3 reference's 1.77) and improves device B's 1_19, at a cost of 0.4 to 1.1 m on R_12 and 2_11. **F16b** second and third waves: accelerometer x10 with gyro x2 on R_01 0.211; accelerometer x5 on the dark walk **48.6 m with 12 restarts**: the accelerometer must stay loose (device A's accelerometer carries a 0.25 to 0.39 m/s^2 factory bias that the online bias estimate absorbs only when the accelerometer is weak). **F16e** (`lamaria-v4-f16e`) completes the grid: factory IMU model on R_08, R_04, R_01, and factory IMU model + 5 ms offset on all seven sequences.
+
+**F16b complete** (on top of F15, skip 0; ATE m / score):
+
+| Sequence | gyro x2, accel x20 (F16) | gyro x2, accel x10 | gyro x2, accel x5 | gyro x5, accel x20 |
+|---|---|---|---|---|
+| R_01_easy | 0.275 | 0.211 | 0.249 | 0.232 |
+| R_12_10cp | 2.51 / 40.1 | **2.50 / 41.1** | 5.21 / 25.1 | 4.09 / 30.9 |
+| sequence_2_11 | **4.74 / 44.4** | 4.72 / 40.0 | 5.13 / 29.2 | 9.06 / 15.2 |
+| sequence_4_11 (dark) | 7.63 / 34.4 | 5.95 / 32.2 | 48.6 / 3.6 (12 restarts) | 5.76 / 37.1 |
+
+Accelerometer x10 is a free small gain over x20 (R_01, 4_11), x5 is destructive; gyro x5 gives half the walk gain back and does not save the dark walk. The gyro factor stays at x2.
+
+**F16e, first wave (indoor set, gyro x2)**: with the factory IMU model alone R_01 0.336, R_04 1.81, R_08 2.45 (no help indoors); with the factory model **and** the 5 ms offset **R_01 0.132, R_04 0.425, R_08 1.60**: R_01 equals the v3 reference's best, R_04 is the best R_04 of the project (F15 0.76), R_08 recovers most of its loss (F16 3.64; F15 0.67 still better). The walks with the same combination are running.
