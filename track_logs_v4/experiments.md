@@ -16,9 +16,10 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F17d: F15 + gyro x2 + factory IMU model | 2.313 | **25.2** | 0 restarts; option for dark scenes (4_11 3.83, 4_10 2.76) |
 | F17e: F17d + 5 ms camera time offset | 1.324 | 23.7 | 0 restarts; reference 14:00 to 19:20; loses R_06, R_08, the dark walks (4_11 12.9), 1_19 |
 | F18 / F18b / F18c: gyro bias walk 3x / 0.3x / 0.1x / 0.03x (6 runs) | R_12 6.2 / 3.5 / 3.1 / 3.0 | 4_11 19 / 26 / 30 / 30 | 3x loses everywhere; tighter gains monotonically, flattening below 0.1x |
-| **F20: F17e + gyro bias walk 0.1x (v4 causal reference)** | **1.229** | **27.0** | 0 restarts; dark walks 6.7 / 6.8, R_09 / R_10 lose 0.3 to 0.8 m |
+| F20: F17e + gyro bias walk 0.1x | 1.229 | 27.0 | 0 restarts; reference 19:20 to 00:55 |
 | F20b: F17e + gyro bias walk 0.03x | 1.224 | 27.5 | equivalent to 0.1x within spread; not taken (30x below datasheet) |
 | F22: F20 without the 5 ms shift | 2.282 | 35.6 | not kept: the walks' gain is a cancellation of a timing-error drift (+) against the uncorrected gyro drift (-) (X10); backend offset is 4 ms on all 36 runs (G02) |
+| **F23: F20 with the measured 4.2 ms offset (v4 causal reference)** | **1.150** | **27.9** | 0 restarts; R_12 2.4 / 2.6, dark walks 5.2 / 6.0; long device-A walks flat (tracker drift, F25) |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -1061,3 +1062,63 @@ Anchor statistics (3_17, 35,000 frames): 7.1 M re-alignments tried, 93 % applied
 **Decision**: not kept (anchor off by default). The F25 mechanism statement stands (template kept = drift halved) but the "sub-pixel slide" reading of it is **not supported** by this test and is withdrawn until the difference between the two trackers is isolated.
 
 **Applicability**: the anchored re-alignment is a general tracker option, harmless when off.
+
+## F23: the measured 4.2 ms offset instead of the round 5 ms, full sets (2026-10-05/06, pc)
+
+**Hypothesis** (G02): the backend measures 4.22 ms on all 36 runs; the round 5 ms of F05 / F17e over-shoots, and the G02 probe showed R_12 preferring the measured value.
+
+**Change**: inputs `data/derived/<seq>_rect_dtp42` (`make_timeshift_input.py ... 0.0042`, headers verified) instead of `_rect_dtp5`; everything else the F20 reference (`configs/v4_g2_w01_pw1e2`, F15 environment, binary `results/v4-G01-vi-ba/bin`). `results/v4-F23-dtp42-full/batch.sh`, unit `lamaria-v4-f23`, 22:35 to 00:55.
+
+**Result** (ATE m / score / restarts):
+
+| run | F20 (5 ms) | F23 (4.2 ms) |
+|---|---|---|
+| R_01_easy_skip0 | 0.14 / - / 0 | 0.14 / - / 0 |
+| R_01_easy_skip100 | 0.15 / - / 0 | 0.18 / - / 0 |
+| R_02_easy_skip0 | 0.20 / - / 0 | 0.17 / - / 0 |
+| R_02_easy_skip100 | 0.19 / - / 0 | 0.22 / - / 0 |
+| R_03_easy_skip0 | 0.39 / - / 0 | 0.41 / - / 0 |
+| R_03_easy_skip100 | 0.43 / - / 0 | 0.39 / - / 0 |
+| R_04_medium_skip0 | 0.49 / - / 0 | 0.49 / - / 0 |
+| R_04_medium_skip100 | 0.40 / - / 0 | 0.51 / - / 0 |
+| R_05_medium_skip0 | 1.54 / - / 0 | 1.42 / - / 0 |
+| R_05_medium_skip100 | 1.55 / - / 0 | 1.05 / - / 0 |
+| R_06_medium_skip0 | 1.28 / - / 0 | 0.59 / - / 0 |
+| R_06_medium_skip100 | 1.25 / - / 0 | 0.71 / - / 0 |
+| R_07_medium_skip0 | 0.76 / - / 0 | 1.10 / - / 0 |
+| R_07_medium_skip100 | 0.91 / - / 0 | 1.22 / - / 0 |
+| R_08_hard_skip0 | 1.32 / - / 0 | 1.07 / - / 0 |
+| R_08_hard_skip100 | 0.99 / - / 0 | 0.94 / - / 0 |
+| R_09_hard_skip0 | 2.57 / - / 0 | 2.53 / - / 0 |
+| R_09_hard_skip100 | 2.31 / - / 0 | 2.37 / - / 0 |
+| R_10_hard_skip0 | 1.96 / - / 0 | 2.27 / - / 0 |
+| R_10_hard_skip100 | 1.74 / - / 0 | 2.09 / - / 0 |
+| R_11_5cp_skip0 | 0.51 / 78.6 / 0 | 0.52 / 78.9 / 0 |
+| R_11_5cp_skip100 | 0.49 / 79.7 / 0 | 0.47 / 80.6 / 0 |
+| R_12_10cp_skip0 | 3.14 / 39.2 / 0 | 2.41 / 45.0 / 0 |
+| R_12_10cp_skip100 | 3.30 / 38.9 / 0 | 2.61 / 44.1 / 0 |
+| R_13_15cp_skip0 | 2.01 / 57.3 / 0 | 1.96 / 56.1 / 0 |
+| R_13_15cp_skip100 | 1.94 / 58.3 / 0 | 2.09 / 54.3 / 0 |
+| sequence_1_19_skip0 | 2.35 / 45.7 / 0 | 1.99 / 49.2 / 0 |
+| sequence_1_20_skip0 | 1.81 / 51.3 / 0 | 1.26 / 60.2 / 0 |
+| sequence_2_11_skip0 | 5.08 / 27.6 / 0 | 6.15 / 22.0 / 0 |
+| sequence_2_12_skip0 | 4.35 / 40.5 / 0 | 4.48 / 37.0 / 0 |
+| sequence_3_17_skip0 | 16.35 / 9.1 / 0 | 15.68 / 7.4 / 0 |
+| sequence_3_18_skip0 | 18.83 / 19.4 / 0 | 19.12 / 18.3 / 0 |
+| sequence_4_10_skip0 | 6.80 / 16.3 / 0 | 5.16 / 22.6 / 0 |
+| sequence_4_11_skip0 | 6.70 / 30.3 / 0 | 6.00 / 33.1 / 0 |
+| sequence_5_11_skip0 | - / 22.5 / 0 | - / 22.3 / 0 |
+| sequence_5_12_skip0 | - / 6.8 / 0 | - / 6.6 / 0 |
+
+| Setting | Controlled two-offset mean | Additional mean score | Restarts |
+|---|---|---|---|
+| F20 (5 ms) | 1.229 | 27.0 | 0 |
+| F23 (4.2 ms) | **1.150** | **27.9** | 0 |
+
+**Reading**: both metrics improve. R_12 3.14 / 3.30 to 2.41 / 2.61 (score 39 to 45), R_08 1.32 to 1.07, the dark walks 4_10 6.80 to 5.16 (score 16 to 23) and 4_11 6.70 to 6.00, device B's 1_19 2.35 to 1.99 and 1_20 1.81 to 1.26 (score 51 to 60); losses on R_10 (1.96 / 1.74 to 2.27 / 2.09), R_04 skip 100 (0.40 to 0.51), 2_11 (5.08 to 6.15) and 2_12 (4.35 to 4.48). The long device-A walks are flat (3_17 16.4 to 15.7, 3_18 18.8 to 19.1): their drift is the tracker's (F25), not the offset's. Zero restarts.
+
+**Decision**: **F23 is the v4 causal reference**: the F20 setting on the `_rect_dtp42` inputs (factory IMU model, IMU timestamps 4.2 ms earlier). The offset value is now the measured one, with the method to re-measure it (G02) recorded.
+
+**Cost**: none.
+
+**Applicability**: the value is this device's; the rule (measure the offset with the batch backend over many recordings, use the mean) is general and is what the robot's rig gets.

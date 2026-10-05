@@ -1,6 +1,6 @@
 # Status: v4, stereo quality gate and non-causal backend (opened 2026-10-05)
 
-**Reference (v4 causal, F20, 2026-10-05 19:20)**: `configs/v4_g2_w01_pw1e2` (gyro noise x2 of datasheet, gyro bias random walk 0.1x, accelerometer x20) with the F15 environment (`BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1 BASALT_INIT_VEL=2 BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1 DROP_PRE_INIT=1`) on the factory-rectified, 5 ms shifted inputs `data/derived/<seq>_rect_dtp5`, binary `results/v4-G01-vi-ba/bin`: controlled two-offset mean **1.229 m**, additional-set mean score **27.0**, zero restarts in 36 runs (F17e before it: 1.324 / 23.7). Entering v4 (v3 F21, `configs/basalt_v3_ref`): 2.38 m / 23.7 / 12 restarts; dark walks 20.6 / 56.9 (now 16.3 / 30.3, ATE 6.8 / 6.7, the open loss); long walks 3_17 / 3_18 ATE 47 / 56 m (now 16 / 19).
+**Reference (v4 causal, F23, 2026-10-06 00:55)**: `configs/v4_g2_w01_pw1e2` (gyro noise x2 of datasheet, gyro bias random walk 0.1x, accelerometer x20) with the F15 environment (`BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1 BASALT_INIT_VEL=2 BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1 DROP_PRE_INIT=1`) on the factory-rectified inputs with the measured 4.2 ms camera-IMU offset, `data/derived/<seq>_rect_dtp42`, binary `results/v4-G01-vi-ba/bin`: controlled two-offset mean **1.150 m**, additional-set mean score **27.9**, zero restarts in 36 runs (F20 before it: 1.229 / 27.0; F17e 1.324 / 23.7). Entering v4 (v3 F21, `configs/basalt_v3_ref`): 2.38 m / 23.7 / 12 restarts; dark walks 20.6 / 56.9 (now 22.6 / 33.1, ATE 5.2 / 6.0); long walks 3_17 / 3_18 ATE 47 / 56 m (now 15.7 / 19.1, the tracker's drift, F25).
 
 **Owner's goal**: "start v4, stereo quality gate as well as non causal backend, let's see how far we can go."
 
@@ -14,10 +14,10 @@
 
 ## Running
 
-- F20 done 19:19: **reference** (above). Open costs: R_09 / R_10 +0.3 to 0.8 m, device-B walks +0.1 to 0.2 m, dark walks still 6.7 / 6.8.
+- F20 done 19:19: was the reference until F23.
 - F22 done 21:47, corrected 22:25: without the shift the walks score 35.6 (reference 27.0) but the controlled set loses (2.282 vs 1.229). **Not a session property**: the backend finds the same 4 ms offset on all 36 runs (G02). The walks' gain is an error cancellation (X10): a -4 ms timing error drifts the heading +0.5 to +1 deg/min, device A's walks still drift about -1 deg/min under the correct timing, and the two cancel. Not kept. The real target is that remaining negative drift of the device-A walks under correct timing.
 - G02 done 22:33: backend offset 4.22 ms (3.55 to 4.98) on all 36 runs, one constant (`results/v4-G02-td-estimates/td.csv`); `scripts/two_pass_td.sh` works (R_01 0.357 to 0.142) but adds nothing here.
-- F23 (`lamaria-v4-f23`, since 22:35): full sets at the measured 4.2 ms instead of 5 ms (candidate reference).
+- F23 done 00:55: **reference** (above); the measured 4.2 ms beats the round 5 ms on both metrics.
 - G03 / G04 / X11 done: right-camera offset 0.3 ms, residual distortion |k1| < 0.005, signed residual map flat to 0.01 px: the drift is in the tracks' content (KLT template bias hypothesis), not in the geometry or the IMU model.
 - **Mechanism found (F24 / F25, 2026-10-06 00:00)**: the device-A heading drift and scale deficit are the slide of the frame-to-frame KLT template (re-templated every frame) along the image flow; the drift scales with the template (F24) and largely disappears with the original patch as template (F25: 3_17 -24 to -15 deg, 16.4 to 7.75 m; R_12 -9.4 to -0.7 deg), at a cost in local precision. F26 (re-aligning every frame-to-frame track to its first patch) did **not** reproduce the gain (3_17 -22.8 deg, R_12 -9.7), so the slide is not a sub-pixel creep; what in the patch tracker removes the drift (track population, all-level tracking from the original patch, its forward-backward test) is being isolated.
 - F21 done: without the shift the dark walks reach 3.19 / 2.42 (reference 6.70 / 6.80) and 1_19 1.08 (2.35): the effective offset is sequence-dependent; a per-recording offset (two-pass, backend-estimated) is the next candidate.
