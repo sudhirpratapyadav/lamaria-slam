@@ -894,7 +894,7 @@ index 2960dad..ce1138f 100644
  
  template <class Scalar_>
 diff --git a/src/vi_estimator/sqrt_keypoint_vio.cpp b/src/vi_estimator/sqrt_keypoint_vio.cpp
-index 55984fc..9604ffc 100644
+index 55984fc..d121397 100644
 --- a/src/vi_estimator/sqrt_keypoint_vio.cpp
 +++ b/src/vi_estimator/sqrt_keypoint_vio.cpp
 @@ -34,6 +34,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -931,7 +931,85 @@ index 55984fc..9604ffc 100644
  
  template <class Scalar_>
  SqrtKeypointVioEstimator<Scalar_>::SqrtKeypointVioEstimator(
-@@ -183,19 +203,43 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
+@@ -147,6 +167,77 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(
+   initialize(bg, ba);
+ }
+ 
++// lamaria-slam (v4 F14): linear visual-inertial initialisation over the first window.
++// Unknowns: body velocity v0 and gravity g at the first frame (frame-0 body frame b0) and the depth
++// of every cam0 feature seen in frame 0 along its bearing. Rotations between frames come from the
++// gyro, the accelerometer enters through its double integral; each later observation of a feature
++// gives the linear constraint f_ij x q_ij = 0 with q_ij the feature in camera j. Least squares.
++struct ViInitFrame {
++  double t_s;                                   // since frame 0
++  Sophus::SO3d R_b0_bj;                         // gyro-integrated
++  Eigen::Vector3d dp, dv;                       // double / single integral of the rotated specific force, b0 frame
++  Eigen::aligned_map<KeypointId, Eigen::Vector3d> bearings;  // cam0, unit vectors
++};
++struct ViInitResult {
++  bool ok = false;
++  Eigen::Vector3d v0 = Eigen::Vector3d::Zero(), g = Eigen::Vector3d::Zero();
++  int n_feat = 0, n_obs = 0;
++  double rms = 0;
++};
++static ViInitResult viInitLinear(const std::vector<ViInitFrame>& frames, const Sophus::SE3d& T_b_c, int min_obs) {
++  ViInitResult r;
++  if (frames.size() < 3) return r;
++  const Eigen::Matrix3d R_bc = T_b_c.rotationMatrix();
++  const Eigen::Vector3d t_bc = T_b_c.translation();
++  std::vector<KeypointId> ids;
++  for (const auto& kv : frames[0].bearings) {
++    int n = 0;
++    for (size_t j = 1; j < frames.size(); j++) n += frames[j].bearings.count(kv.first);
++    if (n >= min_obs) ids.push_back(kv.first);
++  }
++  const int N = ids.size();
++  if (N < 8) return r;
++  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(6 + N, 6 + N);
++  Eigen::VectorXd b = Eigen::VectorXd::Zero(6 + N);
++  std::vector<std::tuple<int, size_t, Eigen::Matrix<double, 3, 7>, Eigen::Vector3d>> rows;  // for the residual
++  for (int i = 0; i < N; i++) {
++    const Eigen::Vector3d f0 = frames[0].bearings.at(ids[i]);
++    for (size_t j = 1; j < frames.size(); j++) {
++      auto it = frames[j].bearings.find(ids[i]);
++      if (it == frames[j].bearings.end()) continue;
++      const Eigen::Vector3d& fj = it->second;
++      const Eigen::Matrix3d A = R_bc.transpose() * frames[j].R_b0_bj.inverse().matrix();
++      const Eigen::Matrix3d S = Sophus::SO3d::hat(fj);
++      const double t = frames[j].t_s;
++      Eigen::Matrix<double, 3, 7> J;  // columns: v0 (3), g (3), lambda_i (1)
++      J.block<3, 3>(0, 0) = -t * S * A;
++      J.block<3, 3>(0, 3) = -0.5 * t * t * S * A;
++      J.col(6) = S * A * R_bc * f0;
++      const Eigen::Vector3d rhs = -S * (A * t_bc - A * frames[j].dp - R_bc.transpose() * t_bc);
++      // scatter into the normal equations: unknown order [v0 g lambda_0 .. lambda_N-1]
++      Eigen::Matrix<double, 7, 7> JtJ = J.transpose() * J;
++      Eigen::Matrix<double, 7, 1> Jtb = J.transpose() * rhs;
++      int idx[7] = {0, 1, 2, 3, 4, 5, 6 + i};
++      for (int a = 0; a < 7; a++) {
++        b[idx[a]] += Jtb[a];
++        for (int c = 0; c < 7; c++) H(idx[a], idx[c]) += JtJ(a, c);
++      }
++      rows.emplace_back(i, j, J, rhs);
++    }
++  }
++  Eigen::VectorXd x = H.ldlt().solve(b);
++  if (!x.allFinite()) return r;
++  double ss = 0; int n = 0;
++  for (const auto& [i, j, J, rhs] : rows) {
++    Eigen::Matrix<double, 7, 1> xi; xi << x.head<6>(), x[6 + i];
++    ss += (J * xi - rhs).squaredNorm(); n++;
++  }
++  r.v0 = x.head<3>(); r.g = x.segment<3>(3); r.n_feat = N; r.n_obs = n; r.rms = std::sqrt(ss / std::max(n, 1));
++  int pos = 0; for (int i = 0; i < N; i++) if (x[6 + i] > 0) pos++;
++  r.ok = r.g.norm() > 8.0 && r.g.norm() < 11.5 && r.v0.norm() < 6.0 && pos > N / 2;
++  return r;
++}
++
+ template <class Scalar_>
+ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
+                                                    const Eigen::Vector3d& ba_) {
+@@ -183,19 +274,94 @@ void SqrtKeypointVioEstimator<Scalar_>::initialize(const Eigen::Vector3d& bg_,
        // curr_frame->t_ns += calib.cam_time_offset_ns;
  
        if (!initialized) {
@@ -946,8 +1024,15 @@ index 55984fc..9604ffc 100644
 +          return int64_t(v * 1e9);
 +        }();
 +        static int64_t first_frame_t_ns = -1;
-+        static Vec3 init_accel_sum = Vec3::Zero();
++        static Vec3 init_accel_sum = Vec3::Zero();  // accelerometer samples rotated into the first sample's frame
 +        static long init_accel_n = 0;
++        static int64_t init_prev_t_ns = -1;
++        static Sophus::SO3<Scalar> R_first_cur;      // rotation of the current sample frame w.r.t. the first sample's frame (gyro integrated)
++        // BASALT_INIT_VEL=1 (F14): linear visual-inertial initialisation of velocity and gravity over the window
++        static const bool init_vel = [] { const char* e = std::getenv("BASALT_INIT_VEL"); bool v = e && std::atoi(e) > 0; std::cerr << "BASALT_INIT_VEL: " << v << std::endl; return v; }();
++        static std::vector<ViInitFrame> init_frames;
++        static Sophus::SO3d R_b0_cur; static Eigen::Vector3d init_dp = Eigen::Vector3d::Zero(), init_dv = Eigen::Vector3d::Zero();
++        static int64_t init_imu_prev_t_ns = -1;  // preintegration from the first frame on
 +        if (first_frame_t_ns < 0) first_frame_t_ns = curr_frame->t_ns;
 +
          while (data->t_ns < curr_frame->t_ns) {
@@ -956,8 +1041,29 @@ index 55984fc..9604ffc 100644
            data->accel = calib.calib_accel_bias.getCalibrated(data->accel);
            data->gyro = calib.calib_gyro_bias.getCalibrated(data->gyro);
 -          // std::cout << "Skipping IMU data.." << std::endl;
-+          init_accel_sum += data->accel;
++          if (init_prev_t_ns >= 0)
++            R_first_cur = R_first_cur * Sophus::SO3<Scalar>::exp(data->gyro * Scalar((data->t_ns - init_prev_t_ns) * 1e-9));
++          init_prev_t_ns = data->t_ns;
++          init_accel_sum += R_first_cur * data->accel;
 +          init_accel_n++;
++          if (init_vel && data->t_ns >= first_frame_t_ns) {
++            if (init_imu_prev_t_ns >= 0) {
++              const double dt = (data->t_ns - init_imu_prev_t_ns) * 1e-9;
++              const Eigen::Vector3d a = R_b0_cur * data->accel.template cast<double>();
++              init_dp += init_dv * dt + 0.5 * a * dt * dt;
++              init_dv += a * dt;
++              R_b0_cur = R_b0_cur * Sophus::SO3d::exp(data->gyro.template cast<double>() * dt);
++            }
++            init_imu_prev_t_ns = data->t_ns;
++          }
++        }
++        if (init_vel) {
++          ViInitFrame fr; fr.t_s = (curr_frame->t_ns - first_frame_t_ns) * 1e-9; fr.R_b0_bj = R_b0_cur; fr.dp = init_dp; fr.dv = init_dv;
++          for (const auto& kv : curr_frame->observations.at(0)) {
++            Vec4 p3d; Vec2 px = kv.second.translation().template cast<Scalar>();
++            if (calib.intrinsics[0].unproject(px, p3d)) fr.bearings[kv.first] = p3d.template head<3>().template cast<double>().normalized();
++          }
++          init_frames.push_back(fr);
 +        }
 +        if (init_window_ns > 0 && curr_frame->t_ns < first_frame_t_ns + init_window_ns) {
 +          prev_frame = nullptr;
@@ -967,17 +1073,40 @@ index 55984fc..9604ffc 100644
          Vec3 vel_w_i_init;
          vel_w_i_init.setZero();
  
-+        Vec3 g_meas = (init_window_ns > 0 && init_accel_n > 0) ? Vec3(init_accel_sum / Scalar(init_accel_n)) : data->accel;
++        // mean specific force over the window, expressed in the latest sample's frame (the head may have turned meanwhile)
++        Vec3 g_meas = (init_window_ns > 0 && init_accel_n > 0) ? Vec3(R_first_cur.inverse() * (init_accel_sum / Scalar(init_accel_n))) : data->accel;
 +        if (init_window_ns > 0)
 +          std::cerr << "init window: " << init_accel_n << " IMU samples, mean accel " << g_meas.transpose()
 +                    << " (|a| " << g_meas.norm() << "), first state at +" << (curr_frame->t_ns - first_frame_t_ns) * 1e-9 << " s" << std::endl;
          T_w_i_init.setQuaternion(Eigen::Quaternion<Scalar>::FromTwoVectors(
 -            data->accel, Vec3::UnitZ()));
 +            g_meas, Vec3::UnitZ()));
++        if (init_vel) {
++          ViInitResult vr = viInitLinear(init_frames, calib.T_i_c[0].template cast<double>(), 5);
++          std::cerr << "init vel: " << init_frames.size() << " frames, " << vr.n_feat << " features, " << vr.n_obs
++                    << " obs, rms " << vr.rms << ", v0 " << vr.v0.transpose() << " (|v| " << vr.v0.norm() << "), g " << vr.g.transpose()
++                    << " (|g| " << vr.g.norm() << ")" << (vr.ok ? " accepted" : " REJECTED (fallback: mean accel, zero velocity)") << std::endl;
++          if (vr.ok) {
++            const ViInitFrame& last = init_frames.back();
++            Eigen::Vector3d g_unit = vr.g.normalized();
++            // frame-0 attitude from the estimated gravity (specific force ~ -g), then the gyro to the end of the window
++            Eigen::Quaterniond q_w_b0 = Eigen::Quaterniond::FromTwoVectors(-g_unit, Eigen::Vector3d::UnitZ());
++            Sophus::SO3d R_w_b0(q_w_b0);
++            Sophus::SO3d R_w_bend = R_w_b0 * last.R_b0_bj;
++            const Eigen::Vector3d g_b0 = 9.80665 * g_unit;
++            Eigen::Vector3d v_end_b0 = vr.v0 + g_b0 * last.t_s + last.dv;
++            Eigen::Vector3d p_end_b0 = vr.v0 * last.t_s + 0.5 * g_b0 * last.t_s * last.t_s + last.dp;
++            T_w_i_init = Sophus::SE3<Scalar>(R_w_bend.template cast<Scalar>(), (R_w_b0 * p_end_b0).template cast<Scalar>());
++            vel_w_i_init = (R_w_b0 * v_end_b0).template cast<Scalar>();
++            std::cerr << "init vel: end velocity (world) " << vel_w_i_init.transpose() << ", gravity-direction change vs mean accel "
++                      << std::acos(std::min(1.0, std::abs(double(g_meas.normalized().dot((-g_unit).template cast<Scalar>()))))) * 180 / M_PI << " deg" << std::endl;
++          }
++          init_frames.clear(); init_frames.shrink_to_fit();
++        }
  
          last_state_t_ns = curr_frame->t_ns;
          imu_meas[last_state_t_ns] =
-@@ -309,6 +353,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -309,6 +475,21 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    stats_sums_.add("frame_id", opt_flow_meas->t_ns).format("none");
    Timer t_total;
  
@@ -999,7 +1128,7 @@ index 55984fc..9604ffc 100644
    if (meas.get()) {
      BASALT_ASSERT(frame_states[last_state_t_ns].getState().t_ns ==
                    meas->get_start_t_ns());
-@@ -333,12 +392,40 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -333,12 +514,40 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    // save results
    prev_opt_flow_res[opt_flow_meas->t_ns] = opt_flow_meas;
  
@@ -1041,7 +1170,7 @@ index 55984fc..9604ffc 100644
  
      for (const auto& kv_obs : opt_flow_meas->observations[i]) {
        int kpt_id = kv_obs.first;
-@@ -350,6 +437,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -350,6 +559,35 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          kobs.kpt_id = kpt_id;
          kobs.pos = kv_obs.second.translation().cast<Scalar>();
  
@@ -1077,7 +1206,7 @@ index 55984fc..9604ffc 100644
          lmdb.addObservation(tcid_target, kobs);
          // obs[tcid_host][tcid_target].push_back(kobs);
  
-@@ -360,8 +476,8 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -360,8 +598,8 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
          if (i == 0) connected0++;
        } else {
@@ -1088,7 +1217,7 @@ index 55984fc..9604ffc 100644
          }
        }
      }
-@@ -377,6 +493,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -377,6 +615,7 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
                << unconnected_obs0.size() << std::endl;
    }
  
@@ -1096,7 +1225,7 @@ index 55984fc..9604ffc 100644
    if (take_kf) {
      // Triangulate new points from one of the observations (with sufficient
      // baseline) and make keyframe for camera 0
-@@ -384,10 +501,12 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -384,10 +623,12 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
      frames_after_kf = 0;
      kf_ids.emplace(last_state_t_ns);
  
@@ -1112,7 +1241,7 @@ index 55984fc..9604ffc 100644
        // Find all observations
        std::map<TimeCamId, KeypointObservation<Scalar>> kp_obs;
  
-@@ -407,16 +526,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -407,16 +648,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          }
        }
  
@@ -1167,7 +1296,7 @@ index 55984fc..9604ffc 100644
                              .at(lm_id)
                              .translation()
                              .cast<Scalar>();
-@@ -427,22 +582,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -427,22 +704,52 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
                              .template cast<Scalar>();
  
          Vec4 p0_3d, p1_3d;
@@ -1223,7 +1352,7 @@ index 55984fc..9604ffc 100644
            Keypoint<Scalar> kpt_pos;
            kpt_pos.host_kf_id = tcidl;
            kpt_pos.direction =
-@@ -452,15 +637,44 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -452,15 +759,44 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
  
            num_points_added++;
            valid_kp = true;
@@ -1268,7 +1397,7 @@ index 55984fc..9604ffc 100644
  
      num_points_kf[opt_flow_meas->t_ns] = num_points_added;
    } else {
-@@ -468,6 +682,18 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -468,6 +804,18 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
    }
  
    std::unordered_set<KeypointId> lost_landmaks;
@@ -1287,7 +1416,7 @@ index 55984fc..9604ffc 100644
    if (config.vio_marg_lost_landmarks) {
      for (const auto& kv : lmdb.getLandmarks()) {
        bool connected = false;
-@@ -475,8 +701,14 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
+@@ -475,8 +823,14 @@ bool SqrtKeypointVioEstimator<Scalar_>::measure(
          if (opt_flow_meas->observations[i].count(kv.first) > 0)
            connected = true;
        }
@@ -1303,7 +1432,7 @@ index 55984fc..9604ffc 100644
        }
      }
    }
-@@ -1014,6 +1246,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
+@@ -1014,6 +1368,44 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize() {
      std::cout << "=================================" << std::endl;
    }
  
@@ -1348,7 +1477,7 @@ index 55984fc..9604ffc 100644
    if (opt_started || frame_states.size() > 4) {
      opt_started = true;
  
-@@ -1431,6 +1701,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
+@@ -1431,6 +1823,79 @@ void SqrtKeypointVioEstimator<Scalar_>::optimize_and_marg(
      const std::map<int64_t, int>& num_points_connected,
      const std::unordered_set<KeypointId>& lost_landmaks) {
    optimize();

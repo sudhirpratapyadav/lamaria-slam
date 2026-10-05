@@ -306,7 +306,9 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Reading**: three initialisation restarts gone (R_03, R_07, R_10), one new (R_02 skip 100), the rest moved; ATE neutral within the spread. The segments that still diverge show the same signature as before, the speed ramping to 6 to 27 m/s within 4 s of the first state, now with an attitude from the 1 s mean: so the attitude was only part of it. Two things remain wrong at the first state: the mean was taken in the body frame while the head turns during the window (fixed in **F11b**: samples rotated through the integrated gyro into the end-of-window frame), and the velocity still starts at zero while the wearer walks at about 1.4 m/s (a velocity estimate from the first visual tracks is the next step if F11b is not enough).
 
-**F11b** (`results/v4-F11b-init-window-rot/`, libbasalt 3b65326f17a8, unit `lamaria-v4-f11b`): same runs. Result: running.
+**F11b** (`results/v4-F11b-init-window-rot/`, libbasalt 3b65326f17a8, unit `lamaria-v4-f11b`): same runs, the window's accelerometer mean rotated through the integrated gyro into the end-of-window frame. Result (ATE; restarts): R_01 0.137 (0); R_02 skip 100 0.257 (1, at 0 s); R_03 0.343 (0); R_04 0 / 100: 3.28 (2: 17.5 s, 24.8 s) / 1.14 (2: 0.3 s, 12.6 s); R_07 1.187 (0); R_08 skip 100 1.032 (0); R_10 4.255 (0); R_12 skip 100 **13.95 (0)**; 4_11 3.11, score 37.4 (1, at 4.2 s). Six restarts over the ten runs against seven (F11) and ten (reference).
+
+**Attitude at the first state measured against the pGT gravity direction** (pGT frame handled per sequence): R_12 skip 100: 17.4 deg with the plain mean (F11, restart) against **2.6 deg** rotated (F11b, no restart); R_04 skip 0: 3.4 (reference) / 2.5 (F11b); R_02 skip 100: 9.5 (reference) / 10.1 (F11) and still a restart in F11b; 4_11 skip 0: 11 to 12 deg in every variant (sustained acceleration in the first second; the successful second segment starts at 0.9 deg). So the rotated mean is right where the head turns, and what remains are starts with a sustained acceleration, which no accelerometer average can separate from gravity: that needs the velocity (F14).
 
 **Applicability**: general (any platform that may start while moving: a robot pushed, a handheld device, glasses); it costs w seconds of poses at the start of a run (the submission fills them from the first estimate); on a stationary start it is a no-op in effect.
 
@@ -349,3 +351,15 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 **Decision**: no blind use. Kept as an analysis tool and as the basis for a later non-causal estimator that models a direction-dependent heading-rate bias (the two passes then give two equations for one trajectory).
 
 **Applicability**: offline use only (benchmark, map building); the robot's live estimate is causal.
+
+## F14: linear visual-inertial initialisation (2026-10-05, pc)
+
+**Hypothesis** (F11, F11b): the starts that still blow up have a sustained acceleration in the first second (R_02 skip 100 and 4_11 start 10 to 12 degrees off), so gravity and the initial velocity must be solved together from vision and IMU.
+
+**Change**: `BASALT_INIT_VEL=1` (`sqrt_keypoint_vio.cpp`, `viInitLinear`): over the 1 s window the cam0 tracks are buffered as bearings, the gyro gives the rotation between frames, the accelerometer its single and double integrals in the first frame's body frame; the unknowns, velocity v0, gravity g (both in that frame) and one depth per feature seen in the first frame, enter linearly through f_ij x q_ij = 0 for every later observation (q_ij the feature in camera j), and are solved by least squares (features with at least 5 later observations). Accepted when |g| is 8 to 11.5 m/s^2, |v0| < 6 m/s and most depths are positive; otherwise the F11b fallback. The first state is then created at the end of the window with the gyro-propagated attitude, the propagated velocity and position. Snapshot `results/v4-F14-vi-init/bin` (libbasalt 2256ce3c85b2).
+
+**Command**: `results/v4-F14-vi-init/batch.sh` (unit `lamaria-v4-f14`): the F11 runs.
+
+**Result**: running.
+
+**Applicability**: general (any platform that starts while moving); the classic closed-form VI initialisation, here with Basalt's own tracks; it needs a few hundred milliseconds of accelerometer excitation to separate scale from gravity, which walking provides.
