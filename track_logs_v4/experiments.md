@@ -717,3 +717,25 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Cost**: unchanged front end; the factory model and the shift are input preprocessing (one pass over imu.csv). Runtime as F15.
 
 **Applicability**: the gyro weight (x2 of datasheet, accelerometer x20) is a sensor-and-rig tuning that a new sensor must redo with the same procedure (gyro-alone heading check, X01, tells whether the gyro can be trusted); the factory IMU model is any sensor's own calibration and fully general; the 5 ms offset is this device's data-ready latency (Aria docs, X08) and the robot's ICM-42688-P has its own, to be put in a config constant. Where it can fail: dark scenes and sequences whose heading drift is near the gyro's own (the trusted gyro then carries the heading and timing errors go into the bias), and any device whose gyro is worse than Aria's.
+
+## F19: dark-walk control, the reference inputs with the gyro untrusted (2026-10-05, pc)
+
+**Question**: the dark walks lose under the v4 reference (4_11 12.9, 4_10 9.7) against F17d without the offset (3.83 / 2.76). Is it the trusted gyro or the 5 ms offset?
+
+**Change**: reference inputs (`data/derived/<seq>_rect_dtp5`, factory IMU model + images 5 ms later) with `configs/v4_initpw1e2` (gyro at x20, the F15 weight), F15 environment, binary `results/v4-G01-vi-ba/bin`, 4_11 and 4_10 at skip 0 (`results/v4-F19-dark-control/batch.sh`, unit `lamaria-v4-f19`).
+
+**Result** (ATE m / scale / score):
+
+| Run | 4_11 | 4_10 |
+|---|---|---|
+| v3 reference | 1.77 / 0.966 / 56.9 (3 restarts) | 6.12 / 0.964 / 20.6 |
+| F15 (gyro x20, raw IMU, no shift) | 4.26 / 0.979 / 48.0 (1 restart) | 3.52 / 0.957 / 35.0 |
+| F17d (gyro x2, factory IMU) | 3.83 / 0.926 / 33.1 | 2.76 / 0.936 / 48.3 |
+| F17e = reference (gyro x2, factory IMU, 5 ms) | 12.9 / 1.036 / 25.6 | 9.71 / 0.991 / 7.3 |
+| **F19** (gyro x20, factory IMU, 5 ms) | **7.16** / 1.000 / 26.1 | **8.31** / 0.971 / 11.2 |
+
+**Reading**: the offset alone, with the gyro untrusted, already costs the dark walks (F15 4.26 / 3.52 to 7.16 / 8.31); the trusted gyro adds the rest (to 12.9 / 9.7). This is the same direction as the backend's free offset on the 4_11 dump (+0.1 ms against +3.4 to +4.5 ms on the daytime sequences, X08): **in the dark the effective camera-IMU offset is near zero**, in daylight about 4 ms. The one quantity that differs between the two is exposure time (auto-exposure holds the mean intensity but the dark walks run at long exposures). If the exported image timestamps were centre-of-exposure, as Aria documents for its capture timestamps, exposure would not matter; the data say it does, so the exported stamp is more likely tied to the end of exposure or to readout, and the effective offset is a constant minus about half the exposure time. The .vrs with the exposure values is not on disk (deleted after v1), so this cannot be checked here.
+
+**Decision**: no change to the reference. Recorded as the explanation of the dark-walk loss. Options, in order of generality: (a) a per-sequence offset from a first pass (the backend's free td; non-causal and general to any rig with an uncertain offset, X08 shows it recovers the right sign per sequence); (b) an exposure-dependent offset, if exposure values can be had (needs the .vrs, owner's approval for a download); (c) online time-offset estimation in the filter (Basalt lacks it).
+
+**Applicability**: the finding (effective offset depends on exposure) is about how this dataset's timestamps were exported; for the robot's own camera the timestamp semantics (start / centre / end of exposure) must be established once and the centre used, which is general practice.
