@@ -77,7 +77,7 @@ index cc10c99..4b74d83 100644
        std::cerr << "Numerical failure in backsubstitution\n";
      }
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..0991a3a 100644
+index d16e708..d1e6553 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -151,11 +151,12 @@ index d16e708..0991a3a 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -162,15 +218,23 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -162,15 +218,24 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
          trackPoints(old_pyramid->at(i), pyramid->at(i),
                      transforms->observations[i],
                      new_transforms->observations[i]);
 +        anchorAlign(i, new_transforms->observations[i]);
++        dropOldTracks(new_transforms->observations[i], i);
        }
  
 +      revivePoints(new_transforms);
@@ -175,7 +176,7 @@ index d16e708..0991a3a 100644
      if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
        output_queue->push(transforms);
      }
-@@ -178,12 +242,76 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -178,12 +243,76 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      frame_counter++;
    }
  
@@ -253,7 +254,7 @@ index d16e708..0991a3a 100644
      size_t num_points = transform_map_1.size();
  
      std::vector<KeypointId> ids;
-@@ -210,11 +338,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -210,11 +339,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
          const Eigen::AffineCompact2f& transform_1 = init_vec[r];
          Eigen::AffineCompact2f transform_2 = transform_1;
@@ -273,7 +274,7 @@ index d16e708..0991a3a 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -223,8 +358,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,8 +359,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                              transform_1_recovered.translation())
                                 .squaredNorm();
  
@@ -307,7 +308,7 @@ index d16e708..0991a3a 100644
              }
            }
          }
-@@ -308,6 +466,233 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +467,263 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -419,13 +420,16 @@ index d16e708..0991a3a 100644
 +        refined[r] = tr; shifts[r] = shift;
 +      }
 +    });
++    // BASALT_ANCHOR_DROP=1 (F26b): a track whose first-frame patch no longer fits is dropped instead of kept at
++    // its frame-to-frame position (the patch tracker's behaviour: only tracks consistent with their template live)
++    static const bool drop = [] { const char* e = std::getenv("BASALT_ANCHOR_DROP"); return e && *e && *e != '0'; }();
 +    for (size_t r = 0; r < ids.size(); r++) {
 +      anchor_tried++;
 +      switch (outcome[r]) {
 +        case 0: obs[ids[r]] = refined[r]; anchor_applied++; anchor_shift_sum += shifts[r]; break;
-+        case 1: anchor_rej_conv++; break;
-+        case 2: anchor_rej_shift++; break;
-+        default: anchor_rej_res++; break;
++        case 1: anchor_rej_conv++; if (drop) obs.erase(ids[r]); break;
++        case 2: anchor_rej_shift++; if (drop) obs.erase(ids[r]); break;
++        default: anchor_rej_res++; if (drop) obs.erase(ids[r]); break;
 +      }
 +    }
 +    if (cam == 0 && ++anchor_frames % 1000 == 0)
@@ -433,8 +437,35 @@ index d16e708..0991a3a 100644
 +                << " (mean shift " << (anchor_applied ? anchor_shift_sum / anchor_applied : 0.0) << " px), no convergence "
 +                << anchor_rej_conv << ", shift " << anchor_rej_shift << ", residual " << anchor_rej_res << std::endl;
 +  }
++  // BASALT_MAX_TRACK_AGE=N (F26c): a track older than N frames is dropped (and re-detected as a new point by
++  // addPoints in a later frame); tests whether the drift lives in the long tracks, without any anchor
++  std::vector<std::map<KeypointId, long>> track_birth;
++  long age_dropped = 0;
++  void dropOldTracks(Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>& obs, size_t cam) {
++    static const long max_age = [] { const char* e = std::getenv("BASALT_MAX_TRACK_AGE"); const long v = (e && *e) ? std::atol(e) : 0;
++      if (v > 0) std::cerr << "BASALT_MAX_TRACK_AGE: " << v << std::endl; return v; }();
++    if (max_age <= 0) return;
++    if (track_birth.size() <= cam) track_birth.resize(cam + 1);
++    auto& b = track_birth[cam];
++    for (auto it = obs.begin(); it != obs.end();) {
++      auto bi = b.find(it->first);
++      if (bi != b.end() && frame_counter - bi->second > max_age) { it = obs.erase(it); age_dropped++; }
++      else ++it;
++    }
++  }
++  void recordBirths() {
++    static const long max_age = [] { const char* e = std::getenv("BASALT_MAX_TRACK_AGE"); return (e && *e) ? std::atol(e) : 0; }();
++    if (max_age <= 0) return;
++    if (track_birth.size() < transforms->observations.size()) track_birth.resize(transforms->observations.size());
++    for (size_t cam = 0; cam < transforms->observations.size(); cam++) {
++      auto& b = track_birth[cam]; const auto& obs = transforms->observations[cam];
++      for (auto it = b.begin(); it != b.end();) { if (!obs.count(it->first)) it = b.erase(it); else ++it; }
++      for (const auto& kv : obs) if (!b.count(kv.first)) b[kv.first] = frame_counter;
++    }
++  }
 +  // after the frame's points are final: anchor the new tracks at their first position, forget the dead ones
 +  void anchorRecord() {
++    recordBirths();
 +    if (!anchorOn()) return;
 +    if (anchors.size() < transforms->observations.size()) anchors.resize(transforms->observations.size());
 +    for (size_t cam = 0; cam < transforms->observations.size(); cam++) {
@@ -541,7 +572,7 @@ index d16e708..0991a3a 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +702,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +733,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -582,7 +613,7 @@ index d16e708..0991a3a 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +745,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +776,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {
