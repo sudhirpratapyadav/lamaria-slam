@@ -1003,3 +1003,22 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Conclusion**: the drift leaves no trace in the reprojection residuals: the converged geometry is consistent with the tracks to a hundredth of a pixel. With the IMU terms also consistent (G01: free weights change nothing), the heading error must be in the tracks' content, i.e. the tracked points move with a bias that is geometrically self-consistent. A KLT template bias fits every signature: approaching (expanding) patches are tracked with a lag that underestimates outward flow, which reads as too little forward motion (device A's scale 0.93 to 0.97) and, for cameras pointed obliquely to the walking direction, as a yaw bias; reversed time flips the sign (X06); the host camera sets the sign and size (X02); it is strongest in daylight walking (texture, speed) and weak on the dark walks. The direct test is a tracker that does not slide: v3's descriptor-matched external tracks (xfeat) on R_12 and 2_11 under the v4 reference setting.
 
 **Applicability**: diagnostic; the residual dump and map are general tools.
+
+## F24: optical-flow pattern size on the drifting sequences (2026-10-05, pc)
+
+**Hypothesis** (X11): the device-A heading drift is a template bias of the patch tracker; it should scale with the template.
+
+**Change**: `config.optical_flow_pattern` 24 (small) and 52 (large, dense) instead of 51, reference setting otherwise (`configs/v4_g2_w01_pat24`, `pat52`), R_12 and 3_17 at skip 0 on the reference inputs. `results/v4-F24-pattern/`, unit `lamaria-v4-f24`, 23:17 to 23:47.
+
+**Result** (ATE m / score; end heading error deg / rms):
+
+| Seq | pattern 24 | pattern 51 (reference) | pattern 52 |
+|---|---|---|---|
+| R_12_10cp | 3.24 / 38.9; -9.9 / 5.5 | 3.14 / 39.2; -9.4 / 5.2 | 4.34 / 32.2; -12.3 / 7.2 |
+| sequence_3_17 | **14.6** / 10.8; **-21.6** / 11.4 | 16.4 / 9.1; -24.2 / 12.8 | 21.7 / 6.0; -31.9 / 17.7 |
+
+**Reading**: the drift grows with the template (3_17: -21.6, -24.2, -31.9 deg for 24, 51, 52) and the dense pattern costs 5 m on 3_17 and 1.2 m on R_12; the small pattern gains 1.7 m on 3_17 and nothing on R_12. Consistent with a template-dependent tracking bias, but the small template does not remove it, so the size of the template is a factor, not the whole mechanism. Scale unchanged (0.98 to 0.99).
+
+**Decision**: pattern 51 stays. F25 tests the template itself: Basalt's `optical_flow_type: "patch"` keeps each point's original patch as the template instead of re-templating from the previous frame, which removes sliding at the cost of robustness to appearance change.
+
+**Applicability**: the pattern is a tracker parameter of general meaning (support size vs precision); the finding is about this tracker on this data.
