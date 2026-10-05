@@ -61,7 +61,7 @@ struct Config {
   double pixel_sigma = 1.0, huber_px = 1.0, init_outlier_px = 20.0;
   std::vector<double> outlier_px{5.0, 3.0};
   int max_iterations = 30, threads = 8;
-  double imu_noise_scale = 1.0, imu_walk_scale = 1.0, g = 9.81;
+  double gyro_noise_scale = 1.0, accel_noise_scale = 1.0, gyro_walk_scale = 1.0, accel_walk_scale = 1.0, g = 9.81;
   double bias_prior_bg = 0.01, bias_prior_ba = 0.1;
   bool stereo_in_host = true;
   bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false;
@@ -81,8 +81,13 @@ Config loadConfig(const std::string& path) {
   if (j.contains("outlier_px")) c.outlier_px = j["outlier_px"].get<std::vector<double>>();
   c.max_iterations = j.value("max_iterations", c.max_iterations);
   c.threads = j.value("threads", c.threads);
-  c.imu_noise_scale = j.value("imu_noise_scale", c.imu_noise_scale);
-  c.imu_walk_scale = j.value("imu_walk_scale", c.imu_walk_scale);
+  // noise scales multiply the run's calib.json values (which already carry the VIO's x20); one key for both or per sensor
+  c.gyro_noise_scale = c.accel_noise_scale = j.value("imu_noise_scale", 1.0);
+  c.gyro_walk_scale = c.accel_walk_scale = j.value("imu_walk_scale", 1.0);
+  c.gyro_noise_scale = j.value("gyro_noise_scale", c.gyro_noise_scale);
+  c.accel_noise_scale = j.value("accel_noise_scale", c.accel_noise_scale);
+  c.gyro_walk_scale = j.value("gyro_walk_scale", c.gyro_walk_scale);
+  c.accel_walk_scale = j.value("accel_walk_scale", c.accel_walk_scale);
   c.g = j.value("g", c.g);
   if (j.contains("bias_prior_std")) { c.bias_prior_bg = j["bias_prior_std"][0]; c.bias_prior_ba = j["bias_prior_std"][1]; }
   c.stereo_in_host = j.value("stereo_in_host", c.stereo_in_host);
@@ -430,8 +435,8 @@ GateStats removeOutliers(Problem& P, double thr_px) {
 void preintegrate(Problem& P) {
   P.preint.clear();
   const double sr = std::sqrt(P.imu_noise.rate);
-  Vec3 accel_cov = (P.imu_noise.accel_std * sr * P.cfg.imu_noise_scale).array().square();
-  Vec3 gyro_cov = (P.imu_noise.gyro_std * sr * P.cfg.imu_noise_scale).array().square();
+  Vec3 accel_cov = (P.imu_noise.accel_std * sr * P.cfg.accel_noise_scale).array().square();
+  Vec3 gyro_cov = (P.imu_noise.gyro_std * sr * P.cfg.gyro_noise_scale).array().square();
   size_t k = 0;
   for (size_t i = 0; i + 1 < P.kfs.size(); i++) {
     int64_t t0 = P.kfs[i].t_ns, t1 = P.kfs[i + 1].t_ns;
@@ -527,8 +532,8 @@ SolveResult solveOnce(Problem& P, bool verbose) {
     problem.AddResidualBlock(f, nullptr, P.kfs[i].pose.data(), P.kfs[i].v.data(), P.kfs[i].bg.data(), P.kfs[i].ba.data(),
                              P.kfs[i + 1].pose.data(), P.kfs[i + 1].v.data());
     double sdt = std::sqrt(fac->dt);
-    auto* w = new BiasWalk{(P.imu_noise.gyro_walk * P.cfg.imu_walk_scale * sdt).cwiseInverse(),
-                           (P.imu_noise.accel_walk * P.cfg.imu_walk_scale * sdt).cwiseInverse()};
+    auto* w = new BiasWalk{(P.imu_noise.gyro_walk * P.cfg.gyro_walk_scale * sdt).cwiseInverse(),
+                           (P.imu_noise.accel_walk * P.cfg.accel_walk_scale * sdt).cwiseInverse()};
     problem.AddResidualBlock(new ceres::AutoDiffCostFunction<BiasWalk, 6, 3, 3, 3, 3>(w), nullptr,
                              P.kfs[i].bg.data(), P.kfs[i].ba.data(), P.kfs[i + 1].bg.data(), P.kfs[i + 1].ba.data());
   }
@@ -584,6 +589,7 @@ int main(int argc, char** argv) {
   P.cfg = loadConfig(cfg_path);
   loadProblem(pdir, P);
   std::cout << "loaded " << P.kfs.size() << " keyframes, " << P.obs.size() << " observations, " << P.imu.size() << " IMU samples" << std::endl;
+  std::vector<Vec3> p_init; for (auto& k : P.kfs) p_init.push_back(k.T().translation());
   buildLandmarks(P);
   json report;
   report["config"] = cfg_path;
@@ -634,6 +640,12 @@ int main(int argc, char** argv) {
     std::cout << "final: " << report["final"].dump() << std::endl;
   }
   report["calib"] = calibReport(P);
+  {
+    std::vector<double> d; for (size_t i = 0; i < P.kfs.size(); i++) d.push_back((P.kfs[i].T().translation() - p_init[i]).norm());
+    double mx = *std::max_element(d.begin(), d.end()); std::nth_element(d.begin(), d.begin() + d.size() / 2, d.end());
+    report["pose_change_m"] = {{"median", d[d.size() / 2]}, {"max", mx}, {"end", (P.kfs.back().T().translation() - p_init.back()).norm()}};
+    std::cout << "pose change vs VIO (m): " << report["pose_change_m"].dump() << std::endl;
+  }
   // biases
   {
     Vec3 bg_mean = Vec3::Zero(), ba_mean = Vec3::Zero();
