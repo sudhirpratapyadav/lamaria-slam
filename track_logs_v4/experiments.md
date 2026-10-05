@@ -18,6 +18,7 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F18 / F18b / F18c: gyro bias walk 3x / 0.3x / 0.1x / 0.03x (6 runs) | R_12 6.2 / 3.5 / 3.1 / 3.0 | 4_11 19 / 26 / 30 / 30 | 3x loses everywhere; tighter gains monotonically, flattening below 0.1x |
 | **F20: F17e + gyro bias walk 0.1x (v4 causal reference)** | **1.229** | **27.0** | 0 restarts; dark walks 6.7 / 6.8, R_09 / R_10 lose 0.3 to 0.8 m |
 | F20b: F17e + gyro bias walk 0.03x | 1.224 | 27.5 | equivalent to 0.1x within spread; not taken (30x below datasheet) |
+| F22: F20 without the 5 ms shift | 2.282 | **35.6** | controlled set wants the shift, the walks do not: the offset is per recording session; per-sequence best 1.221 / 38.0 |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -874,3 +875,64 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: open until the G02 table exists. Nothing kept.
 
 **Applicability**: a per-recording time-offset self-calibration (first pass, batch estimate, second pass) is general and non-causal; whether it helps here depends on how well the batch estimate predicts the filter's optimum, which these four runs leave undecided.
+
+## F22: the reference setting without the 5 ms shift on the full sets (2026-10-05, pc)
+
+**Hypothesis** (F21): the effective camera-IMU offset is not one constant; the no-shift full set gives the per-sequence choice.
+
+**Change**: `configs/v4_g2_w01_pw1e2` (reference setting) on `data/derived/<seq>_rect` (factory IMU model, no shift), F15 environment, binary `results/v4-G01-vi-ba/bin`, dumped (`OBS_DUMP=1`) for G02. `results/v4-F22-noshift-w01-full/batch.sh`, unit `lamaria-v4-f22`, 19:48 to 21:47.
+
+**Result** (ATE m / score / restarts; F20 = reference with the 5 ms shift):
+
+| run | F20 (5 ms) | F22 (0 ms) |
+|---|---|---|
+| R_01_easy_skip0 | 0.14 / - / 0 | 0.36 / - / 0 |
+| R_01_easy_skip100 | 0.15 / - / 0 | 0.31 / - / 0 |
+| R_02_easy_skip0 | 0.20 / - / 0 | 0.26 / - / 0 |
+| R_02_easy_skip100 | 0.19 / - / 0 | 0.33 / - / 0 |
+| R_03_easy_skip0 | 0.39 / - / 0 | 0.35 / - / 0 |
+| R_03_easy_skip100 | 0.43 / - / 0 | 0.29 / - / 0 |
+| R_04_medium_skip0 | 0.49 / - / 0 | 1.79 / - / 0 |
+| R_04_medium_skip100 | 0.40 / - / 0 | 1.36 / - / 0 |
+| R_05_medium_skip0 | 1.54 / - / 0 | 2.84 / - / 0 |
+| R_05_medium_skip100 | 1.55 / - / 0 | 3.40 / - / 0 |
+| R_06_medium_skip0 | 1.28 / - / 0 | 3.50 / - / 0 |
+| R_06_medium_skip100 | 1.25 / - / 0 | 3.00 / - / 0 |
+| R_07_medium_skip0 | 0.76 / - / 0 | 4.18 / - / 0 |
+| R_07_medium_skip100 | 0.91 / - / 0 | 3.42 / - / 0 |
+| R_08_hard_skip0 | 1.32 / - / 0 | 1.96 / - / 0 |
+| R_08_hard_skip100 | 0.99 / - / 0 | 1.73 / - / 0 |
+| R_09_hard_skip0 | 2.57 / - / 0 | 2.91 / - / 0 |
+| R_09_hard_skip100 | 2.31 / - / 0 | 3.28 / - / 0 |
+| R_10_hard_skip0 | 1.96 / - / 0 | 4.39 / - / 0 |
+| R_10_hard_skip100 | 1.74 / - / 0 | 5.41 / - / 0 |
+| R_11_5cp_skip0 | 0.51 / 78.6 / 0 | 1.06 / 68.3 / 0 |
+| R_11_5cp_skip100 | 0.49 / 79.7 / 0 | 0.85 / 76.0 / 0 |
+| R_12_10cp_skip0 | 3.14 / 39.2 / 0 | 3.68 / 36.1 / 0 |
+| R_12_10cp_skip100 | 3.30 / 38.9 / 0 | 3.67 / 36.1 / 0 |
+| R_13_15cp_skip0 | 2.01 / 57.3 / 0 | 2.82 / 42.2 / 0 |
+| R_13_15cp_skip100 | 1.94 / 58.3 / 0 | 2.18 / 50.6 / 0 |
+| sequence_1_19_skip0 | 2.35 / 45.7 / 0 | 1.08 / 66.1 / 0 |
+| sequence_1_20_skip0 | 1.81 / 51.3 / 0 | 6.40 / 25.8 / 0 |
+| sequence_2_11_skip0 | 5.08 / 27.6 / 0 | 4.10 / 44.0 / 0 |
+| sequence_2_12_skip0 | 4.35 / 40.5 / 0 | 3.09 / 43.6 / 0 |
+| sequence_3_17_skip0 | 16.35 / 9.1 / 0 | 4.04 / 34.6 / 0 |
+| sequence_3_18_skip0 | 18.83 / 19.4 / 0 | 14.15 / 19.0 / 0 |
+| sequence_4_10_skip0 | 6.80 / 16.3 / 0 | 2.42 / 46.4 / 0 |
+| sequence_4_11_skip0 | 6.70 / 30.3 / 0 | 3.19 / 43.0 / 0 |
+| sequence_5_11_skip0 | - / 22.5 / 0 | - / 27.1 / 0 |
+| sequence_5_12_skip0 | - / 6.8 / 0 | - / 6.6 / 0 |
+
+| Setting | Controlled two-offset mean | Additional mean score | Restarts |
+|---|---|---|---|
+| F20 (5 ms shift) | **1.229** | 27.0 | 0 |
+| F22 (no shift) | 2.282 | **35.6** | 0 |
+| per-sequence best of the two | 1.221 | 38.0 | 0 |
+
+**Reading**: the two sets split almost perfectly. Every controlled sequence but R_03 wants the shift (R_04 0.49 to 1.79, R_07 0.76 to 4.18, R_10 1.96 to 4.39, R_13 2.01 to 2.82, R_11, R_12, R_08 and R_01 too), and every additional walk but 1_20 wants none (3_17 16.4 to **4.04**, score 9 to 35; 4_10 6.80 to 2.42, 16 to 46; 4_11 6.70 to 3.19, 30 to 43; 2_11 5.08 to 4.10, 28 to 44; 2_12 4.35 to 3.09; 3_18 18.8 to 14.2; 1_19 2.35 to 1.08, 46 to 66; 5_11 22.5 to 27.1); 1_20 goes 1.81 to 6.40. The controlled set and the walks were recorded in different sessions (the controlled set in one hall by one operator, pGT in the IMU frame; the walks' pGT in the camera frame, X01), on the same device A for most of both, in daylight for most of both. **The effective offset is a property of the recording session** (firmware, capture profile or export path), not of the device or the light: about 4 to 5 ms on the controlled session, about 0 on the walks (the backend's X08 estimates, 0.1 ms on 4_11 against 4.5 on R_12, already pointed there; 2_11's 4.3 did not). The dark walks were never special: they are walks.
+
+**Consequence for the benchmark**: the test set's five challenges are walks (short / medium / long / low light / moving platform), so if they come from the walk sessions, the no-shift setting is the one that transfers, and the reference's shift would cost the long and dark challenges what it costs here (3_17: 35 against 9 points). If the test recordings are mixed, only a per-recording decision is safe. G02 (backend offset per F22 run, running) tests whether the batch estimate separates the sessions; a decision rule from image brightness or from the sequence name would be benchmark-specific and is excluded.
+
+**Decision**: reference unchanged for now (the scoreboard rule weighs the controlled mean first); the G02 table decides between (a) a two-pass per-recording offset (general), (b) switching the reference to no shift if the test set is walk-like (a benchmark judgement the owner should make), (c) keeping the shift.
+
+**Applicability**: the finding is about this dataset's two recording sessions; the lesson is general: a camera-IMU offset measured on one session must not be assumed for another, and a per-recording self-calibration is the robust form.
