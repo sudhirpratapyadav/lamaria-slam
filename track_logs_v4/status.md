@@ -16,6 +16,8 @@
 
 - F17d (`lamaria-v4-f17d`): F15 setting + gyro x2 + factory IMU model on the full sets (inputs `data/derived/<seq>_rect`). Controlled set done: 2.313, zero restarts; walks running.
 - F17e (`lamaria-v4-f17e`): the same + the measured 5 ms camera time offset (inputs `data/derived/<seq>_rect_dtp5`). Controlled set done: **1.324** (F15 2.134, v3 2.379), zero restarts; loses only R_06 and R_08 against F15; on the walks it loses the long sequences to F17d (4_11 12.9 vs 3.83, 1_19 2.22 vs 1.03) and wins 2_12 (5.0). Walks running; the v4 causal reference is decided when both finish.
+- F18 (`lamaria-v4-f18`, queued behind F17): gyro bias random walk 0.3x / 3x on the F17e setting, on R_12, 4_11, 1_19, 2_12 (the sequences whose heading moved under the offset, X07) and R_04, R_08.
+- X07 (analysis, done): the 5 ms offset is a sensor constant (fixes scale everywhere, backend and v1 agree on about 4 ms, Aria docs give the sign); on the long sequences it perturbs the residual heading drift by 10 to 25 deg either way, so the lever is the gyro-bias estimate, not the offset.
 - Done today: F12 (2.074 / 24.9, 14 restarts), F15 (2.134 / 23.6, 1 restart; robustness baseline), F16 to F16e (the gyro trusted at x2 removes the device-A heading drift: R_12 9.6 to 2.5, 2_11 12.6 to 4.7; the factory IMU model protects the dark walk and 1_19; the 5 ms offset wins the short indoor sequences and loses the long ones; the accelerometer must stay at x20), G01 backend (reproduces the filter under every weighting; free time offset +3.4 to +4.5 ms; R_01 0.166 to 0.090; no cross-camera observations on Aria's pair without `BASALT_STEREO_INIT`).
 - Record correction: F06's `_dtp5` inputs were 50 ms shifts (noted in F06; inputs rebuilt and verified by header).
 
