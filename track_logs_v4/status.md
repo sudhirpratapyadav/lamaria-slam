@@ -15,8 +15,8 @@
 ## Running
 
 - F20 done 19:19: **reference** (above). Open costs: R_09 / R_10 +0.3 to 0.8 m, device-B walks +0.1 to 0.2 m, dark walks still 6.7 / 6.8.
-- F22 done 21:47: **the 5 ms offset is a property of the recording session**: the controlled set wants it (2.282 without vs 1.229), the walks do not (additional score 35.6 without vs 27.0; 3_17 4.04, 4_10 2.42, 4_11 3.19, 1_19 1.08). Owner decision pending: the test challenges are walks. Options: two-pass per-recording offset (G02, general), or no-shift reference if the test set is walk-like.
-- G02 (`lamaria-v4-g02`, running since 21:47): backend offset estimate per F22 run (`results/v4-G02-td-estimates/td.csv`); decides whether the batch estimate separates the two sessions. G02 probe done: backend offsets beat 5 ms on R_12 and 1_19, lose on 2_11.
+- F22 done 21:47, corrected 22:25: without the shift the walks score 35.6 (reference 27.0) but the controlled set loses (2.282 vs 1.229). **Not a session property**: the backend finds the same 4 ms offset on all 36 runs (G02). The walks' gain is an error cancellation (X10): a -4 ms timing error drifts the heading +0.5 to +1 deg/min, device A's walks still drift about -1 deg/min under the correct timing, and the two cancel. Not kept. The real target is that remaining negative drift of the device-A walks under correct timing.
+- G02 (`lamaria-v4-g02`, last five walks running): backend offset per F22 run, 3.7 to 5.0 ms on every run so far (`results/v4-G02-td-estimates/td.csv`). `scripts/two_pass_td.sh` exists and works (R_01: 0.357 to 0.142) but on this data it only confirms the constant.
 - F21 done: without the shift the dark walks reach 3.19 / 2.42 (reference 6.70 / 6.80) and 1_19 1.08 (2.35): the effective offset is sequence-dependent; a per-recording offset (two-pass, backend-estimated) is the next candidate.
 - F20b done 19:58: 0.03x gives 1.224 / 27.5, within spread of 0.1x; reference stays 0.1x (flat optimum between 0.03x and 0.1x).
 - F18 / F18b done: the bias walk is the lever (3x loses everywhere; 0.3x / 0.1x: R_12 4.41 to 3.14, 4_11 12.9 to 6.7, 2_12 5.0 to 4.1, R_08 1.60 to 1.32; R_04 +0.07, 1_19 +0.13).
