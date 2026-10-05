@@ -1122,3 +1122,20 @@ Anchor statistics (3_17, 35,000 frames): 7.1 M re-alignments tried, 93 % applied
 **Cost**: none.
 
 **Applicability**: the value is this device's; the rule (measure the offset with the batch backend over many recordings, use the mean) is general and is what the robot's rig gets.
+
+## F26b / F26c: is the drift in the long tracks? (2026-10-06, pc)
+
+**Change**: snapshot `results/v4-F26b-track-age/bin` (libbasalt 8895f2e5af15). (b) `BASALT_ANCHOR=1 BASALT_ANCHOR_DROP=1`: a track whose first-frame patch no longer fits (shift above 2 px or residual above 0.3) is dropped, the patch tracker's rule; (c) `BASALT_MAX_TRACK_AGE=100`: no anchor, tracks older than 100 frames (5 s) are dropped and re-detected. Reference setting (F20 inputs, 5 ms), R_12 and 3_17. Unit `lamaria-v4-f26b`, 00:28 to 00:58.
+
+**Result** (ATE / score; end heading / rms):
+
+| Run | reference F20 | (b) drop stale | (c) age cap 5 s | F25 patch tracker |
+|---|---|---|---|---|
+| R_12_10cp | 3.14 / 39.2; -9.4 / 5.2 | 2.56 / 46.7; -9.9 / 5.4 | 2.81 / 42.5; -8.2 / 4.6 | 4.22 / 27.7; -0.7 / 3.4 |
+| sequence_3_17 | 16.4 / 9.1; -24.2 / 12.8 | 15.4 / 11.4; -24.0 / 12.1 | 15.6 / 10.4; -22.9 / 12.3 | 7.75 / 20.4; -14.6 / 6.8 |
+
+**Reading**: neither the stale-track rule nor the age cap moves the heading (3_17 -24.0 / -22.9 against -24.2); the drift is not in the long tracks, nor in the template (F26). What the patch tracker has that the reference lacks is **cross-camera observations**: Basalt's standard stereo matching of new points into the other camera with the original patch, which `BASALT_MONO_CAMS=1` (F12, both cameras host their own landmarks, no stereo) removed. F25's scale jump (0.988 to 1.003 / 1.024) is the stereo signature. The drift of device A is then the stereo-gate question of the v4 goal: with each camera a monocular-inertial tracker sharing poses, the heading is weakly observable and the tracker's small biases accumulate; cross-camera depth pins the geometry.
+
+**Decision**: not kept; F27 (reference setting + `BASALT_STEREO_INIT=1`, the G01 stereo gate work) on R_12, 3_17, 4_11, R_04.
+
+**Applicability**: both switches are general tracker options, off by default.
