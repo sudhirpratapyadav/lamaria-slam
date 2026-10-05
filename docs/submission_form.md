@@ -42,4 +42,12 @@ required on the site are tagged (required) below; the rest are optional.
 - Publication: none.
 - Anonymous: owner's choice.
 
+## Submission policy (from the site, pasted by the owner 2026-10-05)
+
+- Continuous submissions to the test set are not allowed: parameter tuning is strictly limited to the training data, and test-set evaluation through the server is only for the **final** system.
+- After any successfully evaluated test submission, updates to that method's test results are blocked for 24 hours, for all test sequences, even if the submission concerned only one of them.
+- Multiple test-set submissions for the same method are not permitted, nor registering with multiple e-mail addresses; users or domains can be banned.
+
+Consequences for us: one method entry, submitted once with the finished system (not an F17e today / F20 tomorrow sequence); every version decision is made on the training set before the single upload; the owner gives the go-ahead (purpose.md, AGENTS.md).
+
 Related: submission format and rules in `README.md` (zip with `/slam/<sequence>.txt`, one pose per image, `world_from_imu`, 24 h between test updates) and `docs/benchmark_notes.md`.
