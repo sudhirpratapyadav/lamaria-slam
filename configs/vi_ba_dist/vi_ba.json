@@ -1,0 +1,28 @@
+{
+  "kf_interval_s": 0.5,
+  "min_obs_kfs": 2,
+  "pixel_sigma": 1.0,
+  "huber_px": 1.0,
+  "init_outlier_px": 20.0,
+  "outlier_px": [
+    5.0,
+    3.0
+  ],
+  "max_iterations": 30,
+  "threads": 8,
+  "imu_noise_scale": 1.0,
+  "imu_walk_scale": 1.0,
+  "g": 9.81,
+  "bias_prior_std": [
+    0.01,
+    0.1
+  ],
+  "stereo_in_host": true,
+  "calib": {
+    "extrinsics": false,
+    "extr_rotation_only": true,
+    "intrinsics": false,
+    "time_offset": false,
+    "distortion": true
+  }
+}

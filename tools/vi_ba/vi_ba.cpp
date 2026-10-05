@@ -50,12 +50,12 @@ using Vec2 = Eigen::Vector2d;
 
 namespace {
 
-constexpr int kCalibSize = 24;  // T_i_c0 (7), T_i_c1 (7), intr0 (4), intr1 (4), td (1), td1 (1: cam1 relative to cam0)
-constexpr int kCalibLocal = 22;  // 6 + 6 + 4 + 4 + 1 + 1
+constexpr int kCalibSize = 28;  // T_i_c0 (7), T_i_c1 (7), intr0 (6: fx fy cx cy k1 k2), intr1 (6), td (1), td1 (1: cam1 relative to cam0)
+constexpr int kCalibLocal = 26;  // 6 + 6 + 6 + 6 + 1 + 1
 inline int calibPoseOff(int cam) { return 7 * cam; }
-inline int calibIntrOff(int cam) { return 14 + 4 * cam; }
-constexpr int kCalibTdOff = 22;
-constexpr int kCalibTd1Off = 23;
+inline int calibIntrOff(int cam) { return 14 + 6 * cam; }
+constexpr int kCalibTdOff = 26;
+constexpr int kCalibTd1Off = 27;
 
 struct Config {
   int min_obs_kfs = 2;
@@ -65,7 +65,7 @@ struct Config {
   double gyro_noise_scale = 1.0, accel_noise_scale = 1.0, gyro_walk_scale = 1.0, accel_walk_scale = 1.0, g = 9.81;
   double bias_prior_bg = 0.01, bias_prior_ba = 0.1;
   bool stereo_in_host = true;
-  bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false, calib_td1 = false;
+  bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false, calib_td1 = false, calib_dist = false;
   double far_depth_m = 50.0;
   double td_init_ms = 0.0;  // starting (or, when time_offset is false, fixed) camera time offset
 };
@@ -99,6 +99,7 @@ Config loadConfig(const std::string& path) {
     c.calib_extr = k.value("extrinsics", false);
     c.calib_extr_rot_only = k.value("extr_rotation_only", true);
     c.calib_intr = k.value("intrinsics", false);
+    c.calib_dist = k.value("distortion", false);  // residual radial distortion k1, k2 on the normalised plane
     c.calib_td = k.value("time_offset", false);
     c.calib_td1 = k.value("time_offset_cam1", false);  // right camera's offset relative to the left
   }
@@ -139,7 +140,7 @@ struct SE3Plus {
 };
 
 struct CalibPlus {
-  bool extr, rot_only, intr, td, td1;
+  bool extr, rot_only, intr, td, td1, dist;
   template <class T>
   bool operator()(const T* x, const T* d, T* y) const {
     for (int i = 0; i < kCalibSize; i++) y[i] = x[i];
@@ -151,19 +152,36 @@ struct CalibPlus {
       Eigen::Map<Sophus::SE3<T>> Y(y + calibPoseOff(c));
       Y = X * Sophus::SE3<T>::exp(D);  // perturbation in the camera frame
     }
-    if (intr)
-      for (int c = 0; c < 2; c++)
-        for (int i = 0; i < 4; i++) y[calibIntrOff(c) + i] = x[calibIntrOff(c) + i] + d[12 + 4 * c + i];
-    if (td) y[kCalibTdOff] = x[kCalibTdOff] + d[20];
-    if (td1) y[kCalibTd1Off] = x[kCalibTd1Off] + d[21];
+    for (int c = 0; c < 2; c++) {
+      if (intr) for (int i = 0; i < 4; i++) y[calibIntrOff(c) + i] = x[calibIntrOff(c) + i] + d[12 + 6 * c + i];
+      if (dist) for (int i = 4; i < 6; i++) y[calibIntrOff(c) + i] = x[calibIntrOff(c) + i] + d[12 + 6 * c + i];
+    }
+    if (td) y[kCalibTdOff] = x[kCalibTdOff] + d[24];
+    if (td1) y[kCalibTd1Off] = x[kCalibTd1Off] + d[25];
     return true;
   }
 };
 
 // ---------- residuals ----------
+// intr = fx fy cx cy k1 k2; the images are pinhole-undistorted, k1 / k2 model the residual radial distortion
+// on the normalised plane: observed = ideal * (1 + k1 r^2 + k2 r^4). bearing() inverts it by fixed-point iteration.
 template <class T>
 inline Eigen::Matrix<T, 3, 1> bearing(const T* intr, T u, T v) {
-  return Eigen::Matrix<T, 3, 1>((u - intr[2]) / intr[0], (v - intr[3]) / intr[1], T(1));
+  T xd = (u - intr[2]) / intr[0], yd = (v - intr[3]) / intr[1];
+  T x = xd, y = yd;
+  for (int it = 0; it < 3; it++) {
+    T r2 = x * x + y * y;
+    T s = T(1) + intr[4] * r2 + intr[5] * r2 * r2;
+    x = xd / s; y = yd / s;
+  }
+  return Eigen::Matrix<T, 3, 1>(x, y, T(1));
+}
+template <class T>
+inline void project(const T* intr, const Eigen::Matrix<T, 3, 1>& p, T& u, T& v) {
+  T z = p.z() > T(1e-6) ? p.z() : T(1e-6);
+  T x = p.x() / z, y = p.y() / z, r2 = x * x + y * y;
+  T s = T(1) + intr[4] * r2 + intr[5] * r2 * r2;
+  u = intr[0] * x * s + intr[2]; v = intr[1] * y * s + intr[3];
 }
 
 // Observation of a landmark in another keyframe (same or other camera).
@@ -182,9 +200,9 @@ struct Reproj {
     Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td_h * T(h_v.x()), T(h_px.y()) - td_h * T(h_v.y()));
     Sophus::SE3<T> T_co_ch = T_i_co.inverse() * T_w_o.inverse() * T_w_h * T_i_ch;
     Eigen::Matrix<T, 3, 1> p = T_co_ch.so3() * f_h + rho[0] * T_co_ch.translation();
-    T z = p.z() > T(1e-6) ? p.z() : T(1e-6);
-    res[0] = (in_o[0] * p.x() / z + in_o[2] - (T(o_px.x()) - td * T(o_v.x()))) * T(inv_sigma);
-    res[1] = (in_o[1] * p.y() / z + in_o[3] - (T(o_px.y()) - td * T(o_v.y()))) * T(inv_sigma);
+    T u, v; project(in_o, p, u, v);
+    res[0] = (u - (T(o_px.x()) - td * T(o_v.x()))) * T(inv_sigma);
+    res[1] = (v - (T(o_px.y()) - td * T(o_v.y()))) * T(inv_sigma);
     return true;
   }
 };
@@ -204,9 +222,9 @@ struct ReprojStereo {
     Eigen::Matrix<T, 3, 1> f_h = bearing(in_h, T(h_px.x()) - td_h * T(h_v.x()), T(h_px.y()) - td_h * T(h_v.y()));
     Sophus::SE3<T> T_co_ch = T_i_co.inverse() * T_i_ch;
     Eigen::Matrix<T, 3, 1> p = T_co_ch.so3() * f_h + rho[0] * T_co_ch.translation();
-    T z = p.z() > T(1e-6) ? p.z() : T(1e-6);
-    res[0] = (in_o[0] * p.x() / z + in_o[2] - (T(o_px.x()) - td * T(o_v.x()))) * T(inv_sigma);
-    res[1] = (in_o[1] * p.y() / z + in_o[3] - (T(o_px.y()) - td * T(o_v.y()))) * T(inv_sigma);
+    T u, v; project(in_o, p, u, v);
+    res[0] = (u - (T(o_px.x()) - td * T(o_v.x()))) * T(inv_sigma);
+    res[1] = (v - (T(o_px.y()) - td * T(o_v.y()))) * T(inv_sigma);
     return true;
   }
 };
@@ -343,7 +361,7 @@ SE3 camPose(const Problem& P, int kf, int cam) {
 
 Vec3 bearingD(const Problem& P, const Obs& o) {
   const double* in = P.calib.data() + calibIntrOff(o.cam);
-  return Vec3((o.x - in[2]) / in[0], (o.y - in[3]) / in[1], 1.0);
+  return bearing(in, (double)o.x, (double)o.y);
 }
 
 // depth along the host ray from a second view; negative when behind or degenerate
@@ -402,11 +420,11 @@ double reprojErrorPx(const Problem& P, const Landmark& lm, const Obs& o) {
   double td = P.calib[kCalibTdOff];
   const double* in_h = P.calib.data() + calibIntrOff(h.cam);
   const double* in_o = P.calib.data() + calibIntrOff(o.cam);
-  Vec3 f_h((h.x - td * h.vx - in_h[2]) / in_h[0], (h.y - td * h.vy - in_h[3]) / in_h[1], 1.0);
+  Vec3 f_h = bearing(in_h, h.x - td * h.vx, h.y - td * h.vy);
   SE3 T_co_ch = camPose(P, o.kf, o.cam).inverse() * camPose(P, h.kf, h.cam);
   Vec3 p = T_co_ch.so3() * f_h + lm.rho * T_co_ch.translation();
   if (p.z() <= 1e-6) return 1e9;
-  double u = in_o[0] * p.x() / p.z() + in_o[2], v = in_o[1] * p.y() / p.z() + in_o[3];
+  double u, v; project(in_o, p, u, v);
   return std::hypot(u - (o.x - td * o.vx), v - (o.y - td * o.vy));
 }
 
@@ -467,10 +485,10 @@ SolveResult solveOnce(Problem& P, bool verbose) {
   ceres::Problem problem;
   const double inv_sigma = 1.0 / P.cfg.pixel_sigma;
   auto* se3_param = new ceres::AutoDiffLocalParameterization<SE3Plus, 7, 6>();
-  bool calib_free = P.cfg.calib_extr || P.cfg.calib_intr || P.cfg.calib_td || P.cfg.calib_td1;
+  bool calib_free = P.cfg.calib_extr || P.cfg.calib_intr || P.cfg.calib_td || P.cfg.calib_td1 || P.cfg.calib_dist;
   ceres::LocalParameterization* calib_param = nullptr;
   if (calib_free) calib_param = new ceres::AutoDiffLocalParameterization<CalibPlus, kCalibSize, kCalibLocal>(
-                                    new CalibPlus{P.cfg.calib_extr, P.cfg.calib_extr_rot_only, P.cfg.calib_intr, P.cfg.calib_td, P.cfg.calib_td1});
+                                    new CalibPlus{P.cfg.calib_extr, P.cfg.calib_extr_rot_only, P.cfg.calib_intr, P.cfg.calib_td, P.cfg.calib_td1, P.cfg.calib_dist});
   problem.AddParameterBlock(P.calib.data(), kCalibSize, calib_param);
   if (!calib_free) problem.SetParameterBlockConstant(P.calib.data());
   for (auto& k : P.kfs) {
@@ -574,6 +592,7 @@ json calibReport(const Problem& P) {
     cj["intr"] = {P.calib[calibIntrOff(c)], P.calib[calibIntrOff(c) + 1], P.calib[calibIntrOff(c) + 2], P.calib[calibIntrOff(c) + 3]};
     cj["intr_delta"] = {P.calib[calibIntrOff(c)] - P.calib0[calibIntrOff(c)], P.calib[calibIntrOff(c) + 1] - P.calib0[calibIntrOff(c) + 1],
                         P.calib[calibIntrOff(c) + 2] - P.calib0[calibIntrOff(c) + 2], P.calib[calibIntrOff(c) + 3] - P.calib0[calibIntrOff(c) + 3]};
+    cj["dist"] = {P.calib[calibIntrOff(c) + 4], P.calib[calibIntrOff(c) + 5]};
     r["cam" + std::to_string(c)] = cj;
   }
   r["td_ms"] = P.calib[kCalibTdOff] * 1e3;
