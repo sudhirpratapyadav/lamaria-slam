@@ -14,7 +14,10 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F15: F12 + F14d initialisation + gauge prior 1e2 | 2.134 | 23.6 | **1 restart** in 36 runs; robustness baseline |
 | F16: F15 + gyro x2 (8 runs) | R_12 2.5, R_08 3.6, R_04 1.45 | 2_11 44, 4_11 34 | drift gone on device A; indoor and dark walk lose; F16b / F16c |
 | F17d: F15 + gyro x2 + factory IMU model | 2.313 | **25.2** | 0 restarts; option for dark scenes (4_11 3.83, 4_10 2.76) |
-| **F17e: F17d + 5 ms camera time offset (v4 causal reference)** | **1.324** | 23.7 | 0 restarts; loses R_06, R_08, the dark walks (4_11 12.9), 1_19 |
+| F17e: F17d + 5 ms camera time offset | 1.324 | 23.7 | 0 restarts; reference 14:00 to 19:20; loses R_06, R_08, the dark walks (4_11 12.9), 1_19 |
+| F18 / F18b / F18c: gyro bias walk 3x / 0.3x / 0.1x / 0.03x (6 runs) | R_12 6.2 / 3.5 / 3.1 / 3.0 | 4_11 19 / 26 / 30 / 30 | 3x loses everywhere; tighter gains monotonically, flattening below 0.1x |
+| **F20: F17e + gyro bias walk 0.1x (v4 causal reference)** | **1.229** | **27.0** | 0 restarts; dark walks 6.7 / 6.8, R_09 / R_10 lose 0.3 to 0.8 m |
+| F20b: F17e + gyro bias walk 0.03x | 1.224 | running | |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -766,3 +769,63 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: F20 (full sets at 0.1x) and F20b (full sets at 0.03x) decide between the two on the scoreboard; the generality concern (a bias walk 30x below datasheet follows a really wandering bias too slowly) counts against 0.03x unless its full-set margin is clear.
 
 **Applicability**: a noise-model tuning of this IMU (the Aria gyro's datasheet walk is loose relative to its measured drift, X01: about 1 deg/min of wandering bias); the procedure (set the bias walk from the gyro-alone drift check, then confirm on long sequences) is general, the value is not. Where it can fail: a gyro whose bias really wanders faster (temperature transients at start-up, cheap MEMS under vibration on the robot) would be followed too slowly; the robot's ICM-42688-P needs its own number.
+
+## F20: the gyro bias random walk at 0.1x on the full sets (2026-10-05, pc)
+
+**Hypothesis** (F18 / F18b): the tighter bias walk steadies the heading on every drifting sequence at a small cost on R_04 and 1_19; the full sets decide whether it replaces F17e.
+
+**Change**: `configs/v4_g2_w01_pw1e2` (= `v4_gyro_n2_pw1e2` + `GYRO_WALK_SCALE=0.1`), everything else the reference (F15 environment, inputs `data/derived/<seq>_rect_dtp5`, binary `results/v4-G01-vi-ba/bin`, no dumps). `results/v4-F20-walk01-full/batch.sh`, unit `lamaria-v4-f20`, 16:53 to 19:19, concurrently with F20b.
+
+**Result** (ATE m / score / restarts):
+
+| run | F17e (reference) | F20: bias walk 0.1x |
+|---|---|---|
+| R_01_easy_skip0 | 0.13 / - / 0 | 0.14 / - / 0 |
+| R_01_easy_skip100 | 0.19 / - / 0 | 0.15 / - / 0 |
+| R_02_easy_skip0 | 0.19 / - / 0 | 0.20 / - / 0 |
+| R_02_easy_skip100 | 0.18 / - / 0 | 0.19 / - / 0 |
+| R_03_easy_skip0 | 0.42 / - / 0 | 0.39 / - / 0 |
+| R_03_easy_skip100 | 0.44 / - / 0 | 0.43 / - / 0 |
+| R_04_medium_skip0 | 0.43 / - / 0 | 0.49 / - / 0 |
+| R_04_medium_skip100 | 0.33 / - / 0 | 0.40 / - / 0 |
+| R_05_medium_skip0 | 1.45 / - / 0 | 1.54 / - / 0 |
+| R_05_medium_skip100 | 1.32 / - / 0 | 1.55 / - / 0 |
+| R_06_medium_skip0 | 1.29 / - / 0 | 1.28 / - / 0 |
+| R_06_medium_skip100 | 1.31 / - / 0 | 1.25 / - / 0 |
+| R_07_medium_skip0 | 0.82 / - / 0 | 0.76 / - / 0 |
+| R_07_medium_skip100 | 0.98 / - / 0 | 0.91 / - / 0 |
+| R_08_hard_skip0 | 1.60 / - / 0 | 1.32 / - / 0 |
+| R_08_hard_skip100 | 1.22 / - / 0 | 0.99 / - / 0 |
+| R_09_hard_skip0 | 1.76 / - / 0 | 2.57 / - / 0 |
+| R_09_hard_skip100 | 1.86 / - / 0 | 2.31 / - / 0 |
+| R_10_hard_skip0 | 1.68 / - / 0 | 1.96 / - / 0 |
+| R_10_hard_skip100 | 1.46 / - / 0 | 1.74 / - / 0 |
+| R_11_5cp_skip0 | 0.55 / 78.0 / 0 | 0.51 / 78.6 / 0 |
+| R_11_5cp_skip100 | 0.56 / 80.5 / 0 | 0.49 / 79.7 / 0 |
+| R_12_10cp_skip0 | 4.41 / 30.0 / 0 | 3.14 / 39.2 / 0 |
+| R_12_10cp_skip100 | 4.46 / 30.6 / 0 | 3.30 / 38.9 / 0 |
+| R_13_15cp_skip0 | 2.75 / 48.9 / 0 | 2.01 / 57.3 / 0 |
+| R_13_15cp_skip100 | 2.64 / 50.4 / 0 | 1.94 / 58.3 / 0 |
+| sequence_1_19_skip0 | 2.22 / 47.3 / 0 | 2.35 / 45.7 / 0 |
+| sequence_1_20_skip0 | 1.60 / 53.2 / 0 | 1.81 / 51.3 / 0 |
+| sequence_2_11_skip0 | 5.61 / 25.5 / 0 | 5.08 / 27.6 / 0 |
+| sequence_2_12_skip0 | 5.01 / 34.5 / 0 | 4.35 / 40.5 / 0 |
+| sequence_3_17_skip0 | 18.61 / 8.5 / 0 | 16.35 / 9.1 / 0 |
+| sequence_3_18_skip0 | 22.69 / 14.2 / 0 | 18.83 / 19.4 / 0 |
+| sequence_4_10_skip0 | 9.71 / 7.3 / 0 | 6.80 / 16.3 / 0 |
+| sequence_4_11_skip0 | 12.91 / 25.6 / 0 | 6.70 / 30.3 / 0 |
+| sequence_5_11_skip0 | - / 14.3 / 0 | - / 22.5 / 0 |
+| sequence_5_12_skip0 | - / 6.1 / 0 | - / 6.8 / 0 |
+
+| Setting | Controlled two-offset mean | Additional mean score | Restarts (36 runs) |
+|---|---|---|---|
+| F17e | 1.324 | 23.7 | 0 |
+| F20 | **1.229** | **27.0** | 0 |
+
+**Reading**: both scoreboard metrics improve. Controlled: R_12 4.41 / 4.46 to 3.14 / 3.30, R_13 2.75 / 2.64 to 2.01 / 1.94, R_08 1.60 / 1.22 to 1.32 / 0.99, R_07 and R_11 slightly; losses on R_09 (1.76 / 1.86 to 2.57 / 2.31), R_10 (1.68 / 1.46 to 1.96 / 1.74), R_05 and R_04 (0.1 m). Additional: every walk but the two device-B ones gains, the dark walks most (4_11 12.9 to 6.70, score 25.6 to 30.3; 4_10 9.71 to 6.80, 7.3 to 16.3), the long walks 3_18 22.7 to 18.8 (14.2 to 19.4), 3_17 18.6 to 16.4, 2_12 5.0 to 4.35 (34.5 to 40.5), the night walk 5_11 14.3 to 22.5; 1_19 2.22 to 2.35 and 1_20 1.60 to 1.81 lose 0.1 to 0.2 m. Scale and restarts unchanged. The R_09 / R_10 losses (hard indoor, device A) are the one new cost and were not in the F18 probe set.
+
+**Decision**: **F20 is the v4 causal reference** (`configs/v4_g2_w01_pw1e2`, F15 environment, `_rect_dtp5` inputs, binary `results/v4-G01-vi-ba/bin`). F17e stays recorded as the previous reference. F20b (0.03x, running) decides the value; by the F18c probe its margin is 0.1 to 0.2 m on the drifting sequences and negative on device B, and the generality argument (30x below datasheet) favours 0.1x unless the full set says otherwise.
+
+**Cost**: none (a noise parameter).
+
+**Applicability**: as F18: the gyro bias walk should be set from the gyro's measured drift rather than the datasheet (procedure general, value specific to this IMU); risk on gyros whose bias really wanders (thermal transients, vibration on the robot). Dark scenes are now at 6.5 to 6.8 m against v3's 1.77 / 6.12, still the weakest point; R_09 / R_10 regress by 0.3 to 0.8 m.
