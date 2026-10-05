@@ -9,7 +9,9 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | Setting | Controlled two-offset mean | Additional mean score | Notes |
 |---|---|---|---|
 | v3 reference (F21) | 2.379 | 23.7 | entering v4 |
-| F01: gyro noise x2 | running | running | 2_11 alone: 21.5 to 2.9 m, score 21 to 47 (X02) |
+| F01: gyro noise x2 | not kept | not kept | 2_11 alone: 21.5 to 2.9 m, score 21 to 47 (X02); breaks the rest (F01) |
+| F12: both-camera landmarks + 1 s window | **2.074** | **24.9** | 14 restarts; long-walk ATE -1/3, scores flat |
+| F15: F12 + F14d initialisation + gauge prior 1e2 | 2.08 (26 runs) | running | 0 restarts on the controlled set |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -438,3 +440,54 @@ Nothing moves (keyframes 0.1 to 0.4 m median from the VIO). With the gyro truste
 **Heading: estimate against the gyro alone, F15 setting** (`gyro_yaw_check.py`, end heading error about gravity, degrees): R_12 estimate -21.3, backend -21.4, **gyro alone with one constant bias -22.0**; 2_11 estimate -27.9, backend -27.1 / -27.6, **gyro alone -27.8**. With both-camera landmarks the estimate's heading has become the gyro's heading: the cam0 vision bias of the v3 setting (-57 on 2_11) is gone, and what remains is the gyro's own slow drift that vision no longer corrects on these sequences (on the dark walks and device B it corrects 15 to 20 deg of the same gyro drift, X01). The F01 verdict against trusting the gyro (x2 "breaks" 1_19, 1_20, the dark walks and the indoor set) predates the initialisation fix and the both-camera landmarks; it is retested as **F16** (`configs/v4_gyro_n2_pw1e2`, `lamaria-v4-f16`: 2_11, R_12, 4_11, 1_19, R_01, R_04, R_08, R_02 at skip 0, dumped).
 
 **Stereo gate, first numbers** (G01 on the `BASALT_STEREO_INIT=1` R_01 dump, VIO ATE 0.172): 2301 cross-camera observations among 52.9 k (4.3 %); the gates drop 3 of them at 20 px, 18 at 5 px, 27 at 3 px (1.2 %, against 2.4 % of the same-camera observations), so the stereo matches that `BASALT_STEREO_INIT` produces indoors are as consistent with the converged solution as the temporal tracks. Backend ATE with them: 0.096 (calibration fixed; 0.151 without stereo matches on the plain dump) and 0.124 with the time offset free (td +3.2 ms). The dark walk 4_11 with stereo init is being dumped for the case the gate exists for.
+
+## F12: both-camera landmarks + 1 s initialisation window, full sets (2026-10-05, pc)
+
+**Hypothesis**: F02's both-camera landmarks (halved drift on 2_11 / 3_18, indoor gains) hold on the full sets once the initialisation window (F11) removes the restart noise; this is the first full-set measurement of the F02 change.
+
+**Change**: `BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1` on `configs/basalt_v3_ref`, F11 snapshot (basalt_vio 4542b534a81f, libbasalt 90095f3d98b0); controlled set at both offsets, additional set at skip 0. **Command**: `results/v4-F12-monocams-initwin-full/batch.sh` (unit `lamaria-v4-f12`, 05:04 to 09:40).
+
+**Result** (ATE m / control-point score / restarts; `scripts/compare_runs.py`):
+
+| run | reference (F21) ate/score/rs | F12 ate/score/rs |
+|---|---|---|
+| R_01_easy_skip0 | 0.13 / - / 0 | 0.17 / - / 0 |
+| R_01_easy_skip100 | 0.14 / - / 0 | 0.18 / - / 0 |
+| R_02_easy_skip0 | 0.21 / - / 0 | 0.21 / - / 0 |
+| R_02_easy_skip100 | 0.26 / - / 0 | 0.26 / - / 1 |
+| R_03_easy_skip0 | 0.35 / - / 1 | 0.46 / - / 0 |
+| R_03_easy_skip100 | 0.30 / - / 0 | 0.43 / - / 0 |
+| R_04_medium_skip0 | 0.70 / - / 1 | 0.92 / - / 1 |
+| R_04_medium_skip100 | 0.66 / - / 3 | 0.55 / - / 3 |
+| R_05_medium_skip0 | 1.36 / - / 0 | 1.43 / - / 0 |
+| R_05_medium_skip100 | 1.21 / - / 0 | 1.18 / - / 0 |
+| R_06_medium_skip0 | 1.26 / - / 0 | 1.05 / - / 0 |
+| R_06_medium_skip100 | 0.99 / - / 0 | 1.11 / - / 0 |
+| R_07_medium_skip0 | 1.20 / - / 1 | 1.31 / - / 0 |
+| R_07_medium_skip100 | 1.31 / - / 0 | 1.25 / - / 0 |
+| R_08_hard_skip0 | 1.03 / - / 0 | 0.64 / - / 0 |
+| R_08_hard_skip100 | 0.81 / - / 1 | 0.87 / - / 0 |
+| R_09_hard_skip0 | 1.88 / - / 0 | 2.19 / - / 1 |
+| R_09_hard_skip100 | 2.06 / - / 0 | 2.57 / - / 2 |
+| R_10_hard_skip0 | 4.47 / - / 1 | 3.50 / - / 0 |
+| R_10_hard_skip100 | 2.95 / - / 0 | 3.72 / - / 0 |
+| R_11_5cp_skip0 | 2.17 / 76.7 / 0 | 1.34 / 83.6 / 0 |
+| R_11_5cp_skip100 | 1.68 / 79.3 / 0 | 2.56 / 72.9 / 0 |
+| R_12_10cp_skip0 | 13.99 / 9.6 / 0 | 9.34 / 14.7 / 0 |
+| R_12_10cp_skip100 | 13.95 / 9.6 / 1 | 10.98 / 9.6 / 0 |
+| R_13_15cp_skip0 | 3.42 / 40.7 / 0 | 2.85 / 49.7 / 0 |
+| R_13_15cp_skip100 | 3.37 / 41.2 / 0 | 2.84 / 50.1 / 2 |
+| sequence_1_19_skip0 | 0.65 / 74.8 / 0 | 0.96 / 69.3 / 0 |
+| sequence_1_20_skip0 | 2.77 / 41.2 / 0 | 1.22 / 60.0 / 0 |
+| sequence_2_11_skip0 | 21.51 / 21.1 / 0 | 12.27 / 6.6 / 0 |
+| sequence_2_12_skip0 | 31.69 / 3.7 / 0 | 21.12 / 9.8 / 0 |
+| sequence_3_17_skip0 | 46.94 / 6.0 / 0 | 34.91 / 4.0 / 0 |
+| sequence_3_18_skip0 | 56.12 / 1.7 / 0 | 34.44 / 6.5 / 3 |
+| sequence_4_10_skip0 | 6.12 / 20.6 / 0 | 4.83 / 26.5 / 0 |
+| sequence_4_11_skip0 | 1.77 / 56.9 / 3 | 2.43 / 53.7 / 1 |
+| sequence_5_11_skip0 | - / 8.2 / 0 | - / 7.6 / 0 |
+| sequence_5_12_skip0 | - / 3.0 / 0 | - / 5.3 / 0 |
+
+**Reading**: controlled two-offset mean **2.074 m against 2.379** (better on R_04, R_06, R_08, R_10, R_11, R_12 by 0.1 to 4 m, worse on R_01 to R_03, R_05, R_07, R_09 by 0.03 to 0.5 m), additional mean score **24.9 against 23.7**. The long walks lose a third of their ATE (3_17 47 to 35, 3_18 56 to 34, 2_12 32 to 21, 2_11 21.5 to 12.3) but their scores barely move (the control points sit at the far ends: 2_11 21 to 6.6, 3_17 6.0 to 4.0, 3_18 1.7 to 6.5, 2_12 3.7 to 9.8); device B (1_19 0.65 to 0.96, 1_20 2.77 to 1.22) and the dark walks (4_10 6.1 to 4.8, 4_11 1.8 to 2.4 with a restart) are mixed. Restarts 14 against 12: the plain window alone does not remove them (F14d does). Cost 2x.
+
+**Decision**: both-camera landmarks are kept (general: a second camera with its own landmarks on the same IMU, no benchmark-specific element); the full-set numbers for the complete F15 setting (with the F14d initialisation and the gauge prior) decide the v4 causal reference. **Applicability**: any multi-camera rig with little overlap (the robot's HJY1A pair has a 60 mm baseline and large overlap, where the stereo matches will exist and this change matters less); indoor and outdoor alike; the 2x cost is the price.
