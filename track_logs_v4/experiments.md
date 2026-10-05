@@ -373,3 +373,32 @@ Note on the prior: Basalt's `vio_init_pose_weight` acts on position and yaw only
 **Decision (initialisation thread)**: kept for the candidate: `BASALT_INIT_WINDOW_S=1` + `BASALT_INIT_VEL=2` + `configs/v4_initpw1e2`. Over the F11 runs the restarts go from 10 (reference) to 1, at an ATE cost of 0 to 0.1 m on the short sequences (R_01 0.13 to 0.18) which the full-set comparison (F15 against F12 / reference) has to weigh.
 
 **Applicability**: general (any platform that starts while moving); the classic closed-form VI initialisation, here with Basalt's own tracks; it needs a few hundred milliseconds of accelerometer excitation to separate scale from gravity, which walking provides.
+
+## G01: non-causal backend, first build (2026-10-05, pc)
+
+**Hypothesis**: a global visual-inertial bundle adjustment over the whole sequence, with the per-sequence calibration (camera time offset, camera-IMU rotation, intrinsics) free, can remove part of what the sliding-window filter leaves: the filter cannot estimate a time offset or a calibration bias, and the backward pass (F13) showed that the forward estimate is not the best the data supports. Basalt's own mapper is parked (v2 B12/B14: wrong loop matches; no gain from its BA alone).
+
+**Change** (all new, no behaviour change for existing runs):
+- Basalt: `BASALT_OBS_DUMP=<dir>` in `frame_to_frame_optical_flow.h` writes every frame's tracks (int32 id, int32 cam, float x, y per record, `<t_ns>.bin`, the external-track format of v3 F11) after the tracker's own filtering. The driver (`basalt_segments.py`) sets it per segment when `OBS_DUMP=1`. Snapshot `results/v4-G01-vi-ba/bin` (basalt_vio 196d977bf0fc, libbasalt 4c1a3b7f8590); R_01 with the dump on reproduces F15's R_01 exactly (0.166 m).
+- `tools/vi_ba/` (C++17, Ceres 2.0, Sophus and basalt-headers from Basalt's vcpkg tree; `cmake -G Ninja` in `tools/vi_ba/build`): states per keyframe pose, velocity, gyro and accelerometer bias; landmarks as inverse depth along the bearing of their first observation (host keyframe and camera); one calibration block (T_i_c0, T_i_c1, intrinsics of both cameras, one common time offset) constant unless freed by the config. Residuals: pinhole reprojection (Huber 1 px), Basalt's preintegrated IMU between consecutive keyframes with first-order bias correction (re-preintegrated at the current biases every round), bias random walk, weak bias prior on the first keyframe; first keyframe pose fixed; sparse Schur. Rounds: initial gate at 20 px on the VIO state, solve, gate 5 px, solve, gate 3 px, solve. The time offset enters as the pixel-velocity correction `z(t) = z_obs - v_px * td` (velocity from the neighbouring frames of the track), so `td > 0` means the images are exposed later than their stamps relative to the IMU, the convention of `make_timeshift_input.py`. Cross-camera observations are counted and gated separately (the stereo gate of the v4 goal lives here).
+- `scripts/vi_ba_prepare.py RUN_DIR SEQ_DIR CONFIG OUT` (keyframes every `kf_interval_s` = 0.5 s from the frames with a kept VIO pose, first and last of every segment; ids made unique per restart segment; pixel velocities; IMU to ns; cameras from the run's `calib.json`), `scripts/run_vi_ba.sh RUN_DIR SEQ_DIR OUT_DIR [CONFIG_DIR]` (prepare, solve, propagate the keyframe corrections to every frame with `basalt_propagate_keyframes.py`, score with `finish_basalt_run.sh`). Configs `configs/vi_ba_base` (calibration fixed), `vi_ba_td` (time offset free), `vi_ba_extr` (camera-IMU rotations free), `vi_ba_full` (rotations, intrinsics, time offset).
+
+**Command**: `scripts/run_vi_ba.sh results/v4-G01-vi-ba/vio/R_01_easy_skip0 data/training/R_01_easy results/v4-G01-vi-ba/ba_<cfg>_R_01_easy_skip0 configs/vi_ba_<cfg>`; the VIO run is F15's setting with `OBS_DUMP=1` (`results/v4-G01-vi-ba/run_vio.sh`).
+
+**Result, R_01_easy skip 0** (one run; VIO = F15 setting, 288 keyframes, 109 k observations on them, 16.3 k landmarks after the gates, 48 k reprojection residuals, 287 IMU factors; solve 19 to 39 s on 8 threads, 85 MB):
+
+| Backend | ATE | sim3 scale | estimated calibration |
+|---|---|---|---|
+| none (VIO, F15) | 0.166 | 0.999 | |
+| calibration fixed | 0.151 | 0.995 | |
+| time offset free | **0.090** | 0.999 | td = **+3.36 ms** |
+| rotations free | 0.106 | 0.996 | cam0 0.81 deg, cam1 0.73 deg |
+| rotations, intrinsics, time offset free | 0.092 | 0.998 | td +3.20 ms, cam0 0.66 deg, cam1 0.63 deg, principal points -0.4 to -0.6 px |
+
+Final reprojection residuals: median 0.46 px, rms 0.82 px in every arm. No cross-camera observations exist in this run: on Aria's pair (75 degrees apart) Basalt's cam0-to-cam1 stereo tracking of new points almost never succeeds with the pinhole input, and `BASALT_MONO_CAMS=1` adds cam1-born tracks with their own ids; the "stereo" of this benchmark is two monocular cameras sharing an IMU. A control run without `BASALT_MONO_CAMS` (`vio_stereo/`) is dumped to count the stereo matches that do exist.
+
+**Time offset sign check**: with the problem's IMU stamps moved +4.5 ms (the images then count as 4.5 ms earlier) the estimated td moves from +3.36 to +0.54 ms: the right direction, and the direction of X04's image-based 5 ms and of F05's winning `dtp45` arm (images later), but 2.8 ms of response to a 4.5 ms shift, so the first-order pixel-velocity model under-reacts by about 40 % here; the absolute value is a lower bound until that is understood (candidate: the IMU-side shift also moves the preintegration windows, which the pixel model does not see).
+
+**Reading so far**: the backend reproduces the VIO when the calibration is fixed (0.151 vs 0.166) and nearly halves the error of this easy sequence when the time offset is free. Whether it touches the heading drift of device A is the real question: R_12 and 2_11 are being dumped (`lamaria-v4-g01-r12`, `lamaria-v4-g01-211`).
+
+**Applicability**: general: any VIO run with per-frame tracks and raw IMU; nothing in it is Aria- or benchmark-specific (pinhole model only, for now; the kb4 fisheye model is a small addition). The self-calibration is the part that transfers most directly to the robot (the HJY1A camera and ICM-42688-P will have their own time offset). Where it can fail: sequences with restarts (the segments are linked by IMU only), long sequences (memory and time scale with observations; untested beyond 2.5 min so far), and an under-modelled time offset (above).

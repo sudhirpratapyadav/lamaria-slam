@@ -77,10 +77,10 @@ index cc10c99..4b74d83 100644
        std::cerr << "Numerical failure in backsubstitution\n";
      }
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..85427d2 100644
+index d16e708..e397461 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-@@ -35,6 +35,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+@@ -35,6 +35,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  
  #pragma once
  
@@ -89,10 +89,11 @@ index d16e708..85427d2 100644
 +#include <cstdlib>
 +#include <iostream>
 +#include <fstream>
++#include <filesystem>
  #include <thread>
  
  #include <sophus/se2.hpp>
-@@ -108,7 +113,57 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -108,7 +114,57 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
    }
  
@@ -150,7 +151,7 @@ index d16e708..85427d2 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -164,13 +219,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -164,13 +220,19 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                      new_transforms->observations[i]);
        }
  
@@ -165,14 +166,32 @@ index d16e708..85427d2 100644
      }
  
 +    applyExternalTracks(curr_t_ns);
++    dumpObservations(curr_t_ns);
 +
      if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
        output_queue->push(transforms);
      }
-@@ -178,12 +238,59 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -178,12 +240,76 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      frame_counter++;
    }
  
++  // lamaria-slam (v4 G01): BASALT_OBS_DUMP=<dir> writes every frame's tracks to <dir>/<t_ns>.bin
++  // in the external-track record format below (int32 id, int32 cam, float x, float y), for the
++  // non-causal backend (tools/vi_ba). The same files can be fed back through BASALT_TRACKS_DIR.
++  void dumpObservations(int64_t t_ns) {
++    static const char* dir = std::getenv("BASALT_OBS_DUMP");
++    if (!(dir && *dir)) return;
++    static bool made = false;
++    if (!made) { made = true; std::filesystem::create_directories(dir); std::cerr << "BASALT_OBS_DUMP: " << dir << std::endl; }
++    std::ofstream f(std::string(dir) + "/" + std::to_string(t_ns) + ".bin", std::ios::binary);
++    struct Rec { int32_t id, cam; float x, y; };
++    for (size_t c = 0; c < transforms->observations.size(); c++)
++      for (const auto& kv : transforms->observations[c]) {
++        Rec r{int32_t(kv.first), int32_t(c), kv.second.translation().x(), kv.second.translation().y()};
++        f.write(reinterpret_cast<const char*>(&r), sizeof(r));
++      }
++  }
++
 +  // lamaria-slam (v3 F11): external front end. BASALT_TRACKS_DIR/<t_ns>.bin holds records of
 +  // (int32 track id, int32 cam, float x, float y) written by any tracker (scripts/make_xfeat_tracks.py).
 +  // BASALT_TRACKS_MODE=replace (default): the records are the frame's observations and the KLT
@@ -230,7 +249,7 @@ index d16e708..85427d2 100644
      size_t num_points = transform_map_1.size();
  
      std::vector<KeypointId> ids;
-@@ -210,11 +317,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -210,11 +336,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
          const Eigen::AffineCompact2f& transform_1 = init_vec[r];
          Eigen::AffineCompact2f transform_2 = transform_1;
@@ -250,7 +269,7 @@ index d16e708..85427d2 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -223,8 +337,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,8 +356,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                              transform_1_recovered.translation())
                                 .squaredNorm();
  
@@ -284,7 +303,7 @@ index d16e708..85427d2 100644
              }
            }
          }
-@@ -308,6 +445,143 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +464,143 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -428,7 +447,7 @@ index d16e708..85427d2 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +591,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +610,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -469,7 +488,7 @@ index d16e708..85427d2 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +634,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +653,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {

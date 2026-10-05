@@ -48,6 +48,8 @@ def run_basalt(seq_dir, out, skip, calib, config, threads):
     binary = os.environ.get("BASALT_VIO", str(Path.home() / ".local/bin/basalt_vio"))
     # the binary's own folder first: a source build must not pick up the release libbasalt.so from ~/.local/lib
     env = dict(os.environ, LD_LIBRARY_PATH=":".join([str(Path(binary).resolve().parent), str(Path.home() / ".local/lib"), os.environ.get("LD_LIBRARY_PATH", "")]))
+    if os.environ.get("OBS_DUMP"):  # per-frame tracks for the non-causal backend (tools/vi_ba), one folder per segment
+        env["BASALT_OBS_DUMP"] = str(seg / "obs")
     with open(seg / "basalt.log", "w") as log:
         r = subprocess.run([binary, "--dataset-path", str(bin_dir), "--dataset-type", "euroc",
                             "--cam-calib", str(calib), "--config-path", str(config), "--save-trajectory", "tum", "--show-gui", "false",

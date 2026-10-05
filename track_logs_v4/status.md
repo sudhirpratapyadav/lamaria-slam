@@ -15,6 +15,7 @@
 ## Running
 
 - F12 (`lamaria-v4-f12`): both-camera landmarks + plain 1 s window on the full sets (controlled set done, mixed; walks running).
+- G01 (`lamaria-v4-g01-r12`, `lamaria-v4-g01-211`): dumped VIO runs of R_12 and 2_11 for the backend's first test on the heading drift. Backend state: `tools/vi_ba` works end to end (R_01: 0.166 to 0.090 with the time offset free, +3.4 ms).
 - F15 (`lamaria-v4-f15`): the candidate v4 causal reference: both-camera landmarks + initialisation (1 s window, gravity from the gyro-rotated accelerometer mean, velocity from the first tracks, gauge prior 1e2), full sets, F14d snapshot.
 
 ## Plan
@@ -26,4 +27,4 @@
 
 ## Tools added in v4
 
-`scripts/gyro_yaw_check.py` (heading error vs pGT, body frame detected), `cam_imu_check.py` (time offset from images), `make_timeshift_input.py`, `make_swapped_input.py`, `make_rectified_input.py` (+ `configs/aria_factory_imu/`), `occluder_check.py`, `fuse_bidirectional.py`, `finish_basalt_run.sh` (re-does conversion + evaluation), `show_runs.sh`; Basalt options `BASALT_MONO_CAMS`, `BASALT_INIT_WINDOW_S`; calibration probes `CAM0_ROT_DEG`, `CAM0_FOCAL_SCALE`.
+`tools/vi_ba` + `scripts/vi_ba_prepare.py` + `scripts/run_vi_ba.sh` (non-causal backend, G01), `scripts/compare_runs.py` (per-sequence tables against a reference), `scripts/gyro_yaw_check.py` (heading error vs pGT, body frame detected), `cam_imu_check.py` (time offset from images), `make_timeshift_input.py`, `make_swapped_input.py`, `make_rectified_input.py` (+ `configs/aria_factory_imu/`), `occluder_check.py`, `fuse_bidirectional.py`, `finish_basalt_run.sh` (re-does conversion + evaluation), `show_runs.sh`; Basalt options `BASALT_MONO_CAMS`, `BASALT_INIT_WINDOW_S`, `BASALT_INIT_VEL`, `BASALT_OBS_DUMP`; calibration probes `CAM0_ROT_DEG`, `CAM0_FOCAL_SCALE`.
