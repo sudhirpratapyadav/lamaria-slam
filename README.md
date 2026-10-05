@@ -10,13 +10,19 @@ City-scale egocentric data from Project Aria glasses: two synchronised global-sh
 
 ## Target
 
-Leaderboard snapshot (checked 2026-10-02, [leaderboard](https://lamaria.ethz.ch/leaderboard)), Stereo + IMU track, score per challenge:
+Leaderboard snapshot (pasted by the owner 2026-10-05, [leaderboard](https://lamaria.ethz.ch/leaderboard)); all input types are ranked together; per challenge: score / pose recall at 5 m ("(r)" = reference method run by the organisers):
 
-| Rank | Method | Short | Medium | Long |
-|---|---|---|---|---|
-| 1 | Aria's SLAM (closed source) | 90.7 | 78.5 | 70.9 |
-| 2 | AnonSLAM | 75.3 | 61.1 | 59.9 |
-| 5 | OpenVINS+Maplab (open baseline) | 27.7 | 23.4 | 12.8 |
+| Rank | Method | Input | Short | Medium | Long | Low light | Moving platform |
+|---|---|---|---|---|---|---|---|
+| 1 | (r) Aria's SLAM (closed source) | bino, imu | 90.7 / n.a. | 78.5 / n.a. | 70.9 / n.a. | 84.2 / n.a. | 55.0 |
+| 2 | AnonSLAM | bino, imu | 80.2 / 99.9 | 61.6 / 96.2 | 59.9 / 99.3 | 67.7 / 99.9 | 41.9 |
+| 3 | microSLAM | mono | 34.2 / 73.4 | 18.9 / 34.8 | 9.4 / 19.4 | 25.4 / 51.9 | 3.9 |
+| 4 | Mighty Camera | mono, imu | 31.6 / 65.9 | 29.3 / 60.7 | 16.8 / 37.1 | 23.8 / 49.4 | 15.5 |
+| 5 | (r) OpenVINS+Maplab (open baseline) | bino, imu | 27.7 / 60.8 | 23.4 / 52.3 | 12.8 / 26.1 | 19.8 / 40.5 | 13.9 |
+| 6 | (r) ORB-SLAM3 | mono, imu | 23.0 / 61.2 | 10.9 / 26.0 | 11.2 / 28.7 | 3.1 / 9.0 | 2.0 |
+| 7 | (r) OKVIS2 | bino, imu | 20.0 / 50.0 | 11.6 / 27.9 | 2.6 / 1.4 | 14.5 / 33.0 | 4.7 |
+
+Earlier snapshot (2026-10-02): Aria's SLAM 90.7 / 78.5 / 70.9, AnonSLAM 75.3 / 61.1 / 59.9, OpenVINS+Maplab 27.7 / 23.4 / 12.8 (short / medium / long). Only four binocular + IMU methods are listed; beating the open baseline makes a submission third among them, and third overall needs more than microSLAM's 34.2 on Short and Mighty Camera's 29.3 / 16.8 on Medium / Long.
 
 Goal ladder: beat the open baseline (OpenVINS+Maplab) first, then AnonSLAM, then approach Aria's SLAM. A method only appears if it submits all sequences of a challenge.
 
