@@ -12,7 +12,7 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F01: gyro noise x2 | not kept | not kept | 2_11 alone: 21.5 to 2.9 m, score 21 to 47 (X02); breaks the rest (F01) |
 | F12: both-camera landmarks + 1 s window | **2.074** | **24.9** | 14 restarts; long-walk ATE -1/3, scores flat |
 | F15: F12 + F14d initialisation + gauge prior 1e2 | 2.134 | 23.6 | **1 restart** in 36 runs; robustness baseline |
-| F16: F15 + gyro x2 (partial) | R_12 9.6 to 2.5 | 2_11 5.7 to 44 | dark walk 4_11 loses (7.6, scale 0.94); F16b balances the accelerometer |
+| F16: F15 + gyro x2 (8 runs) | R_12 2.5, R_08 3.6, R_04 1.45 | 2_11 44, 4_11 34 | drift gone on device A; indoor and dark walk lose; F16b / F16c |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -178,6 +178,9 @@ The drift responds to the offset in the predicted direction and almost linearly 
 **Applicability**: a sensor property (Aria image stamps against the IMU clock), not a benchmark fit; the robot's offset is to be measured, not copied.
 
 ## F06: both visual fixes together, offset + landmarks in both cameras (2026-10-05, pc)
+
+**Correction (2026-10-05 10:15)**: the `_dtp5` inputs used by this experiment (2_11, 3_18, 4_11, R_04, R_08, built 02:28) carried a **50 ms** shift, not 5 ms (`make_timeshift_input.py ... 0.05`; the header line of each `imu.csv` records the true shift, which is how it was found). Every "+5 ms" row and reading below is therefore a **+50 ms** result (one frame interval at 20 Hz); the +10 ms rows are correct. The measured 5 ms offset was first run properly in F16c. The inputs were rebuilt at 0.005 s at 10:15.
+
 
 **Hypothesis**: the time offset (F05) and the cam0-only geometry (F02) are two independent parts of the daytime heading bias; together they should remove most of it without touching the IMU weights, and F02's indoor gains should carry.
 
@@ -543,3 +546,28 @@ Nothing moves (keyframes 0.1 to 0.4 m median from the VIO). With the gyro truste
 **Reading**: controlled two-offset mean **2.134 m** (F12 2.074, reference 2.379), additional mean score **23.6** (F12 24.9, reference 23.7), **1 restart in 36 runs** (F12 14, reference 12). Against F12 the initialisation costs 0.06 m on the controlled mean (R_05, R_07, R_09, R_10 by 0.1 to 0.3 m; gains on R_02, R_04, R_13) and 1.3 score points on the additional set (4_11 2.43 to 4.26 with the one restart; 1_19 0.96 to 1.21; 4_10 better, 4.8 to 3.5). The long walks are the same as F12 (35 / 35 / 21 / 12.6 m).
 
 **Decision**: F15 is the robustness baseline of v4 (one restart on the two sets) but not the final causal reference: F16 (gyro trusted at x2 on top of it) removes the device-A heading drift (R_12 2.5, 2_11 4.7) and the accelerometer balance for the dark walk is being settled in F16b before the full-set run (F17). **Applicability**: as F12 and F14d (general; initialisation platform-independent, both-camera landmarks for low-overlap rigs).
+
+## F16: the gyro trusted (x2 of datasheet) on top of the F15 setting (2026-10-05, pc)
+
+**Hypothesis**: X02 (a) removed the 2_11 heading drift with the gyro at x2 instead of x20, and F01 rejected it because it broke the other sequences; F01 predates the initialisation fix (F14d) and the both-camera landmarks (F02), and G01's heading checks show the F15 estimate's heading equals the gyro-alone heading on R_12 and 2_11 (vision neutral), so the trust might now be affordable.
+
+**Change**: `configs/v4_gyro_n2_pw1e2` (= `v4_initpw1e2` + `GYRO_NOISE_SCALE=2`), F15 options (`BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1 BASALT_INIT_VEL=2`), G01 snapshot (dump on), skip 0. **Command**: `results/v4-F16-gyro-n2-f15/batch.sh` (unit `lamaria-v4-f16`, 09:31 to 10:12).
+
+**Result** (ATE m / score; F15 same offset in brackets; end heading error vs pGT from `gyro_yaw_check.py`):
+
+| Sequence | F16 | F15 | heading end F16 (F15; gyro alone) |
+|---|---|---|---|
+| R_12_10cp | **2.51 / 40.1** | 9.62 / 13.8 | **-1.4** (-21.3; -22.0) |
+| sequence_2_11 | **4.74 / 44.4** | 12.62 / 5.7 | **+2.0** (-27.9; -27.8) |
+| sequence_1_19 | 1.29 / 64.1 | 1.21 / 62.8 | |
+| sequence_4_11 (dark) | **7.63 / 34.4**, scale 0.936 | 4.26 / 48.0 | +3.8 (+9.7): heading better, scale lost |
+| R_01_easy | 0.275 | 0.166 | |
+| R_02_easy | 0.256 | 0.184 | |
+| R_04_medium | **1.45** | 0.76 | |
+| R_08_hard | **3.64** | 0.67 | |
+
+No restarts in any run. The backend on the F16 dumps (G01, time offset free or fixed) gives 2.47 / 4.67 with the 2_11 score falling to 36: nothing to add.
+
+**Reading**: the trusted gyro removes the device-A daytime heading drift completely (R_12 from 14 m in v3 to 2.5 m; 2_11 from 21.5 to 4.7) and 1_19 no longer breaks (F01: 14 m); but it costs the dark walk 3.4 m through scale, not heading, and the indoor set badly (R_08 x5, R_04 x2, R_01 / R_02 +0.07 to +0.1). F01's split is still there. Two candidate causes for the indoor loss, both testable: the accelerometer still at x20 against a gyro at x2 (F16b: accel x5 / x10 with gyro x2, and gyro x5, on 4_11, 2_11, R_01, R_12), and the uncorrected 5 ms camera time offset that the loose gyro was covering (F16c: F16 setting on the 5 ms-shifted inputs of R_08, R_04, 4_11, 2_11, R_12, R_01; the backend put td at 4.2 to 4.5 ms with the gyro trusted). The full-set run (F17) waits for these.
+
+**Applicability**: the gyro weight is a sensor constant (the Aria gyro at about its datasheet density); on the robot's ICM-42688-P it must be set the same way (heading against a reference). General, but only together with whatever F16b / F16c show the indoor set needs.

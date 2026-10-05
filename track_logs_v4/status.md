@@ -14,9 +14,9 @@
 
 ## Running
 
-- F12 (`lamaria-v4-f12`): both-camera landmarks + plain 1 s window on the full sets (controlled set done, mixed; walks running).
-- G01 (`lamaria-v4-g01-r12`, `lamaria-v4-g01-211`): dumped VIO runs of R_12 and 2_11 for the backend's first test on the heading drift. Backend state: `tools/vi_ba` works end to end (R_01: 0.166 to 0.090 with the time offset free, +3.4 ms).
-- F15 (`lamaria-v4-f15`): the candidate v4 causal reference: both-camera landmarks + initialisation (1 s window, gravity from the gyro-rotated accelerometer mean, velocity from the first tracks, gauge prior 1e2), full sets, F14d snapshot.
+- F16b (`lamaria-v4-f16b`): IMU balance on top of F15 (gyro x2 with accelerometer x5 / x10; gyro x5) on 4_11, 2_11, R_01, R_12.
+- F16c (`lamaria-v4-f16c`): F16 setting with the measured 5 ms camera time offset applied, on R_08, R_04, 4_11, 2_11, R_12, R_01.
+- Done today: F12 (2.074 / 24.9, 14 restarts), F15 (2.134 / 23.6, 1 restart), F16 (gyro x2: device-A drift gone, indoor set and dark walk lose), G01 backend (reproduces the filter; time offset +3.4 to +4.5 ms; R_01 0.166 to 0.090).
 
 ## Plan
 
