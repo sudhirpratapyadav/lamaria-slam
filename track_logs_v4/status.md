@@ -10,14 +10,12 @@
 - **It belongs to one device and one camera**: the training set has two Aria units (device A: all walks except 1_19 / 1_20, and all controlled sequences except R_08; device B: 1_19, 1_20, R_08). Every drifting sequence is device A; both device-B walks are clean. On device A the drift comes with landmarks hosted in **cam0** (left camera): with cam1 as the primary camera it is gone (X02), landmarks in both cameras halve it (F02: 2_11 21.5 to 12.5 m, 3_18 56 to 34 m, and indoor gains R_04 0.70 to 0.55, R_08 1.03 to 0.75, R_12 13.9 to 11.0, at 2x cost; the dark walk is worse). Device A's sim3 scale is also 1 to 3 % low on every sequence, device B's is 1.00.
 - **Ruled out, each with a measurement**: the IMU weights (F01: gyro x2 removes the drift but breaks 1_19, 1_20, the dark walks and the indoor set); far-landmark triangulation (F04); the camera-IMU time offset as the cause (X04 / F05: a real 5 ms offset exists, but on cam0-only geometry the heading is simply linear in the shift at 5 deg/ms, zero near +11 ms, and with both cameras the sensitivity drops to 0.5 deg/ms with the drift still there); the factory IMU model (F08: gyro scale, 0.26 deg of misalignment, device A's 0.25 to 0.39 m/s^2 accelerometer bias; neutral); the cam0 extrinsic rotation (F09: 0.3 deg moves the heading 3 to 6 deg, a 3 to 5 deg error would be needed); self-occlusion by hair (X07: present in some frames, uncorrelated with the drift); time-reversal symmetry (X06: the backward pass drifts the opposite way at half the rate, so a two-pass fusion only halves it).
 - **Still to probe**: cam0 intrinsics on device A (F10, focal x0.98 to x1.02, running). If that is insensitive too, the mechanism hunt stops and the general defences are what we keep: both-camera landmarks (F02) and, in the backend, per-sequence self-calibration.
-- **Restarts** are initialisation blow-ups (speed 0 to 8 m/s in the first 3 s of a segment; the first state's attitude comes from one accelerometer sample taken mid-stride): F07 showed the "numerical failure" lines were a symptom; F11 (initialisation window, running) attacks the cause.
+- **Restarts** were initialisation blow-ups (speed 0 to 8 m/s in the first 3 s of a segment; the first state's attitude came from one accelerometer sample taken mid-stride, 10 deg off on a walking start). Fixed in steps (F11 to F14d): a 1 s window with the accelerometer mean rotated through the gyro, a linear solve of the initial velocity from the first tracks (gravity from the mean), and a weak gauge prior on the first pose: restarts on the restart-prone reference runs go from 10 to 1, at 0 to 0.1 m of ATE on the short sequences. The initialisation is now the general, platform-independent part of v4.
 
 ## Running
 
-- F06 (`lamaria-v4-f06`): both-camera landmarks + offset on R_04 and 3_18 (the rest is in; R_08 +5 ms: 138 m, twelve restarts at the start).
-- F07b (`lamaria-v4-f07b`): the F06 4_11 +5 ms arm on the NaN-guard binary.
-- F10 (`lamaria-v4-f10`): cam0 focal probe on 2_11.
-- F11 (`lamaria-v4-f11`): initialisation window on the restart-prone reference runs.
+- F12 (`lamaria-v4-f12`): both-camera landmarks + plain 1 s window on the full sets (controlled set done, mixed; walks running).
+- F15 (`lamaria-v4-f15`): the candidate v4 causal reference: both-camera landmarks + initialisation (1 s window, gravity from the gyro-rotated accelerometer mean, velocity from the first tracks, gauge prior 1e2), full sets, F14d snapshot.
 
 ## Plan
 
