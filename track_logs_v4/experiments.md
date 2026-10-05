@@ -290,7 +290,23 @@ So the drift is not an outdoor-only effect: R_12 (device A, controlled set) drif
 
 **Command**: `results/v4-F11-init-window/batch.sh` (unit `lamaria-v4-f11`): v3 reference settings on the reference runs that restart (4_11, R_03, R_04 at both offsets, R_07, R_10, R_08 skip 100, R_12 skip 100) plus R_01 skip 0 and R_02 skip 100 as controls.
 
-**Result**: running.
+**Result** (ATE m; restarts with their times in the segment; reference in brackets):
+
+| Run | F11 (window 1 s) | reference |
+|---|---|---|
+| R_03 skip 0 | **0.343, 0 restarts** | 0.345, 1 (1.6 s) |
+| R_07 skip 0 | **1.195, 0** | 1.201, 1 |
+| R_10 skip 0 | **4.433, 0** | 4.469, 1 |
+| R_08 skip 100 | 1.049, 0 | 0.806, 1 (0.1 s) |
+| R_04 skip 0 / 100 | 0.748, 1 (17.5 s) / 0.732, 2 (2.0, 12.5 s) | 0.697, 1 (18.6 s) / 0.665, 3 (1.2, 3.1, 13.6 s) |
+| R_12 skip 100 | 13.96, 1 (0.0 s) | 13.95, 1 |
+| R_02 skip 100 | 0.231, **1 (0.0 s)** | 0.262, 0 |
+| sequence_4_11 | 3.09, score 44.6, 2 (4.7, 8.6 s) | 1.77, 56.9, 3 (2.6, 4.7, 6.8 s) |
+| R_01 skip 0 (control) | 0.136, 0 | 0.132, 0 |
+
+**Reading**: three initialisation restarts gone (R_03, R_07, R_10), one new (R_02 skip 100), the rest moved; ATE neutral within the spread. The segments that still diverge show the same signature as before, the speed ramping to 6 to 27 m/s within 4 s of the first state, now with an attitude from the 1 s mean: so the attitude was only part of it. Two things remain wrong at the first state: the mean was taken in the body frame while the head turns during the window (fixed in **F11b**: samples rotated through the integrated gyro into the end-of-window frame), and the velocity still starts at zero while the wearer walks at about 1.4 m/s (a velocity estimate from the first visual tracks is the next step if F11b is not enough).
+
+**F11b** (`results/v4-F11b-init-window-rot/`, libbasalt 3b65326f17a8, unit `lamaria-v4-f11b`): same runs. Result: running.
 
 **Applicability**: general (any platform that may start while moving: a robot pushed, a handheld device, glasses); it costs w seconds of poses at the start of a run (the submission fills them from the first estimate); on a stationary start it is a no-op in effect.
 
