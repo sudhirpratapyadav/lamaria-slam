@@ -15,7 +15,7 @@
 ## Running
 
 - F20 done 19:19: **reference** (above). Open costs: R_09 / R_10 +0.3 to 0.8 m, device-B walks +0.1 to 0.2 m, dark walks still 6.7 / 6.8.
-- F21 (`lamaria-v4-f21`, since 19:23): F20 setting without the 5 ms shift on 4_11 / 4_10 / 1_19 (dark-walk ceiling under the tight walk).
+- F21 (`lamaria-v4-f21`, since 19:21): F20 setting without the 5 ms shift on 4_11 / 4_10 / 1_19 (dark-walk ceiling under the tight walk).
 - F20b (`lamaria-v4-f20b`, since 17:34): full sets at 0.03x (F18c: a little better again on the drifting sequences, 1_19 worse; gains flattening).
 - F18 / F18b done: the bias walk is the lever (3x loses everywhere; 0.3x / 0.1x: R_12 4.41 to 3.14, 4_11 12.9 to 6.7, 2_12 5.0 to 4.1, R_08 1.60 to 1.32; R_04 +0.07, 1_19 +0.13).
 - F19 done: the dark walks lose to the 5 ms offset itself (gyro x20 on the shifted inputs: 4_11 7.16, 4_10 8.31 vs F15 4.26 / 3.52); with the backend's near-zero offset on 4_11 this makes the effective camera-IMU offset exposure-dependent (about 4 ms in daylight, about 0 in the dark). Candidate fix: per-sequence offset from a first pass (non-causal, general).
