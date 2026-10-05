@@ -77,7 +77,7 @@ index cc10c99..4b74d83 100644
        std::cerr << "Numerical failure in backsubstitution\n";
      }
 diff --git a/include/basalt/optical_flow/frame_to_frame_optical_flow.h b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
-index d16e708..e397461 100644
+index d16e708..0991a3a 100644
 --- a/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 +++ b/include/basalt/optical_flow/frame_to_frame_optical_flow.h
 @@ -35,6 +35,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
@@ -151,8 +151,11 @@ index d16e708..e397461 100644
      for (const auto& v : new_img_vec->img_data) {
        if (!v.img.get()) return;
      }
-@@ -164,13 +220,19 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -162,15 +218,23 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+         trackPoints(old_pyramid->at(i), pyramid->at(i),
+                     transforms->observations[i],
                      new_transforms->observations[i]);
++        anchorAlign(i, new_transforms->observations[i]);
        }
  
 +      revivePoints(new_transforms);
@@ -165,13 +168,14 @@ index d16e708..e397461 100644
        filterPoints();
      }
  
++    anchorRecord();
 +    applyExternalTracks(curr_t_ns);
 +    dumpObservations(curr_t_ns);
 +
      if (output_queue && frame_counter % config.optical_flow_skip_frames == 0) {
        output_queue->push(transforms);
      }
-@@ -178,12 +240,76 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -178,12 +242,76 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      frame_counter++;
    }
  
@@ -249,7 +253,7 @@ index d16e708..e397461 100644
      size_t num_points = transform_map_1.size();
  
      std::vector<KeypointId> ids;
-@@ -210,11 +336,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -210,11 +338,18 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
          const Eigen::AffineCompact2f& transform_1 = init_vec[r];
          Eigen::AffineCompact2f transform_2 = transform_1;
@@ -269,7 +273,7 @@ index d16e708..e397461 100644
  
            valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
  
-@@ -223,8 +356,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -223,8 +358,31 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                              transform_1_recovered.translation())
                                 .squaredNorm();
  
@@ -303,7 +307,7 @@ index d16e708..e397461 100644
              }
            }
          }
-@@ -308,6 +464,143 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -308,6 +466,233 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      return patch_valid;
    }
  
@@ -357,6 +361,96 @@ index d16e708..e397461 100644
 +    if (kp_frames % 1000 == 0)
 +      std::cerr << "learned kp: " << kp_frames << " frames, " << kp_missing << " without a file, "
 +                << kp_added << " external points added, " << kp_fast_added << " FAST points added" << std::endl;
++  }
++
++  // lamaria-slam (v4 F26): anchored re-alignment against the slide of the frame-to-frame template.
++  // Re-templating from the previous frame every frame lets a track slide systematically along the image
++  // flow (v4 F24 / F25: the device-A heading drift and scale deficit). With BASALT_ANCHOR=1 each track keeps
++  // the patches (all pyramid levels) of the frame it was created in; after the frame-to-frame step the
++  // point is re-aligned to its anchor patches from the tracked position (levels BASALT_ANCHOR_TOP_LEVEL..0),
++  // and the re-aligned position replaces the tracked one when the alignment converges, moves the point by
++  // less than BASALT_ANCHOR_MAX_SHIFT px and leaves a level-0 photometric residual below
++  // BASALT_ANCHOR_MAX_RES (normalised intensities, RMS over the pattern); otherwise the frame-to-frame
++  // position stands (appearance has changed too much for the old patch, typically under scale change).
++  struct Anchor {
++    std::vector<PatchT> patches;
++    long frame;
++  };
++  std::vector<std::map<KeypointId, Anchor, std::less<KeypointId>, Eigen::aligned_allocator<std::pair<const KeypointId, Anchor>>>> anchors;
++  long anchor_tried = 0, anchor_applied = 0, anchor_rej_conv = 0, anchor_rej_shift = 0, anchor_rej_res = 0, anchor_frames = 0;
++  double anchor_shift_sum = 0;
++  static bool anchorOn() {
++    static const bool on = [] { const char* e = std::getenv("BASALT_ANCHOR"); const bool v = e && *e && *e != '0';
++      if (v) std::cerr << "BASALT_ANCHOR: on" << std::endl; return v; }();
++    return on;
++  }
++  void anchorAlign(size_t cam, Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>& obs) {
++    if (!anchorOn()) return;
++    static const Scalar max_res = [] { const char* e = std::getenv("BASALT_ANCHOR_MAX_RES"); return Scalar((e && *e) ? std::atof(e) : 0.3); }();
++    static const Scalar max_shift = [] { const char* e = std::getenv("BASALT_ANCHOR_MAX_SHIFT"); return Scalar((e && *e) ? std::atof(e) : 2.0); }();
++    static const int top_level = [] { const char* e = std::getenv("BASALT_ANCHOR_TOP_LEVEL"); return (e && *e) ? std::atoi(e) : 1; }();
++    if (anchors.size() <= cam) anchors.resize(cam + 1);
++    auto& amap = anchors[cam];
++    const auto& pyr = pyramid->at(cam);
++    std::vector<KeypointId> ids; ids.reserve(obs.size());
++    for (const auto& kv : obs) if (amap.count(kv.first)) ids.push_back(kv.first);
++    std::vector<int> outcome(ids.size(), 0);  // 0 applied, 1 no convergence, 2 shift, 3 residual
++    Eigen::aligned_vector<Eigen::AffineCompact2f> refined(ids.size());
++    std::vector<double> shifts(ids.size(), 0.0);
++    tbb::parallel_for(tbb::blocked_range<size_t>(0, ids.size()), [&](const tbb::blocked_range<size_t>& range) {
++      for (size_t r = range.begin(); r != range.end(); ++r) {
++        const Anchor& a = amap.at(ids[r]);
++        const Eigen::AffineCompact2f& t = obs.at(ids[r]);
++        Eigen::AffineCompact2f tr = t;
++        bool valid = true;
++        for (int level = std::min(top_level, config.optical_flow_levels); level >= 0 && valid; level--) {
++          const Scalar scale = 1 << level;
++          tr.translation() /= scale;
++          valid &= a.patches[level].valid && trackPointAtLevel(pyr.lvl(level), a.patches[level], tr);
++          tr.translation() *= scale;
++        }
++        if (!valid) { outcome[r] = 1; continue; }
++        const Scalar shift = (tr.translation() - t.translation()).norm();
++        if (shift > max_shift) { outcome[r] = 2; continue; }
++        typename PatchT::VectorP res;
++        typename PatchT::Matrix2P pat = tr.linear().matrix() * PatchT::pattern2;
++        pat.colwise() += tr.translation();
++        if (!a.patches[0].residual(pyr.lvl(0), pat, res) || res.norm() / std::sqrt(Scalar(res.size())) > max_res) { outcome[r] = 3; continue; }
++        refined[r] = tr; shifts[r] = shift;
++      }
++    });
++    for (size_t r = 0; r < ids.size(); r++) {
++      anchor_tried++;
++      switch (outcome[r]) {
++        case 0: obs[ids[r]] = refined[r]; anchor_applied++; anchor_shift_sum += shifts[r]; break;
++        case 1: anchor_rej_conv++; break;
++        case 2: anchor_rej_shift++; break;
++        default: anchor_rej_res++; break;
++      }
++    }
++    if (cam == 0 && ++anchor_frames % 1000 == 0)
++      std::cerr << "anchor: " << anchor_frames << " frames, tried " << anchor_tried << ", applied " << anchor_applied
++                << " (mean shift " << (anchor_applied ? anchor_shift_sum / anchor_applied : 0.0) << " px), no convergence "
++                << anchor_rej_conv << ", shift " << anchor_rej_shift << ", residual " << anchor_rej_res << std::endl;
++  }
++  // after the frame's points are final: anchor the new tracks at their first position, forget the dead ones
++  void anchorRecord() {
++    if (!anchorOn()) return;
++    if (anchors.size() < transforms->observations.size()) anchors.resize(transforms->observations.size());
++    for (size_t cam = 0; cam < transforms->observations.size(); cam++) {
++      auto& amap = anchors[cam];
++      const auto& obs = transforms->observations[cam];
++      for (auto it = amap.begin(); it != amap.end();) { if (!obs.count(it->first)) it = amap.erase(it); else ++it; }
++      for (const auto& kv : obs) {
++        if (amap.count(kv.first)) continue;
++        Anchor a; a.frame = frame_counter; bool ok = true;
++        for (int level = 0; level <= config.optical_flow_levels; level++) {
++          a.patches.emplace_back(pyramid->at(cam).lvl(level), kv.second.translation() / Scalar(1 << level));
++          ok &= a.patches.back().valid;
++        }
++        if (ok) amap[kv.first] = std::move(a);
++      }
++    }
 +  }
 +
 +  // lamaria-slam (v3 appendix F20): patch-based re-association inside the tracker. When KLT loses a cam0
@@ -447,7 +541,7 @@ index d16e708..e397461 100644
    void addPoints() {
      Eigen::aligned_vector<Eigen::Vector2d> pts0;
  
-@@ -317,13 +610,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -317,13 +702,38 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
  
      KeypointsData kd;
  
@@ -488,7 +582,7 @@ index d16e708..e397461 100644
        Eigen::AffineCompact2f transform;
        transform.setIdentity();
        transform.translation() = kd.corners[i].cast<Scalar>();
-@@ -335,13 +653,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
+@@ -335,13 +745,75 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
      }
  
      if (calib.intrinsics.size() > 1) {
