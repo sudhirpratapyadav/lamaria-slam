@@ -1039,3 +1039,25 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Reading**: the heading drift is cut by half to all of it (3_17 -24 to -15 deg, R_12 -9 to -1) and the scale deficit of device A disappears (0.99 to 1.00 / 1.02) when the template cannot slide; what remains on 3_17 is the gyro's own uncorrected part plus whatever the original-template tracker loses when appearance changes. The price is local precision and track length: R_12's ATE and score get worse (short tracks under appearance change, fewer constraints), 3_17's recall doubles anyway because the drift dominated it. **Mechanism found**: the frame-to-frame re-templating of the KLT tracker slides systematically along the direction of image flow (expansion when walking forward), which the batch solve cannot see (X11), the time reversal flips (X06), the host camera orients (X02) and the template size scales (F24). Zero restarts on both.
 
 **Decision**: not a config change (the patch tracker loses the controlled set's precision); the fix is a hybrid front end: frame-to-frame tracking for precision and robustness, with each point re-aligned to its original patch whenever that alignment converges, so that the slide is corrected without shortening tracks (F26). Applicability of the finding: general to every KLT front end that re-templates per frame (OpenVINS, VINS, Basalt), strongest in forward motion with textured, approaching scenes, i.e. a walking or driving robot; a dark or slow scene hides it.
+
+## F26: anchored re-alignment to the first-frame patch (2026-10-06, pc)
+
+**Hypothesis** (F25): re-aligning each frame-to-frame track to its original patch stops the slide without shortening tracks.
+
+**Change**: `frame_to_frame_optical_flow.h`, `BASALT_ANCHOR=1`: every track keeps its first-frame patches (all levels); after the frame-to-frame step the point is re-aligned to them from the tracked position (levels 1 to 0); the re-aligned position replaces the tracked one when it converges, moves under 2 px (`BASALT_ANCHOR_MAX_SHIFT`) and the level-0 residual is under 0.3 (`BASALT_ANCHOR_MAX_RES`). Snapshot `results/v4-F26-anchor/bin` (libbasalt 08c9b7a6ca78). Reference setting; R_12, 3_17, R_04 both offsets. Unit `lamaria-v4-f26`, 00:04 to 00:24.
+
+**Result** (ATE / score; end heading / rms; anchor statistics):
+
+| Run | reference F20 | F26 anchored | F25 patch tracker |
+|---|---|---|---|
+| R_12_10cp | 3.14 / 39.2; -9.4 / 5.2 | 2.73 / 44.4; -9.7 / 5.5 | 4.22 / 27.7; -0.7 / 3.4 |
+| sequence_3_17 | 16.4 / 9.1; -24.2 / 12.8 | 15.9 / 7.9; -22.8 / 11.8 | 7.75 / 20.4; -14.6 / 6.8 |
+| R_04 skip 0 / 100 | 0.49 / 0.40 | 0.58 / 0.59 | - |
+
+Anchor statistics (3_17, 35,000 frames): 7.1 M re-alignments tried, 93 % applied with a mean shift of 0.15 px, 7 % rejected for a shift above 2 px, 0.2 % for the residual, 5 for non-convergence. Runtime unchanged (569 s against 584 s on R_12).
+
+**Reading**: the heading drift is untouched (3_17 -22.8 against -24.2, R_12 -9.7 against -9.4) although nearly every point is pulled back to its first-frame patch every frame; the correction is 0.15 px of noise-level jitter that costs R_04 0.1 to 0.2 m. So the slide is not a sub-pixel per-frame creep that a fixed template corrects; the 7 % of points whose first-frame patch no longer fits within 2 px keep the frame-to-frame position and may be where the drift lives (long tracks under appearance change), or the patch tracker's gain comes from something other than the template: its track population (shorter tracks, different survivors), its forward-backward test, or its coarse-to-fine tracking from the original patch at all levels. That is checked next by reading its loop.
+
+**Decision**: not kept (anchor off by default). The F25 mechanism statement stands (template kept = drift halved) but the "sub-pixel slide" reading of it is **not supported** by this test and is withdrawn until the difference between the two trackers is isolated.
+
+**Applicability**: the anchored re-alignment is a general tracker option, harmless when off.
