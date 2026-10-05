@@ -610,3 +610,19 @@ No restarts. The factory IMU model, neutral under the loose IMU weights of F08, 
 Accelerometer x10 is a free small gain over x20 (R_01, 4_11), x5 is destructive; gyro x5 gives half the walk gain back and does not save the dark walk. The gyro factor stays at x2.
 
 **F16e, first wave (indoor set, gyro x2)**: with the factory IMU model alone R_01 0.336, R_04 1.81, R_08 2.45 (no help indoors); with the factory model **and** the 5 ms offset **R_01 0.132, R_04 0.425, R_08 1.60**: R_01 equals the v3 reference's best, R_04 is the best R_04 of the project (F15 0.76), R_08 recovers most of its loss (F16 3.64; F15 0.67 still better). The walks with the same combination are running.
+
+**F16e complete** (gyro x2 on top of F15; ATE m / score; all skip 0, no restarts anywhere):
+
+| Sequence | factory IMU (F16d) | factory IMU + 5 ms (F16e) | 5 ms only (F16c) | neither (F16) | F15 |
+|---|---|---|---|---|---|
+| R_01_easy | 0.336 | **0.132** | 0.165 | 0.275 | 0.166 |
+| R_04_medium | 1.81 | **0.425** | 0.52 | 1.45 | 0.76 |
+| R_08_hard | 2.45 | 1.60 | 2.65 | 3.64 | **0.67** |
+| R_12_10cp | **2.95 / 35.6** | 4.41 / 30.0 | 5.37 / 29.4 | 2.51 / 40.1 | 9.62 / 13.8 |
+| sequence_2_11 | 5.89 / 25.4 | 5.61 / 25.5 | **4.23** / 35.1 | 4.74 / **44.4** | 12.6 / 5.7 |
+| sequence_1_19 | **1.03 / 68.5** | 2.22 / 47.3 | | 1.29 / 64.1 | 1.21 / 62.8 |
+| sequence_4_11 (dark) | **3.83 / 33.1** | 12.9 / 25.6 | 24.2 / 13.1 | 7.63 / 34.4 | 4.26 / **48.0** |
+
+**Reading**: three sensor constants, three different behaviours. The gyro weight (x2) is what removes the device-A drift and it is kept. The factory IMU model costs the short indoor sequences (R_01 +0.06, R_04 +0.36, R_08 -1.2 against F16) and wins every long one (4_11, 1_19) or nearly (R_12, 2_11): with the IMU trusted, its deterministic errors matter over minutes. The 5 ms offset is the reverse: large wins on the short indoor sequences (R_01 and R_04 are the project's best, R_08 recovers most of its F16 loss) and losses on every long one, which is not what a correct sensor constant does; what it fixes in fast indoor motion and what it breaks over a long walk are not yet the same mechanism, and the X04 / G01 measurements of 3.4 to 5 ms (images, backend) come from short sequences. Neither probe sequence set is the benchmark, so **F17d** (factory model) and **F17e** (factory model + 5 ms) run on the full sets in parallel; the controlled two-offset mean and the additional-set mean score decide, and the loser is kept as an option. The dark walk is the sequence most sensitive to every IMU change (4.26 / 7.63 / 3.83 / 12.9 / 24 / 48 across the F16 grid) and the one where the v3 reference (1.77) is still unbeaten.
+
+**Applicability**: gyro weight and factory IMU model are per-device constants (the robot's ICM-42688-P will need its own: gyro density from the datasheet, scale / misalignment / bias from a calibration); the camera time offset must be measured per rig and, on this evidence, validated on long and short sequences separately before it is trusted.
