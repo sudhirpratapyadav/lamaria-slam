@@ -972,3 +972,22 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Conclusion**: the two cameras are synchronised to within half a millisecond (consistent with Aria's common trigger); a 0.3 ms difference cannot carry a degree per minute of heading, and the drifting R_12 shows none. **Not the mechanism.** Nothing kept except the parameter, which stays off.
 
 **Applicability**: the parameter is a general calibration term (inter-camera sync) worth having for the robot's rig, where the two sensors are separate devices.
+
+## G04: residual radial distortion free in the backend (2026-10-05, pc)
+
+**Hypothesis**: the ASL images are pinhole-undistorted by COLMAP from the fisheye; a residual radial error would bias rotation along the direction of travel and differ per camera, which is the drift's signature (X02, X06).
+
+**Change**: `tools/vi_ba/vi_ba.cpp`: per-camera k1, k2 on the normalised plane (observed = ideal (1 + k1 r^2 + k2 r^4), inverted by fixed-point iteration in the bearing; config `calib.distortion`, off by default); `configs/vi_ba_dist`, `vi_ba_dist_td`. Run on the G01 dumps (F15 setting) of R_12, 2_11 (drift present), R_01, 1_19. `results/v4-G04-distortion/`.
+
+**Result** (backend ATE m; fitted k1 cam0 / cam1):
+
+| Run | base (G01) | distortion free | + offset free | k1 cam0 / cam1 |
+|---|---|---|---|---|
+| R_12_10cp | 9.639 | 9.639 | 9.644 | -0.0034 / -0.0028 |
+| sequence_2_11 | 12.611 | 12.611 | 12.606 | +0.0003 / +0.0006 |
+| R_01_easy | 0.151 | 0.152 | 0.089 | -0.0002 / +0.0003 |
+| sequence_1_19 | 1.210 | 1.212 | 1.211 | -0.0045 / -0.0046 |
+
+**Conclusion**: freeing the distortion changes nothing on the drifting runs; the fitted residual distortion is tiny (|k1| below 0.005, i.e. under 1 px at the image corner) and is largest on device B's 1_19, which does not drift. **Not the mechanism.** The measurement model has now been freed term by term (intrinsics F10 / G01, distortion G04, extrinsic rotation F09 / G01, common and per-camera time offsets G01 / G03, IMU model F08 / F17, IMU weights F16 to F20) and the drift survives all of them in the batch solve, so it is in the observations themselves: the next check is a signed reprojection-residual map by image region on a drifting run (a tracking bias in the direction of flow would show as a signed mean on one side of the image).
+
+**Applicability**: diagnostic; the parameters are general calibration terms, off by default.
