@@ -761,6 +761,8 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 
 **Reading**: monotone in the expected direction on every device-A sequence and on R_08: the looser walk loses everywhere, the tighter walk gains 1.3 m on R_12, 6.2 m on the dark walk, 0.7 to 0.9 m on 2_12 and 0.3 m on R_08; the cost is 0.07 m on R_04 and 0.13 m on 1_19 (device B, where the heading is already within 5 deg). Scale unchanged (0.985 to 1.03). No restarts. 0.1x is the better of the two tight values on four of six sequences, and the trend has not turned, so 0.03x is probed (F18c) while the full set runs at 0.1x (F20).
 
-**Decision**: F20 (full sets at 0.1x) decides; F18c (0.03x, same six) in parallel.
+**F18c, 0.03x** (`configs/v4_g2_w003_pw1e2`, `results/v4-F18c-gyro-walk003/`, 16:53 to 17:33): R_12 **2.98** / 40.7, 4_11 **6.47** / 30.4, 2_12 **4.16** / 41.8, R_08 **1.24**, 1_19 2.53 / 44.3, R_04 0.499. Against 0.1x: 0.08 to 0.23 m better on the four drifting sequences, 0.17 m worse on 1_19, equal on R_04; the gains per factor of three have shrunk from 1 to 6 m (3x to 0.3x) to 0.1 to 0.2 m (0.1x to 0.03x). No restarts, scale unchanged.
+
+**Decision**: F20 (full sets at 0.1x) and F20b (full sets at 0.03x) decide between the two on the scoreboard; the generality concern (a bias walk 30x below datasheet follows a really wandering bias too slowly) counts against 0.03x unless its full-set margin is clear.
 
 **Applicability**: a noise-model tuning of this IMU (the Aria gyro's datasheet walk is loose relative to its measured drift, X01: about 1 deg/min of wandering bias); the procedure (set the bias walk from the gyro-alone drift check, then confirm on long sequences) is general, the value is not. Where it can fail: a gyro whose bias really wanders faster (temperature transients at start-up, cheap MEMS under vibration on the robot) would be followed too slowly; the robot's ICM-42688-P needs its own number.
