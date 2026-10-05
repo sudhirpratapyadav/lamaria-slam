@@ -66,6 +66,7 @@ struct Config {
   bool stereo_in_host = true;
   bool calib_extr = false, calib_extr_rot_only = true, calib_intr = false, calib_td = false;
   double far_depth_m = 50.0;
+  double td_init_ms = 0.0;  // starting (or, when time_offset is false, fixed) camera time offset
 };
 
 Config loadConfig(const std::string& path) {
@@ -86,6 +87,7 @@ Config loadConfig(const std::string& path) {
   if (j.contains("bias_prior_std")) { c.bias_prior_bg = j["bias_prior_std"][0]; c.bias_prior_ba = j["bias_prior_std"][1]; }
   c.stereo_in_host = j.value("stereo_in_host", c.stereo_in_host);
   c.far_depth_m = j.value("far_depth_m", c.far_depth_m);
+  c.td_init_ms = j.value("td_init_ms", c.td_init_ms);
   if (j.contains("calib")) {
     const auto& k = j["calib"];
     c.calib_extr = k.value("extrinsics", false);
@@ -321,7 +323,7 @@ void loadProblem(const std::string& dir, Problem& P) {
     P.calib[calibIntrOff(c) + 0] = P.cams[c].fx; P.calib[calibIntrOff(c) + 1] = P.cams[c].fy;
     P.calib[calibIntrOff(c) + 2] = P.cams[c].cx; P.calib[calibIntrOff(c) + 3] = P.cams[c].cy;
   }
-  P.calib[kCalibTdOff] = 0.0;
+  P.calib[kCalibTdOff] = P.cfg.td_init_ms * 1e-3;
   P.calib0 = P.calib;
 }
 

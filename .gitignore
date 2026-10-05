@@ -13,3 +13,4 @@ third_party/ORB_SLAM3/
 third_party/Pangolin/
 .venv-ml/
 third_party/accelerated_features/
+tools/vi_ba/build/
