@@ -991,3 +991,15 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Conclusion**: freeing the distortion changes nothing on the drifting runs; the fitted residual distortion is tiny (|k1| below 0.005, i.e. under 1 px at the image corner) and is largest on device B's 1_19, which does not drift. **Not the mechanism.** The measurement model has now been freed term by term (intrinsics F10 / G01, distortion G04, extrinsic rotation F09 / G01, common and per-camera time offsets G01 / G03, IMU model F08 / F17, IMU weights F16 to F20) and the drift survives all of them in the batch solve, so it is in the observations themselves: the next check is a signed reprojection-residual map by image region on a drifting run (a tracking bias in the direction of flow would show as a signed mean on one side of the image).
 
 **Applicability**: diagnostic; the parameters are general calibration terms, off by default.
+
+## X11: signed reprojection-residual map on a drifting run (2026-10-05, pc, analysis)
+
+**Question**: after G04 the measurement model is exhausted; does the converged batch solve leave a signed residual pattern (a side of the image, near vs far, host camera) that would betray a tracking bias?
+
+**Method**: `tools/vi_ba` now writes `residuals.bin` (per active observation: keyframe, camera, host camera, pixel, signed residual, inverse depth); `scripts/residual_map.py BA_DIR` prints mean signed residuals over a 3x3 grid, by host camera and by depth. Base config on the G01 dumps of R_12 (drifts) and 1_19 (clean). `results/v4-X11-residual-map/`.
+
+**Result**: R_12 cam0 mean residual +0.012 / -0.005 px (x / y), cam1 +0.005 / +0.003; grid cells between -0.12 and +0.07 px with no side pattern; near and far landmarks alike (cam0 near +0.018, far 0.000). 1_19, which does not drift, has *larger* cell means (-0.10 to +0.14). Residual rms 0.49 to 0.51 px on both. Every observation is hosted in its own camera (no cross-camera observations, as in G01).
+
+**Conclusion**: the drift leaves no trace in the reprojection residuals: the converged geometry is consistent with the tracks to a hundredth of a pixel. With the IMU terms also consistent (G01: free weights change nothing), the heading error must be in the tracks' content, i.e. the tracked points move with a bias that is geometrically self-consistent. A KLT template bias fits every signature: approaching (expanding) patches are tracked with a lag that underestimates outward flow, which reads as too little forward motion (device A's scale 0.93 to 0.97) and, for cameras pointed obliquely to the walking direction, as a yaw bias; reversed time flips the sign (X06); the host camera sets the sign and size (X02); it is strongest in daylight walking (texture, speed) and weak on the dark walks. The direct test is a tracker that does not slide: v3's descriptor-matched external tracks (xfeat) on R_12 and 2_11 under the v4 reference setting.
+
+**Applicability**: diagnostic; the residual dump and map are general tools.

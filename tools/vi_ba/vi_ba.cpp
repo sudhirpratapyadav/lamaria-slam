@@ -413,19 +413,24 @@ void buildLandmarks(Problem& P) {
   std::cout << "landmarks: " << P.lms.size() << " (tracks dropped for too few keyframes: " << n_single << ")" << std::endl;
 }
 
-// Reprojection error in pixels of one observation at the current state (host observation: 0).
-double reprojErrorPx(const Problem& P, const Landmark& lm, const Obs& o) {
+// Signed reprojection residual (projected minus observed, px) of one observation at the current state; false when behind the camera.
+bool reprojResidualPx(const Problem& P, const Landmark& lm, const Obs& o, Vec2& r) {
   const Obs& h = P.obs[lm.host_obs];
-  if (&h == &o) return 0.0;
+  if (&h == &o) { r.setZero(); return true; }
   double td = P.calib[kCalibTdOff];
   const double* in_h = P.calib.data() + calibIntrOff(h.cam);
   const double* in_o = P.calib.data() + calibIntrOff(o.cam);
   Vec3 f_h = bearing(in_h, h.x - td * h.vx, h.y - td * h.vy);
   SE3 T_co_ch = camPose(P, o.kf, o.cam).inverse() * camPose(P, h.kf, h.cam);
   Vec3 p = T_co_ch.so3() * f_h + lm.rho * T_co_ch.translation();
-  if (p.z() <= 1e-6) return 1e9;
+  if (p.z() <= 1e-6) return false;
   double u, v; project(in_o, p, u, v);
-  return std::hypot(u - (o.x - td * o.vx), v - (o.y - td * o.vy));
+  r = Vec2(u - (o.x - td * o.vx), v - (o.y - td * o.vy));
+  return true;
+}
+double reprojErrorPx(const Problem& P, const Landmark& lm, const Obs& o) {
+  Vec2 r;
+  return reprojResidualPx(P, lm, o, r) ? r.norm() : 1e9;
 }
 
 struct GateStats { long kept = 0, dropped = 0, kept_stereo = 0, dropped_stereo = 0; long lm_dropped = 0; };
@@ -646,15 +651,19 @@ int main(int argc, char** argv) {
   // final residual statistics
   {
     std::vector<double> e, es;
+    std::ofstream rf(out + "/residuals.bin", std::ios::binary);  // per observation: int32 kf, cam, host_cam; float x, y, rx, ry, rho
     for (auto& kv : P.lms) {
       const Landmark& lm = kv.second;
       if (!lm.valid) continue;
       for (int i : lm.obs) {
         const Obs& o = P.obs[i];
         if (!o.active || i == lm.host_obs) continue;
-        double v = reprojErrorPx(P, lm, o);
+        Vec2 r; if (!reprojResidualPx(P, lm, o, r)) continue;
+        double v = r.norm();
         e.push_back(v);
         if (o.cam != P.obs[lm.host_obs].cam) es.push_back(v);
+        int32_t ii[3] = {o.kf, o.cam, P.obs[lm.host_obs].cam}; float ff[5] = {o.x, o.y, (float)r.x(), (float)r.y(), (float)lm.rho};
+        rf.write(reinterpret_cast<const char*>(ii), sizeof(ii)); rf.write(reinterpret_cast<const char*>(ff), sizeof(ff));
       }
     }
     auto med = [](std::vector<double> v) { if (v.empty()) return 0.0; std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end()); return v[v.size() / 2]; };
