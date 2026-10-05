@@ -853,3 +853,24 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: reference unchanged (the scoreboard needs the shift on the controlled set). F22 (full sets, no shift, walk 0.1x) launched to get the per-sequence choice on every sequence; the per-sequence rule is then tested against the backend's free-offset estimate (X08: 4_11 0.1 ms, 1_19 2.7, R_01 / R_12 / 2_11 3.4 to 4.5), which would make it a non-causal self-calibration pass rather than a benchmark heuristic.
 
 **Applicability**: the finding is that one fixed camera-IMU offset is not enough on this data; a per-recording offset estimate (first pass, backend, second pass) is general to any rig whose timestamping varies with conditions. A brightness rule would be benchmark-specific and is not planned.
+
+## G02 probe: the reference setting on inputs shifted by the backend's own offset estimate (2026-10-05, pc)
+
+**Hypothesis** (F21, X08): the effective camera-IMU offset varies per recording; the backend's free offset (G01 / X08 estimates from the F15-setting dumps: 1_19 2.7 ms, R_12 4.5, 2_11 4.3, R_01 4.3) would set it per sequence in a two-pass, non-causal, general way.
+
+**Change**: `make_timeshift_input.py` on the `_rect` inputs with those values (`data/derived/<seq>_rect_td27|td45|td43`, headers verified), reference setting (`configs/v4_g2_w01_pw1e2`, F15 environment, binary `results/v4-G01-vi-ba/bin`). `results/v4-G02-td-probe/`, unit `lamaria-v4-g02p`, 19:58 to 20:24.
+
+**Result** (ATE m / score):
+
+| Run | 0 ms (F21 / F22) | backend offset | 5 ms (F20, reference) |
+|---|---|---|---|
+| sequence_1_19 | **1.08** / 66.1 (F21) | 2.7 ms: 1.27 / 60.6 | 2.35 / 45.7 |
+| R_12_10cp skip 0 / 100 | F22 pending | 4.5 ms: **2.68** / 42.6, **2.93** / 41.9 | 3.14 / 39.2, 3.30 / 38.9 |
+| sequence_2_11 | F22 pending | 4.3 ms: 5.96 / 22.8 | **5.08** / 27.6 |
+| R_01_easy skip 0 / 100 | 0.357, 0.306 (F22) | 4.3 ms: 0.138, 0.195 | 0.138, 0.151 |
+
+**Reading**: the backend's estimate beats the fixed 5 ms on R_12 (both offsets, 0.4 to 0.5 m) and on 1_19 (1.1 m, though no shift at all is better still), loses on 2_11 (0.9 m) and ties on R_01. Under the trusted gyro the long sequences' heading reacts to sub-millisecond timing changes in either direction (X08), so a per-sequence rule has to be judged on the whole set, not on four runs: F22 (0 ms, all sequences) and G02 (backend offsets from the F22 dumps, all sequences) give that table.
+
+**Decision**: open until the G02 table exists. Nothing kept.
+
+**Applicability**: a per-recording time-offset self-calibration (first pass, batch estimate, second pass) is general and non-causal; whether it helps here depends on how well the batch estimate predicts the filter's optimum, which these four runs leave undecided.
