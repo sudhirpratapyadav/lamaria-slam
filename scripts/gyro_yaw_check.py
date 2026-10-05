@@ -105,9 +105,20 @@ def main():
     Rg = Rp[0] * Rg
     gi = np.clip(np.searchsorted(t, tp), 0, len(t) - 1)
     yaw_g, ang_g = yaw_error(Rp, Rg[gi])
+    # full linear gyro model against the pGT: dp ~= M dg + b dt (scale, misalignment, bias; 12 parameters)
+    A = np.zeros((ok.sum() * 3, 12)); y = dp[ok].ravel()
+    for r in range(3):
+        A[r::3, 3 * r:3 * r + 3] = dg[ok]; A[r::3, 9 + r] = dti[ok, 0]
+    x = np.linalg.lstsq(A, y, rcond=None)[0]
+    M = x[:9].reshape(3, 3); bm = x[9:]
+    Rm = Rp[0] * integrate(t, (M @ w.T).T + bm)
+    yaw_m, ang_m = yaw_error(Rp, Rm[gi])
+    U, S, Vt = np.linalg.svd(M)
+    model = {"scale_pct": list(((S - 1) * 100).round(3)), "rotation_deg": round(float(np.degrees(np.linalg.norm(R.from_matrix(U @ Vt).as_rotvec()))), 3),
+             "bias_deg_s": list(np.degrees(bm).round(4)), "yaw_err_end_deg": float(yaw_m[-1]), "yaw_err_rms_deg": float(np.sqrt(np.mean(yaw_m ** 2))), "angle_err_end_deg": float(ang_m[-1])}
     out = {"label": a.label, "duration_s": float(hi - lo), "pgt_body_from_imu_deg": round(float(np.degrees(np.linalg.norm(C.as_rotvec()))), 1), "gyro_bias_deg_s": list(np.degrees(b).round(5)),
            "gyro_only_yaw_err_end_deg": float(yaw_g[-1]), "gyro_only_yaw_err_max_deg": float(np.abs(yaw_g).max()),
-           "gyro_only_angle_err_end_deg": float(ang_g[-1]), "pgt_total_turning_deg": float(np.degrees(np.abs(dp[:, 2]).sum()))}
+           "gyro_only_angle_err_end_deg": float(ang_g[-1]), "pgt_total_turning_deg": float(np.degrees(np.abs(dp[:, 2]).sum())), "gyro_model": model}
     cols = {"t": tp - lo, "yaw_err_gyro": yaw_g}
     if a.est:
         te, Re = load_poses(a.est)
