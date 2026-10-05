@@ -1022,3 +1022,20 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: pattern 51 stays. F25 tests the template itself: Basalt's `optical_flow_type: "patch"` keeps each point's original patch as the template instead of re-templating from the previous frame, which removes sliding at the cost of robustness to appearance change.
 
 **Applicability**: the pattern is a tracker parameter of general meaning (support size vs precision); the finding is about this tracker on this data.
+
+## F25: the patch tracker with the original template (2026-10-05/06, pc)
+
+**Hypothesis** (X11, F24): the device-A heading drift is the slide of a tracker that re-templates from the previous frame every frame; a tracker that keeps each point's original patch cannot slide.
+
+**Change**: `config.optical_flow_type: "patch"` (Basalt's `PatchOpticalFlow`: the point's patch from its first frame is the template for every later frame) instead of `frame_to_frame`, reference setting otherwise (`configs/v4_g2_w01_patchflow`), R_12 and 3_17 at skip 0. `results/v4-F25-patchflow/`, unit `lamaria-v4-f25`, 23:50 to 00:00. Note: the v4 patches to the flow (observation dump, external tracks) live in the frame-to-frame class only; nothing of that is used here.
+
+**Result** (ATE m / score / recall 5 m; end heading error deg / rms; scale):
+
+| Seq | frame_to_frame (reference) | patch (original template) |
+|---|---|---|
+| R_12_10cp | 3.14 / 39.2 / 92.8; -9.4 / 5.2; 0.988 | 4.22 / 27.7 / 76.2; **-0.7 / 3.4**; 1.003 |
+| sequence_3_17 | 16.4 / 9.1 / 22.6; -24.2 / 12.8; 0.989 | **7.75 / 20.4 / 52.3**; **-14.6 / 6.8**; 1.024 |
+
+**Reading**: the heading drift is cut by half to all of it (3_17 -24 to -15 deg, R_12 -9 to -1) and the scale deficit of device A disappears (0.99 to 1.00 / 1.02) when the template cannot slide; what remains on 3_17 is the gyro's own uncorrected part plus whatever the original-template tracker loses when appearance changes. The price is local precision and track length: R_12's ATE and score get worse (short tracks under appearance change, fewer constraints), 3_17's recall doubles anyway because the drift dominated it. **Mechanism found**: the frame-to-frame re-templating of the KLT tracker slides systematically along the direction of image flow (expansion when walking forward), which the batch solve cannot see (X11), the time reversal flips (X06), the host camera orients (X02) and the template size scales (F24). Zero restarts on both.
+
+**Decision**: not a config change (the patch tracker loses the controlled set's precision); the fix is a hybrid front end: frame-to-frame tracking for precision and robustness, with each point re-aligned to its original patch whenever that alignment converges, so that the slide is corrected without shortening tracks (F26). Applicability of the finding: general to every KLT front end that re-templates per frame (OpenVINS, VINS, Basalt), strongest in forward motion with textured, approaching scenes, i.e. a walking or driving robot; a dark or slow scene hides it.
