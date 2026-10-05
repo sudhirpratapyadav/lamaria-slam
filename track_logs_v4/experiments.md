@@ -13,6 +13,8 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F12: both-camera landmarks + 1 s window | **2.074** | **24.9** | 14 restarts; long-walk ATE -1/3, scores flat |
 | F15: F12 + F14d initialisation + gauge prior 1e2 | 2.134 | 23.6 | **1 restart** in 36 runs; robustness baseline |
 | F16: F15 + gyro x2 (8 runs) | R_12 2.5, R_08 3.6, R_04 1.45 | 2_11 44, 4_11 34 | drift gone on device A; indoor and dark walk lose; F16b / F16c |
+| F17d: F15 + gyro x2 + factory IMU model | 2.313 | **25.2** | 0 restarts; option for dark scenes (4_11 3.83, 4_10 2.76) |
+| **F17e: F17d + 5 ms camera time offset (v4 causal reference)** | **1.324** | 23.7 | 0 restarts; loses R_06, R_08, the dark walks (4_11 12.9), 1_19 |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -627,11 +629,11 @@ Accelerometer x10 is a free small gain over x20 (R_01, 4_11), x5 is destructive;
 
 **Applicability**: gyro weight and factory IMU model are per-device constants (the robot's ICM-42688-P will need its own: gyro density from the datasheet, scale / misalignment / bias from a calibration); the camera time offset must be measured per rig and, on this evidence, validated on long and short sequences separately before it is trusted.
 
-## X07: why the 5 ms offset wins the short sequences and loses the long ones (2026-10-05, pc, analysis)
+## X08: why the 5 ms offset wins the short sequences and loses the long ones (2026-10-05, pc, analysis)
 
 **Question**: F16e / F17 show the measured 5 ms camera-IMU offset winning every short indoor sequence under the trusted gyro and losing most long ones (4_11 3.83 to 12.9, R_12 2.95 to 4.41, 1_19 1.03 to 2.22, 3_17 9.7 to 18.6) while winning 2_12 (16.8 to 5.0). Is the offset sequence-dependent, or does it act on the heading through something else?
 
-**Method**: (1) sim3 scale and `gyro_yaw_check.py` heading on the F17d (no offset) and F17e (5 ms) runs of the six long sequences (`results/v4-X07-f17-heading/`); (2) the backend with the time offset free (`configs/vi_ba_td`) on the F15-setting dumps of 4_11 and 1_19 (`results/v4-G01-vi-ba/ba_x07_td_*`), to add to R_01 / R_12 / 2_11 from G01; (3) Project Aria's documentation on timestamps; (4) v1's record.
+**Method**: (1) sim3 scale and `gyro_yaw_check.py` heading on the F17d (no offset) and F17e (5 ms) runs of the six long sequences (`results/v4-X08-f17-heading/`); (2) the backend with the time offset free (`configs/vi_ba_td`) on the F15-setting dumps of 4_11 and 1_19 (`results/v4-G01-vi-ba/ba_x07_td_*`), to add to R_01 / R_12 / 2_11 from G01; (3) Project Aria's documentation on timestamps; (4) v1's record.
 
 **Result 1, scale vs heading.** The offset fixes the scale on every long sequence (4_11 0.926 to 1.036, 2_12 0.954 to 0.985, 3_17 0.951 to 0.989, 1_19 0.968 to 0.991) and moves the end heading by 10 to 25 degrees in **either** direction:
 
@@ -653,3 +655,65 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Conclusion**: the 5 ms shift is right as a sensor constant (scale and the short sequences prove it) and the long sequences' heading is the open problem it exposes: with the gyro trusted at x2, the heading error of a 20 to 30 minute walk is set by the gyro-bias estimate and moves by 10 to 25 degrees under a 5 ms timing change. The lever is the bias estimation itself (gyro bias random walk, `GYRO_WALK_SCALE`, untested in v4; the backend with a tight walk, G01e, did nothing because its problem is dominated by the vision terms), not the offset.
 
 **Applicability**: the Aria timestamp facts are this sensor's; the mechanism (time-offset error pumps rotation residuals into the gyro bias when the gyro is trusted) is general to any VIO with a fixed time offset and holds for the robot's ICM-42688-P (whose own filter latency is in its datasheet and should be applied as a config constant). Diagnostic only; nothing kept.
+
+## F17: the two full-set candidates, gyro x2 + factory IMU model, with and without the 5 ms offset (2026-10-05, pc)
+
+**Hypothesis** (F16 to F16e): on top of the F15 setting (both-camera landmarks, 1 s window, gravity from the rotated mean, velocity solved, gauge prior 1e2), the gyro trusted at x2 of its datasheet removes the device-A heading drift; the factory IMU model protects the long sequences and the dark walk; the measured 5 ms camera time offset wins the short indoor sequences. Which of the two combinations is the v4 causal reference is decided on the full sets.
+
+**Change**: `configs/v4_gyro_n2_pw1e2` (= `v4_initpw1e2` + `GYRO_NOISE_SCALE=2`, accelerometer at x20, walk x1) with `BASALT_MONO_CAMS=1 BASALT_INIT_WINDOW_S=1 BASALT_INIT_VEL=2 BASALT_OUTLIER_PX=3 BASALT_OUTLIER_LM_RULE=1 DROP_PRE_INIT=1`, binary `results/v4-G01-vi-ba/bin` (basalt_vio 196d977bf0fc, libbasalt 4c1a3b7f8590), no dumps. **F17d**: inputs `data/derived/<seq>_rect` (`make_rectified_input.py`, factory gyro / accelerometer model and biases). **F17e**: inputs `data/derived/<seq>_rect_dtp5` (the same, IMU timestamps 5.000 ms earlier, headers verified). Controlled set at both offsets, additional set at skip 0, two runs in parallel per batch, both batches concurrently (`results/v4-F17d-gyro-n2-rect-full/batch.sh`, `results/v4-F17e-gyro-n2-rect-dt5-full/batch.sh`, units `lamaria-v4-f17d` / `lamaria-v4-f17e`, 11:29 to 14:00).
+
+**Result** (ATE m / control-point score / restarts; `scripts/compare_runs.py`):
+
+| run | v3 ref (F21) ATE / score / restarts | F15 | F17d: gyro x2 + factory IMU | F17e: F17d + 5 ms offset |
+|---|---|---|---|---|
+| R_01_easy_skip0 | 0.13 / - / 0 | 0.17 / - / 0 | 0.34 / - / 0 | 0.13 / - / 0 |
+| R_01_easy_skip100 | 0.14 / - / 0 | 0.17 / - / 0 | 0.36 / - / 0 | 0.19 / - / 0 |
+| R_02_easy_skip0 | 0.21 / - / 0 | 0.18 / - / 0 | 0.28 / - / 0 | 0.19 / - / 0 |
+| R_02_easy_skip100 | 0.26 / - / 0 | 0.22 / - / 0 | 0.31 / - / 0 | 0.18 / - / 0 |
+| R_03_easy_skip0 | 0.35 / - / 1 | 0.46 / - / 0 | 0.42 / - / 0 | 0.42 / - / 0 |
+| R_03_easy_skip100 | 0.30 / - / 0 | 0.42 / - / 0 | 0.35 / - / 0 | 0.44 / - / 0 |
+| R_04_medium_skip0 | 0.70 / - / 1 | 0.76 / - / 0 | 1.81 / - / 0 | 0.43 / - / 0 |
+| R_04_medium_skip100 | 0.66 / - / 3 | 0.73 / - / 0 | 1.32 / - / 0 | 0.33 / - / 0 |
+| R_05_medium_skip0 | 1.36 / - / 0 | 1.46 / - / 0 | 2.12 / - / 0 | 1.45 / - / 0 |
+| R_05_medium_skip100 | 1.21 / - / 0 | 1.33 / - / 0 | 2.18 / - / 0 | 1.32 / - / 0 |
+| R_06_medium_skip0 | 1.26 / - / 0 | 1.00 / - / 0 | 4.67 / - / 0 | 1.29 / - / 0 |
+| R_06_medium_skip100 | 0.99 / - / 0 | 1.05 / - / 0 | 4.74 / - / 0 | 1.31 / - / 0 |
+| R_07_medium_skip0 | 1.20 / - / 1 | 1.63 / - / 0 | 4.65 / - / 0 | 0.82 / - / 0 |
+| R_07_medium_skip100 | 1.31 / - / 0 | 1.45 / - / 0 | 3.85 / - / 0 | 0.98 / - / 0 |
+| R_08_hard_skip0 | 1.03 / - / 0 | 0.67 / - / 0 | 2.45 / - / 0 | 1.60 / - / 0 |
+| R_08_hard_skip100 | 0.81 / - / 1 | 0.93 / - / 0 | 2.48 / - / 0 | 1.22 / - / 0 |
+| R_09_hard_skip0 | 1.88 / - / 0 | 2.37 / - / 0 | 2.36 / - / 0 | 1.76 / - / 0 |
+| R_09_hard_skip100 | 2.06 / - / 0 | 2.47 / - / 0 | 2.36 / - / 0 | 1.86 / - / 0 |
+| R_10_hard_skip0 | 4.47 / - / 1 | 3.67 / - / 0 | 4.29 / - / 0 | 1.68 / - / 0 |
+| R_10_hard_skip100 | 2.95 / - / 0 | 4.01 / - / 0 | 6.09 / - / 0 | 1.46 / - / 0 |
+| R_11_5cp_skip0 | 2.17 / 76.7 / 0 | 1.29 / 85.2 / 0 | 1.22 / 65.0 / 0 | 0.55 / 78.0 / 0 |
+| R_11_5cp_skip100 | 1.68 / 79.3 / 0 | 2.57 / 73.7 / 0 | 0.90 / 72.0 / 0 | 0.56 / 80.5 / 0 |
+| R_12_10cp_skip0 | 13.99 / 9.6 / 0 | 9.62 / 13.8 / 0 | 2.95 / 35.6 / 0 | 4.41 / 30.0 / 0 |
+| R_12_10cp_skip100 | 13.95 / 9.6 / 1 | 11.29 / 8.9 / 0 | 3.22 / 34.4 / 0 | 4.46 / 30.6 / 0 |
+| R_13_15cp_skip0 | 3.42 / 40.7 / 0 | 2.82 / 48.4 / 0 | 2.28 / 48.0 / 0 | 2.75 / 48.9 / 0 |
+| R_13_15cp_skip100 | 3.37 / 41.2 / 0 | 2.75 / 49.0 / 0 | 2.15 / 50.2 / 0 | 2.64 / 50.4 / 0 |
+| sequence_1_19_skip0 | 0.65 / 74.8 / 0 | 1.21 / 62.8 / 0 | 1.03 / 68.5 / 0 | 2.22 / 47.3 / 0 |
+| sequence_1_20_skip0 | 2.77 / 41.2 / 0 | 1.41 / 56.7 / 0 | 7.40 / 23.7 / 0 | 1.60 / 53.2 / 0 |
+| sequence_2_11_skip0 | 21.51 / 21.1 / 0 | 12.62 / 5.7 / 0 | 5.89 / 25.4 / 0 | 5.61 / 25.5 / 0 |
+| sequence_2_12_skip0 | 31.69 / 3.7 / 0 | 20.96 / 5.8 / 0 | 16.78 / 7.8 / 0 | 5.01 / 34.5 / 0 |
+| sequence_3_17_skip0 | 46.94 / 6.0 / 0 | 34.99 / 4.5 / 0 | 9.66 / 13.9 / 0 | 18.61 / 8.5 / 0 |
+| sequence_3_18_skip0 | 56.12 / 1.7 / 0 | 34.64 / 6.6 / 0 | 24.77 / 9.7 / 0 | 22.69 / 14.2 / 0 |
+| sequence_4_10_skip0 | 6.12 / 20.6 / 0 | 3.52 / 35.0 / 0 | 2.76 / 48.3 / 0 | 9.71 / 7.3 / 0 |
+| sequence_4_11_skip0 | 1.77 / 56.9 / 3 | 4.26 / 48.0 / 1 | 3.83 / 33.1 / 0 | 12.91 / 25.6 / 0 |
+| sequence_5_11_skip0 | - / 8.2 / 0 | - / 7.5 / 0 | - / 14.7 / 0 | - / 14.3 / 0 |
+| sequence_5_12_skip0 | - / 3.0 / 0 | - / 3.3 / 0 | - / 6.5 / 0 | - / 6.1 / 0 |
+
+| Setting | Controlled two-offset mean | Additional mean score | Restarts (36 runs) |
+|---|---|---|---|
+| v3 reference (F21) | 2.379 | 23.7 | 12 |
+| F15 | 2.134 | 23.6 | 1 |
+| F17d (gyro x2 + factory IMU) | 2.313 | **25.2** | 0 |
+| F17e (F17d + 5 ms offset) | **1.324** | 23.7 | 0 |
+
+**Reading.** F17e wins or ties 11 of the 13 controlled sequences against F15 (R_04 0.76 to 0.43 / 0.33, R_07 1.63 to 0.82, R_10 3.67 to 1.68 / 1.46, R_11 1.29 / 2.57 to 0.55 / 0.56, R_12 9.6 / 11.3 to 4.4 / 4.5) and loses R_06 (1.00 to 1.29) and R_08 (0.67 to 1.60, device B); the controlled mean falls by 38 %. F17d without the offset loses the indoor medium set badly (R_06 4.7, R_07 4.6, R_05 2.1) and wins only R_12 (2.95 / 3.22) and R_13. On the additional set the two split along the heading sensitivity of X08: F17e wins 2_12 (16.8 to **5.0**, score 7.8 to 34.5), 1_20 (7.4 to 1.6), 3_18 and 2_11 slightly; F17d wins the dark walks (4_11 3.83 vs 12.9, 4_10 2.76 vs 9.7), 3_17 (9.7 vs 18.6) and 1_19 (1.03 vs 2.22). Both score 14 / 6 on the night walks 5_11 / 5_12 (v3: 8 / 3). Neither restarts anywhere. Against the v3 reference, F17e halves the long-walk ATE (3_17 47 to 19, 3_18 56 to 23, 2_12 32 to 5, 2_11 21.5 to 5.6) but loses the dark walk 4_11 (1.77 to 12.9) and 1_19 (0.65 to 2.22).
+
+**Decision**: **F17e is the v4 causal reference** (`configs/v4_gyro_n2_pw1e2` on `_rect_dtp5` inputs with the F15 environment): the controlled mean is the primary metric and falls from 2.134 to 1.324 at an equal additional score and zero restarts. F17d is kept as the recorded option for dark scenes (its additional score 25.2 is the best so far, carried by the two dark walks). The dark walks under the reference are the open problem (4_11 12.9 / 4_10 9.7 against F17d's 3.83 / 2.76 and v3's 1.77 / 6.1); X08 ties the loss to the heading's sensitivity under the trusted gyro, and F18 (gyro bias random walk) probes the lever next.
+
+**Cost**: unchanged front end; the factory model and the shift are input preprocessing (one pass over imu.csv). Runtime as F15.
+
+**Applicability**: the gyro weight (x2 of datasheet, accelerometer x20) is a sensor-and-rig tuning that a new sensor must redo with the same procedure (gyro-alone heading check, X01, tells whether the gyro can be trusted); the factory IMU model is any sensor's own calibration and fully general; the 5 ms offset is this device's data-ready latency (Aria docs, X08) and the robot's ICM-42688-P has its own, to be put in a config constant. Where it can fail: dark scenes and sequences whose heading drift is near the gyro's own (the trusted gyro then carries the heading and timing errors go into the bias), and any device whose gyro is worse than Aria's.
