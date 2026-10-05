@@ -571,3 +571,18 @@ No restarts in any run. The backend on the F16 dumps (G01, time offset free or f
 **Reading**: the trusted gyro removes the device-A daytime heading drift completely (R_12 from 14 m in v3 to 2.5 m; 2_11 from 21.5 to 4.7) and 1_19 no longer breaks (F01: 14 m); but it costs the dark walk 3.4 m through scale, not heading, and the indoor set badly (R_08 x5, R_04 x2, R_01 / R_02 +0.07 to +0.1). F01's split is still there. Two candidate causes for the indoor loss, both testable: the accelerometer still at x20 against a gyro at x2 (F16b: accel x5 / x10 with gyro x2, and gyro x5, on 4_11, 2_11, R_01, R_12), and the uncorrected 5 ms camera time offset that the loose gyro was covering (F16c: F16 setting on the 5 ms-shifted inputs of R_08, R_04, 4_11, 2_11, R_12, R_01; the backend put td at 4.2 to 4.5 ms with the gyro trusted). The full-set run (F17) waits for these.
 
 **Applicability**: the gyro weight is a sensor constant (the Aria gyro at about its datasheet density); on the robot's ICM-42688-P it must be set the same way (heading against a reference). General, but only together with whatever F16b / F16c show the indoor set needs.
+
+**F16c, the trusted gyro with the measured 5 ms camera time offset applied** (F16 setting on the rebuilt `_dtp5` inputs, images 5 ms later relative to the IMU; ATE m / score; F16 and F15 in brackets):
+
+| Sequence | F16c (gyro x2 + 5 ms) | F16 (gyro x2) | F15 |
+|---|---|---|---|
+| R_01_easy | **0.165** | 0.275 | 0.166 |
+| R_04_medium | **0.520** | 1.45 | 0.76 |
+| R_08_hard | 2.65 | 3.64 | **0.67** |
+| R_12_10cp | 5.37 / 29.4 | **2.51 / 40.1** | 9.62 / 13.8 |
+| sequence_2_11 | **4.23** / 35.1 | 4.74 / **44.4** | 12.6 / 5.7 |
+| sequence_4_11 (dark) | 24.2 / 13.1 (scale 1.05) | 7.63 / 34.4 (0.94) | **4.26 / 48.0** |
+
+No restarts. The offset gives R_01 and R_04 back and more (R_04 0.52 is the best R_04 of the project), halves R_08's loss without removing it, takes half of R_12's gain back, and collapses the dark walk. R_08 under F16 (drift analysis): heading fine (-4.4 deg end, F15 +3.5), but the 60 s window scale wanders 0.98 to 1.06 (F15 0.99 to 1.03) and the window RMSE doubles (0.185 vs 0.073 m): the trusted gyro degrades the *local* solution on this fast indoor sequence, which is a short-term model mismatch (timing, or a gyro model) rather than drift. **F16d** (`lamaria-v4-f16d`) runs the F16 setting on the factory-rectified IMU inputs (F08 model) for R_12, 2_11, 4_11, 1_19: with the IMU trusted, the IMU model may matter where it was neutral under x20.
+
+**F16b, first wave (gyro x2 with the accelerometer at x5)**: R_01 0.249, R_12 5.21 / 25.1 (scale 0.943), 2_11 5.13 / 29.2 (scale 0.940): trusting the accelerometer more makes the scale *worse* on device A (F16: 0.988 / 0.967), the signature of the accelerometer's own systematic error (device A's factory accelerometer bias is 0.25 to 0.39 m/s^2, F08), which is the other reason to look at F16d.
