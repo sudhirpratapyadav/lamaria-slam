@@ -14,9 +14,10 @@
 
 ## Running
 
-- F18 (`lamaria-v4-f18`, running since 14:00): gyro bias random walk 0.3x / 3x on the F17e setting, on R_12, 4_11, 1_19, 2_12 (the sequences whose heading moved under the offset, X08) and R_04, R_08.
+- F20 (`lamaria-v4-f20`, since 16:55): full sets with the gyro bias random walk at 0.1x (`configs/v4_g2_w01_pw1e2`) on the reference inputs; the candidate to replace F17e.
+- F18c (`lamaria-v4-f18c`): 0.03x on the six F18 sequences.
+- F18 / F18b done: the bias walk is the lever (3x loses everywhere; 0.3x / 0.1x: R_12 4.41 to 3.14, 4_11 12.9 to 6.7, 2_12 5.0 to 4.1, R_08 1.60 to 1.32; R_04 +0.07, 1_19 +0.13).
 - F19 done: the dark walks lose to the 5 ms offset itself (gyro x20 on the shifted inputs: 4_11 7.16, 4_10 8.31 vs F15 4.26 / 3.52); with the backend's near-zero offset on 4_11 this makes the effective camera-IMU offset exposure-dependent (about 4 ms in daylight, about 0 in the dark). Candidate fix: per-sequence offset from a first pass (non-causal, general).
-- F18b (`lamaria-v4-f18b`, queued behind F18): gyro bias walk 0.1x on the same six sequences.
 - X08 (analysis, done): the 5 ms offset is a sensor constant (fixes scale everywhere, backend and v1 agree on about 4 ms, Aria docs give the sign); on the long sequences it perturbs the residual heading drift by 10 to 25 deg either way, so the lever is the gyro-bias estimate, not the offset.
 - F17 complete (14:00): **v4 causal reference = F17e** (`configs/v4_gyro_n2_pw1e2` + F15 environment on `data/derived/<seq>_rect_dtp5`): controlled 1.324 (v3 2.379, F15 2.134), additional 23.7, zero restarts; F17d (no offset) 2.313 / 25.2 kept as the dark-scene option. Open: dark walks (4_11 12.9 vs F17d 3.83 vs v3 1.77).
 - Done today: F12 (2.074 / 24.9, 14 restarts), F15 (2.134 / 23.6, 1 restart; robustness baseline), F16 to F16e (the gyro trusted at x2 removes the device-A heading drift: R_12 9.6 to 2.5, 2_11 12.6 to 4.7; the factory IMU model protects the dark walk and 1_19; the 5 ms offset wins the short indoor sequences and loses the long ones; the accelerometer must stay at x20), G01 backend (reproduces the filter under every weighting; free time offset +3.4 to +4.5 ms; R_01 0.166 to 0.090; no cross-camera observations on Aria's pair without `BASALT_STEREO_INIT`).

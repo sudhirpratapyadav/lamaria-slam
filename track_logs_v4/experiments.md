@@ -741,3 +741,26 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Decision**: no change to the reference. Recorded as the explanation of the dark-walk loss. Options, in order of generality: (a) a per-sequence offset from a first pass (the backend's free td; non-causal and general to any rig with an uncertain offset, X08 shows it recovers the right sign per sequence); (b) an exposure-dependent offset, if exposure values can be had (needs the .vrs, owner's approval for a download); (c) online time-offset estimation in the filter (Basalt lacks it).
 
 **Applicability**: the finding (effective offset depends on exposure) is about how this dataset's timestamps were exported; for the robot's own camera the timestamp semantics (start / centre / end of exposure) must be established once and the centre used, which is general practice.
+
+## F18 / F18b: the gyro bias random walk on the reference setting (2026-10-05, pc)
+
+**Hypothesis** (X08): under the trusted gyro the long sequences' heading is set by the gyro-bias estimate, and a 5 ms timing change moves it by 10 to 25 degrees; a tighter bias random walk should make that estimate steadier (less of each turn's timing residual absorbed into the bias), a looser one worse.
+
+**Change**: `GYRO_WALK_SCALE` (gyro bias random walk, `gyro_bias_std` in Basalt's calib, datasheet 2.44e-4 rad/s/sqrt(s)) at 0.3x and 3x (`configs/v4_g2_w03_pw1e2`, `v4_g2_w3_pw1e2`, F18) and 0.1x (`v4_g2_w01_pw1e2`, F18b) on the reference setting (F17e: gyro x2, factory IMU, 5 ms, F15 environment, binary `results/v4-G01-vi-ba/bin`), on the four sequences whose heading moved under the offset and two short indoor controls, skip 0. `results/v4-F18-gyro-walk/`, `results/v4-F18b-gyro-walk01/`, units `lamaria-v4-f18`, `lamaria-v4-f18b` (14:00 to 14:55).
+
+**Result** (ATE m, score where it exists):
+
+| Seq | 3x | 1x (reference) | 0.3x | 0.1x |
+|---|---|---|---|---|
+| R_12_10cp | 6.16 / 21.3 | 4.41 / 30.0 | 3.48 / 36.0 | **3.14 / 39.2** |
+| sequence_4_11 (dark) | 15.6 / 19.0 | 12.9 / 25.6 | 8.96 / 25.8 | **6.70 / 30.3** |
+| sequence_2_12 | 5.67 / 28.4 | 5.01 / 34.5 | **4.07 / 40.4** | 4.35 / 40.5 |
+| sequence_1_19 | **2.09 / 48.7** | 2.22 / 47.3 | 2.37 / 45.5 | 2.35 / 45.7 |
+| R_04_medium | **0.388** | 0.425 | 0.454 | 0.491 |
+| R_08_hard | 1.52 | 1.60 | 1.44 | **1.32** |
+
+**Reading**: monotone in the expected direction on every device-A sequence and on R_08: the looser walk loses everywhere, the tighter walk gains 1.3 m on R_12, 6.2 m on the dark walk, 0.7 to 0.9 m on 2_12 and 0.3 m on R_08; the cost is 0.07 m on R_04 and 0.13 m on 1_19 (device B, where the heading is already within 5 deg). Scale unchanged (0.985 to 1.03). No restarts. 0.1x is the better of the two tight values on four of six sequences, and the trend has not turned, so 0.03x is probed (F18c) while the full set runs at 0.1x (F20).
+
+**Decision**: F20 (full sets at 0.1x) decides; F18c (0.03x, same six) in parallel.
+
+**Applicability**: a noise-model tuning of this IMU (the Aria gyro's datasheet walk is loose relative to its measured drift, X01: about 1 deg/min of wandering bias); the procedure (set the bias walk from the gyro-alone drift check, then confirm on long sequences) is general, the value is not. Where it can fail: a gyro whose bias really wanders faster (temperature transients at start-up, cheap MEMS under vibration on the robot) would be followed too slowly; the robot's ICM-42688-P needs its own number.
