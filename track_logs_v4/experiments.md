@@ -17,7 +17,7 @@ Method rules (from v3): one frozen binary per experiment (`scripts/snapshot_basa
 | F17e: F17d + 5 ms camera time offset | 1.324 | 23.7 | 0 restarts; reference 14:00 to 19:20; loses R_06, R_08, the dark walks (4_11 12.9), 1_19 |
 | F18 / F18b / F18c: gyro bias walk 3x / 0.3x / 0.1x / 0.03x (6 runs) | R_12 6.2 / 3.5 / 3.1 / 3.0 | 4_11 19 / 26 / 30 / 30 | 3x loses everywhere; tighter gains monotonically, flattening below 0.1x |
 | **F20: F17e + gyro bias walk 0.1x (v4 causal reference)** | **1.229** | **27.0** | 0 restarts; dark walks 6.7 / 6.8, R_09 / R_10 lose 0.3 to 0.8 m |
-| F20b: F17e + gyro bias walk 0.03x | 1.224 | running | |
+| F20b: F17e + gyro bias walk 0.03x | 1.224 | 27.5 | equivalent to 0.1x within spread; not taken (30x below datasheet) |
 
 ## X01: what the long walks actually lose (2026-10-05, pc, analysis)
 
@@ -825,6 +825,10 @@ The long-sequence ATE is the heading, and the heading's response to a 5 ms shift
 **Reading**: both scoreboard metrics improve. Controlled: R_12 4.41 / 4.46 to 3.14 / 3.30, R_13 2.75 / 2.64 to 2.01 / 1.94, R_08 1.60 / 1.22 to 1.32 / 0.99, R_07 and R_11 slightly; losses on R_09 (1.76 / 1.86 to 2.57 / 2.31), R_10 (1.68 / 1.46 to 1.96 / 1.74), R_05 and R_04 (0.1 m). Additional: every walk but the two device-B ones gains, the dark walks most (4_11 12.9 to 6.70, score 25.6 to 30.3; 4_10 9.71 to 6.80, 7.3 to 16.3), the long walks 3_18 22.7 to 18.8 (14.2 to 19.4), 3_17 18.6 to 16.4, 2_12 5.0 to 4.35 (34.5 to 40.5), the night walk 5_11 14.3 to 22.5; 1_19 2.22 to 2.35 and 1_20 1.60 to 1.81 lose 0.1 to 0.2 m. Scale and restarts unchanged. The R_09 / R_10 losses (hard indoor, device A) are the one new cost and were not in the F18 probe set.
 
 **Decision**: **F20 is the v4 causal reference** (`configs/v4_g2_w01_pw1e2`, F15 environment, `_rect_dtp5` inputs, binary `results/v4-G01-vi-ba/bin`). F17e stays recorded as the previous reference. F20b (0.03x, running) decides the value; by the F18c probe its margin is 0.1 to 0.2 m on the drifting sequences and negative on device B, and the generality argument (30x below datasheet) favours 0.1x unless the full set says otherwise.
+
+**F20b, 0.03x on the full sets** (`configs/v4_g2_w003_pw1e2`, `results/v4-F20b-walk003-full/`, unit `lamaria-v4-f20b`, 17:34 to 19:58): controlled **1.224**, additional **27.5**, zero restarts. Against 0.1x: R_12 3.14 / 3.30 to 2.98 / 2.99, 4_10 6.80 to 5.92, 2_12 4.35 to 4.16, 3_18 18.8 to 18.2; R_05 skip 0 1.54 to 1.83, R_09 / R_10 a little worse again, 1_19 2.35 to 2.53. The scoreboard difference (5 mm, half a point) is inside the spread of single runs; the gain per factor of three has gone from metres (3x to 0.3x) to centimetres.
+
+**Decision on the value**: the reference stays at **0.1x**; 0.03x is an equivalent option on this data and sits 30x below the datasheet walk, which a gyro whose bias really wanders would punish. The flat optimum between 0.03x and 0.1x is itself the useful fact: the walk only needs to be an order of magnitude below Aria's datasheet value.
 
 **Cost**: none (a noise parameter).
 
